@@ -1,0 +1,202 @@
+/*
+ * Ledgerline design system — token layer.
+ * Source: "Ledgerline Design System.dc.html".
+ *
+ * Cool-neutral greys, one accent, three semantics. All values in oklch so the
+ * ramp stays even. Components reference these tokens only; no component file
+ * contains a raw colour.
+ */
+
+:root {
+  /* ---- Surfaces & lines -------------------------------------------------- */
+  --bg-ground: oklch(0.128 0.007 265); /* behind the window itself */
+  --bg-sunken: oklch(0.161 0.008 265); /* sidebar, window chrome */
+  --bg-base: oklch(0.191 0.008 265); /* main content canvas */
+  --bg-raised: oklch(0.223 0.009 265); /* cards, table rows, inputs */
+  --bg-overlay: oklch(0.255 0.010 265); /* menus, dialogs, hover */
+  --line-subtle: oklch(0.288 0.011 265); /* default 1px divider */
+  --line-strong: oklch(0.365 0.013 265); /* focus ring, active field */
+
+  /* ---- Text -------------------------------------------------------------- */
+  --text-primary: oklch(0.958 0.004 265);
+  --text-secondary: oklch(0.762 0.008 265);
+  --text-tertiary: oklch(0.610 0.010 265);
+  --text-muted: oklch(0.470 0.010 265);
+
+  /* ---- Accent ------------------------------------------------------------
+   * Running timer, primary action, one selected row. Never decorative. */
+  --accent: oklch(0.655 0.175 274);
+  --accent-hover: oklch(0.705 0.175 274);
+  --accent-link-hover: oklch(0.775 0.140 274);
+  --accent-on: oklch(0.150 0.020 274); /* text on a solid accent fill */
+  --accent-surface: oklch(0.300 0.055 274); /* timer bar, active nav, chips */
+  --accent-line: oklch(0.390 0.075 274);
+  --accent-divider: oklch(0.420 0.070 274);
+  --accent-text: oklch(0.820 0.100 274);
+  --accent-text-dim: oklch(0.780 0.045 274);
+  --accent-text-strong: oklch(0.860 0.080 274); /* initials on an accent avatar */
+  --accent-ctrl: oklch(0.245 0.045 274); /* control sitting on accent-surface */
+  --accent-ctrl-line: oklch(0.500 0.080 274);
+  --accent-ctrl-hover: oklch(0.290 0.055 274);
+  --accent-ctrl-line-hover: oklch(0.600 0.100 274);
+
+  /* ---- Semantics --------------------------------------------------------- */
+  --positive: oklch(0.760 0.148 156); /* paid, on budget, above rate floor */
+  --warning: oklch(0.800 0.145 78); /* approaching budget, due soon */
+  --negative: oklch(0.680 0.170 22); /* overdue, over budget, below floor */
+
+  /* ---- Tint family --------------------------------------------------------
+   * Every chip in the app is a low-chroma surface near L .300 with a
+   * high-chroma text near L .86 at the same hue. Accent is part of the family
+   * (--accent-surface / --accent-text above); neutral borrows the greys. */
+  --positive-surface: oklch(0.300 0.050 156);
+  --positive-text: oklch(0.860 0.120 156);
+  --warning-surface: oklch(0.300 0.050 78);
+  --warning-text: oklch(0.880 0.120 78);
+  --negative-surface: oklch(0.300 0.055 22);
+  --negative-text: oklch(0.820 0.130 22);
+  --neutral-surface: var(--line-subtle);
+  --neutral-text: var(--text-secondary);
+
+  /* ---- Status text --------------------------------------------------------
+   * From the "Status pills" spec board: "two carry colour, four are neutral —
+   * colour marks money moving". Backgrounds reuse the tint family above; only
+   * the text colours are particular to status. */
+  --status-draft-text: oklch(0.700 0.008 265);
+  --status-draft-line: oklch(0.400 0.011 265); /* the dashed edge */
+  --status-active-text: oklch(0.830 0.090 274);
+  --status-delivered-text: oklch(0.880 0.110 78);
+  --status-invoiced-text: oklch(0.860 0.008 265); /* neutral, but brighter */
+  --status-paid-text: oklch(0.860 0.110 156);
+  --status-cancelled-text: oklch(0.640 0.010 265);
+
+  /* ---- One-offs lifted from the artboards --------------------------------
+   * Not in the design system's named ramp: --bg-footer sits between bg.base
+   * and bg.raised and backs totals rows and dialog footers. */
+  --bg-footer: oklch(0.207 0.008 265);
+  --scrim: rgba(0, 0, 0, 0.55);
+
+  /* ---- Type -------------------------------------------------------------- */
+  --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans', Helvetica, Arial, sans-serif;
+  /* JetBrains Mono only for identifiers and token values, never prose or money */
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
+
+  --t-display: 600 34px/40px var(--font-sans);
+  --t-display-tracking: -0.02em;
+  --t-title: 600 26px/32px var(--font-sans);
+  --t-title-tracking: -0.015em;
+  --t-heading: 600 20px/28px var(--font-sans);
+  --t-heading-tracking: -0.01em;
+  --t-subhead: 500 16px/24px var(--font-sans);
+  --t-body: 400 14px/22px var(--font-sans);
+  --t-ui: 450 13px/20px var(--font-sans);
+  --t-label: 500 12px/16px var(--font-sans);
+  --t-overline: 600 11px/16px var(--font-sans);
+  --t-overline-tracking: 0.06em;
+
+  /* ---- Space (4px base grid) --------------------------------------------- */
+  --s-2: 2px;
+  --s-4: 4px;
+  --s-6: 6px;
+  --s-8: 8px;
+  --s-12: 12px;
+  --s-16: 16px;
+  --s-20: 20px;
+  --s-24: 24px;
+  --s-32: 32px;
+  --s-40: 40px;
+  --s-56: 56px;
+
+  --row-height: 32px;
+  --sidebar-gutter: 12px;
+  --card-padding: 16px;
+  --screen-gutter: 24px;
+  --sidebar-width: 232px;
+  --bar-height: 52px;
+  --timer-bar-height: 44px;
+
+  /* ---- Radius ------------------------------------------------------------ */
+  --r-ctrl: 4px;
+  --r-field: 6px;
+  --r-card: 8px;
+  --r-panel: 12px;
+  --r-pill: 999px;
+
+  /* ---- Elevation ---------------------------------------------------------
+   * A border plus a soft shadow, never a heavy drop. */
+  --e0: none;
+  --e1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --e2: 0 4px 12px -2px rgba(0, 0, 0, 0.45);
+  --e3: 0 16px 32px -8px rgba(0, 0, 0, 0.6);
+}
+
+/*
+ * Light — "same tokens, remapped. Chroma held, lightness inverted. Ramp order
+ * is identical, so components need no light-mode variants."
+ *
+ * The design system's light swatch row is unlabelled, so only some values below
+ * are given by it. Anything marked INFERRED or INVENTED is a reading of the
+ * system rather than a specified value, and should be replaced when the real
+ * light palette is published.
+ */
+:root[data-theme='light'] {
+  --bg-ground: oklch(0.900 0.006 265); /* INVENTED */
+  --bg-sunken: oklch(0.955 0.004 265); /* INFERRED — most recessed surface */
+  --bg-base: oklch(0.985 0.003 265); /* INFERRED */
+  --bg-raised: oklch(1 0 0); /* INFERRED — cards go white */
+  --bg-overlay: oklch(0.955 0.004 265); /* INFERRED — hover on white must darken */
+  --line-subtle: oklch(0.900 0.006 265); /* given */
+  --line-strong: oklch(0.820 0.008 265); /* INVENTED */
+
+  --text-primary: oklch(0.240 0.010 265); /* given */
+  --text-secondary: oklch(0.480 0.010 265); /* given */
+  --text-tertiary: oklch(0.580 0.010 265); /* INVENTED */
+  --text-muted: oklch(0.680 0.010 265); /* INVENTED */
+
+  --accent: oklch(0.505 0.190 274); /* given */
+  --accent-hover: oklch(0.455 0.190 274); /* INVENTED */
+  --accent-link-hover: oklch(0.420 0.180 274); /* INVENTED */
+  --accent-on: oklch(0.995 0.005 274); /* INVENTED */
+  --accent-surface: oklch(0.945 0.030 274); /* INVENTED */
+  --accent-line: oklch(0.880 0.055 274); /* INVENTED */
+  --accent-divider: oklch(0.860 0.050 274); /* INVENTED */
+  --accent-text: oklch(0.430 0.150 274); /* INVENTED */
+  --accent-text-dim: oklch(0.500 0.080 274); /* INVENTED */
+  --accent-text-strong: oklch(0.400 0.170 274); /* INVENTED */
+  --accent-ctrl: oklch(1 0 0); /* INVENTED */
+  --accent-ctrl-line: oklch(0.840 0.070 274); /* INVENTED */
+  --accent-ctrl-hover: oklch(0.965 0.020 274); /* INVENTED */
+  --accent-ctrl-line-hover: oklch(0.740 0.110 274); /* INVENTED */
+
+  --positive: oklch(0.520 0.130 156); /* given */
+  --warning: oklch(0.600 0.130 70); /* given */
+  --negative: oklch(0.545 0.180 25); /* given */
+
+  /* Tint family inverts with everything else: pale surface, dark text. All
+   * INVENTED — the design system specifies no light tints. */
+  --positive-surface: oklch(0.945 0.030 156);
+  --positive-text: oklch(0.430 0.110 156);
+  --warning-surface: oklch(0.950 0.035 70);
+  --warning-text: oklch(0.470 0.110 70);
+  --negative-surface: oklch(0.945 0.030 25);
+  --negative-text: oklch(0.470 0.160 25);
+  --neutral-surface: var(--line-subtle);
+  --neutral-text: var(--text-secondary);
+
+  /* Status text darkens with the rest. All INVENTED. */
+  --status-draft-text: oklch(0.500 0.008 265);
+  --status-draft-line: oklch(0.780 0.010 265);
+  --status-active-text: oklch(0.420 0.150 274);
+  --status-delivered-text: oklch(0.460 0.110 70);
+  --status-invoiced-text: oklch(0.330 0.008 265);
+  --status-paid-text: oklch(0.420 0.110 156);
+  --status-cancelled-text: oklch(0.580 0.008 265);
+
+  --bg-footer: oklch(0.968 0.003 265); /* INVENTED */
+  --scrim: rgba(20, 22, 28, 0.35); /* INVENTED — a black scrim is far too heavy on white */
+
+  /* Dark-mode alphas are far too heavy on white. */
+  --e1: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --e2: 0 4px 12px -2px rgba(0, 0, 0, 0.12);
+  --e3: 0 16px 32px -8px rgba(0, 0, 0, 0.16);
+}

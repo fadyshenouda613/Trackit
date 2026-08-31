@@ -1,0 +1,146 @@
+/* Reset, type scale utilities and the primitives every screen shares. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font: var(--t-ui);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden; /* the app window scrolls its own panes, never the document */
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent-link-hover);
+}
+
+button {
+  font: var(--t-label);
+  color: inherit;
+}
+
+/* ---- Type scale ---------------------------------------------------------- */
+
+.t-display {
+  font: var(--t-display);
+  letter-spacing: var(--t-display-tracking);
+  margin: 0;
+}
+
+.t-title {
+  font: var(--t-title);
+  letter-spacing: var(--t-title-tracking);
+  margin: 0;
+}
+
+.t-heading {
+  font: var(--t-heading);
+  letter-spacing: var(--t-heading-tracking);
+  margin: 0;
+}
+
+.t-subhead {
+  font: var(--t-subhead);
+  letter-spacing: -0.005em;
+  margin: 0;
+}
+
+.t-body {
+  font: var(--t-body);
+  margin: 0;
+  text-wrap: pretty;
+}
+
+.t-ui {
+  font: var(--t-ui);
+}
+
+.t-label {
+  font: var(--t-label);
+}
+
+.t-overline {
+  font: var(--t-overline);
+  letter-spacing: var(--t-overline-tracking);
+  text-transform: uppercase;
+}
+
+.t-mono {
+  font-family: var(--font-mono);
+}
+
+/* Every figure gets tabular numerals so columns never shift. */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Primitives ---------------------------------------------------------- */
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  flex: 0 0 6px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The recording indicator and the running-project row share one pulse. */
+@keyframes llpulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.pulse {
+  animation: llpulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+}
+
+/* ---- Frameless window ----------------------------------------------------
+ * Bars are draggable; anything interactive inside them must opt back out or it
+ * becomes a dead zone. */
+
+.drag {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}

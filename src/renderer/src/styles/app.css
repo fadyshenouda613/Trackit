@@ -1,0 +1,1752 @@
+/* Component styles. Measurements come straight from the Dashboard artboard. */
+
+/* ---- Shell --------------------------------------------------------------- */
+
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+}
+
+.app__body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
+}
+
+/*
+ * At the designed 900px window height the content measures 793px against 804
+ * available, so no scrollbar appears and this matches the artboard exactly.
+ * The window can be dragged down to 640px though, and silently clipping the
+ * Attention list there would hide real work — so the pane scrolls instead.
+ */
+.main__content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--s-16) var(--screen-gutter) var(--s-20);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/*
+ * macOS keeps its traffic lights inside the app's own chrome, so whichever bar
+ * is topmost must start its content clear of them — the artboard's 16px bar
+ * gutter plus 72px of padding, i.e. an 88px content origin.
+ *
+ * --chrome-leading is defined only on darwin (set in main.tsx), so Windows and
+ * Linux fall through to each bar's normal gutter and draw their own controls
+ * on the trailing side instead. Applied in the .timer-bar and .top-bar rules
+ * below.
+ */
+
+/* ---- Window controls (Windows/Linux only) -------------------------------- */
+
+.window-controls {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  margin-right: calc(-1 * var(--s-16));
+}
+
+.window-controls__button {
+  width: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.window-controls__button:hover {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.window-controls__button--close:hover {
+  background: var(--negative);
+  color: var(--accent-on);
+}
+
+/* On the accent timer bar the hover has to read against accent, not grey. */
+.timer-bar .window-controls__button:hover {
+  background: var(--accent-ctrl-hover);
+  color: var(--text-primary);
+}
+
+.timer-bar .window-controls__button--close:hover {
+  background: var(--negative);
+}
+
+/* ---- Timer bar -----------------------------------------------------------
+ * "Spans the full window above everything and only exists while a timer runs." */
+
+.timer-bar {
+  height: var(--timer-bar-height);
+  flex: 0 0 var(--timer-bar-height);
+  display: flex;
+  align-items: center;
+  gap: var(--s-16);
+  padding: 0 var(--s-16) 0 var(--chrome-leading, var(--s-16));
+  background: var(--accent-surface);
+  border-bottom: 1px solid var(--accent-line);
+}
+
+.timer-bar__recording {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+
+.timer-bar__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+
+.timer-bar__label {
+  color: var(--accent-text);
+}
+
+.timer-bar__divider {
+  width: 1px;
+  height: 18px;
+  background: var(--accent-divider);
+}
+
+.timer-bar__project {
+  font-weight: 500;
+}
+
+.timer-bar__meta {
+  font: var(--t-label);
+  color: var(--accent-text-dim);
+}
+
+.timer-bar__elapsed {
+  font: 600 20px/24px var(--font-sans);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-bar__stop {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 var(--s-12);
+  border-radius: var(--r-field);
+  border: 1px solid var(--accent-ctrl-line);
+  background: var(--accent-ctrl);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.timer-bar__stop:hover {
+  background: var(--accent-ctrl-hover);
+  border-color: var(--accent-ctrl-line-hover);
+}
+
+.timer-bar__stop-glyph {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--text-primary);
+  display: inline-block;
+}
+
+/* ---- Sidebar ------------------------------------------------------------- */
+
+.sidebar {
+  width: var(--sidebar-width);
+  flex: 0 0 var(--sidebar-width);
+  background: var(--bg-sunken);
+  border-right: 1px solid var(--line-subtle);
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar__brand {
+  height: var(--bar-height);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 14px;
+}
+
+.sidebar__mark {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--accent);
+  flex: 0 0 18px;
+}
+
+.sidebar__name {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.sidebar__search-wrap {
+  padding: 0 var(--s-8) var(--s-8);
+}
+
+.sidebar__search {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  height: 30px;
+  padding: 0 9px;
+  border-radius: var(--r-field);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-subtle);
+  color: var(--text-tertiary);
+}
+
+.sidebar__search-text {
+  font-size: 12px;
+}
+
+.sidebar__kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--s-4) var(--s-8);
+}
+
+/* No search field above it on a new account, so the nav takes the full gutter. */
+.sidebar__nav--roomy {
+  padding: var(--s-8);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 9px;
+  border-radius: var(--r-field);
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+.nav-item:hover {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+
+.nav-item--active,
+.nav-item--active:hover {
+  background: var(--accent-surface);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Empty account: nothing to count, nothing to open. */
+.nav-item--disabled,
+.nav-item--disabled:hover {
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.nav-item__count {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.nav-item__badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  background: var(--negative-surface);
+  color: var(--negative-text);
+}
+
+.sidebar__footer {
+  padding: var(--s-8);
+  border-top: 1px solid var(--line-subtle);
+}
+
+.sync {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  height: var(--row-height);
+  padding: 0 9px;
+  border-radius: var(--r-field);
+  color: var(--text-tertiary);
+}
+
+.sync:hover {
+  background: var(--bg-raised);
+}
+
+.sync__text {
+  font-size: 12px;
+}
+
+.sync__time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+/* ---- Top bar ------------------------------------------------------------- */
+
+.top-bar {
+  height: var(--bar-height);
+  flex: 0 0 var(--bar-height);
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+  padding: 0 var(--screen-gutter);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+/* Topmost only when no timer bar is running above it. */
+.top-bar.drag {
+  padding-left: var(--chrome-leading, var(--screen-gutter));
+}
+
+.top-bar__date {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.button {
+  height: 28px;
+  padding: 0 var(--s-12);
+  border-radius: var(--r-field);
+  border: 1px solid var(--line-strong);
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.button--primary {
+  border-color: var(--accent-hover);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-weight: 600;
+}
+
+.button--primary:hover {
+  background: var(--accent-hover);
+  color: var(--accent-on);
+}
+
+/* ---- Metric cards -------------------------------------------------------- */
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-16);
+}
+
+.metric {
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--r-card);
+  background: var(--bg-raised);
+  padding: var(--s-12) var(--card-padding) 13px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.metric__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+
+.metric__label {
+  color: var(--text-tertiary);
+}
+
+.metric__chip {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: var(--accent-surface);
+  color: var(--accent-text);
+}
+
+.metric__value {
+  font: 600 30px/36px var(--font-sans);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric__meta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+
+.metric__sep {
+  color: var(--line-strong);
+}
+
+/* ---- Sections & panels --------------------------------------------------- */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+
+.section__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.section__title {
+  font: 600 13px/20px var(--font-sans);
+  margin: 0;
+}
+
+.section__count,
+.section__note {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.panel {
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--r-card);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+
+/* ---- Projects table ------------------------------------------------------ */
+
+.projects {
+  --projects-grid: 1.45fr 0.95fr 104px 116px 96px 132px 148px;
+}
+
+.projects__header,
+.projects__row {
+  display: grid;
+  grid-template-columns: var(--projects-grid);
+  gap: var(--s-16);
+}
+
+.projects__header {
+  padding: 7px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  color: var(--text-tertiary);
+}
+
+.projects__row {
+  padding: var(--s-8) var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.projects__row:last-child {
+  border-bottom: 0;
+}
+
+.projects__row:hover {
+  background: var(--bg-overlay);
+}
+
+.align-right {
+  text-align: right;
+}
+
+.projects__name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  min-width: 0;
+}
+
+/* Rows without a running timer align to the same text origin as the one with. */
+.projects__name--indented {
+  padding-left: 14px;
+}
+
+.projects__label {
+  font-weight: 500;
+}
+
+.projects__client,
+.projects__hours {
+  color: var(--text-secondary);
+}
+
+.projects__checklist {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+
+.projects__checklist-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  width: 34px;
+}
+
+.projects__budget {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+
+.projects__budget-pct {
+  font-size: 11px;
+  width: 30px;
+  text-align: right;
+}
+
+.projects__rate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.projects__rate-value {
+  font: 600 16px/20px var(--font-sans);
+  letter-spacing: -0.01em;
+}
+
+.projects__rate-unit {
+  font-size: 12px;
+  font-weight: 450;
+}
+
+.projects__rate-note {
+  font-size: 11px;
+  line-height: 14px;
+}
+
+/* ---- Meter --------------------------------------------------------------- */
+
+.meter {
+  flex: 1;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: var(--line-subtle);
+  overflow: hidden;
+}
+
+.meter__fill {
+  height: 3px;
+}
+
+/* ---- Attention ----------------------------------------------------------- */
+
+.attention__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 var(--card-padding);
+  height: 34px;
+  border-bottom: 1px solid var(--line-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.attention__row:last-child {
+  border-bottom: 0;
+}
+
+.attention__row:hover {
+  background: var(--bg-overlay);
+}
+
+.attention__subject {
+  font-weight: 500;
+}
+
+.attention__detail {
+  color: var(--text-secondary);
+}
+
+.attention__action {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.attention__chevron {
+  color: var(--text-muted);
+  flex: 0 0 12px;
+}
+
+/* ---- Empty state --------------------------------------------------------- */
+
+.empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--screen-gutter) 60px;
+}
+
+.empty__inner {
+  width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.empty__mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--accent-surface);
+  border: 1px solid var(--accent-line);
+}
+
+.empty__body {
+  color: var(--text-tertiary);
+}
+
+.empty__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: var(--s-4);
+}
+
+.empty__cta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  height: var(--row-height);
+  padding: 0 14px;
+  border-radius: var(--r-field);
+  border: 1px solid var(--accent-hover);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.empty__cta:hover {
+  background: var(--accent-hover);
+}
+
+.empty__kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  opacity: 0.65;
+}
+
+.empty__aside {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* ---- Dev state panel -----------------------------------------------------
+ * Not part of the product surface: it stands in for the artboard's props so
+ * every designed state is reachable while there is no real data. */
+
+.state-panel__handle,
+.state-panel {
+  position: fixed;
+  right: var(--s-16);
+  bottom: var(--s-16);
+  z-index: 10;
+  border-radius: var(--r-field);
+  border: 1px solid var(--line-strong);
+  background: var(--bg-overlay);
+  box-shadow: var(--e2);
+}
+
+.state-panel__handle {
+  padding: var(--s-6) 10px;
+  color: var(--text-tertiary);
+  font: var(--t-label);
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.state-panel__handle:hover {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+.state-panel {
+  width: 236px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+
+.state-panel__head {
+  display: flex;
+  align-items: center;
+}
+
+.state-panel__title {
+  color: var(--text-tertiary);
+}
+
+.state-panel__close {
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.state-panel__close:hover {
+  color: var(--text-primary);
+}
+
+.state-panel__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.state-panel__label {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.state-panel__options {
+  display: flex;
+  gap: var(--s-4);
+}
+
+.state-panel__option {
+  flex: 1;
+  height: 24px;
+  border-radius: var(--r-ctrl);
+  border: 1px solid var(--line-subtle);
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.state-panel__option:hover {
+  color: var(--text-primary);
+}
+
+.state-panel__option--on,
+.state-panel__option--on:hover {
+  background: var(--accent-surface);
+  border-color: var(--accent-line);
+  color: var(--text-primary);
+}
+
+/* ---- Nav items are buttons ----------------------------------------------- */
+
+.nav-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: var(--t-ui);
+  text-align: left;
+}
+
+.nav-item:disabled {
+  cursor: default;
+}
+
+/* ---- Breadcrumb ----------------------------------------------------------- */
+
+/* The detail header sets its crumb tighter than a plain title bar. */
+.top-bar:has(.top-bar__crumb) {
+  gap: var(--s-8);
+}
+
+.top-bar__crumb {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.top-bar__crumb:hover {
+  color: var(--text-primary);
+}
+
+.top-bar__crumb-chevron {
+  color: var(--text-muted);
+  flex: 0 0 12px;
+}
+
+/* ---- Pill ---------------------------------------------------------------- */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pill--md {
+  padding: 2px 8px;
+}
+
+/* ---- Avatar -------------------------------------------------------------- */
+
+.avatar {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: var(--r-field);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--neutral-surface);
+  color: var(--neutral-text);
+}
+
+.avatar--lg {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 10px;
+  font-size: 15px;
+}
+
+.avatar--accent {
+  background: var(--accent-surface);
+  color: var(--accent-text-strong);
+}
+
+/* ---- Clients list toolbar ------------------------------------------------- */
+
+.list-toolbar {
+  height: var(--timer-bar-height);
+  flex: 0 0 var(--timer-bar-height);
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+  padding: 0 var(--screen-gutter);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.list-toolbar__search {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  width: 260px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--r-field);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-subtle);
+}
+
+.list-toolbar__search-icon,
+.list-toolbar__search-text {
+  color: var(--text-tertiary);
+}
+
+.list-toolbar__search-text {
+  font-size: 12px;
+}
+
+.list-toolbar__sort {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.segmented {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 28px;
+  padding: var(--s-2);
+  border-radius: var(--r-field);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-subtle);
+}
+
+.segmented__option {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 11px;
+  border-radius: var(--r-ctrl);
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.segmented__option:hover {
+  color: var(--text-primary);
+}
+
+.segmented__option--on,
+.segmented__option--on:hover {
+  background: var(--accent-surface);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ---- Clients table -------------------------------------------------------- */
+
+.clients {
+  --clients-grid: 1.35fr 1.15fr 128px 152px 168px 20px;
+}
+
+.clients__header,
+.clients__row {
+  display: grid;
+  grid-template-columns: var(--clients-grid);
+  gap: var(--s-16);
+  align-items: center;
+}
+
+.clients__header {
+  padding: 7px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  color: var(--text-tertiary);
+}
+
+.clients__row {
+  padding: 10px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.clients__row[role='button'] {
+  cursor: pointer;
+}
+
+.clients__row:hover {
+  background: var(--bg-overlay);
+}
+
+/* The current client stays marked whether or not the pointer is over it. */
+.clients__row--selected,
+.clients__row--selected:hover {
+  background: var(--bg-overlay);
+}
+
+.clients__name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.clients__label {
+  font-weight: 500;
+}
+
+.clients__company {
+  color: var(--text-secondary);
+}
+
+.clients__muted {
+  color: var(--text-tertiary);
+}
+
+.clients__outstanding {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-8);
+}
+
+.clients__overdue {
+  color: var(--negative);
+}
+
+.clients__chevron {
+  color: var(--text-muted);
+  flex: 0 0 12px;
+}
+
+.clients__chevron--on {
+  color: var(--text-secondary);
+  flex: 0 0 12px;
+}
+
+.clients__totals,
+.clients__totals:hover {
+  background: var(--bg-footer);
+  border-bottom: 0;
+}
+
+.clients__totals-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.clients__totals-value {
+  font-weight: 500;
+}
+
+/* ---- Client detail -------------------------------------------------------- */
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-16);
+}
+
+.detail__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--screen-gutter);
+  padding-bottom: var(--s-16);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.detail__identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  min-width: 0;
+}
+
+.detail__names {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.detail__company {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.detail__contact {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.detail__sep {
+  color: var(--line-strong);
+}
+
+.detail__metrics {
+  display: flex;
+  gap: var(--s-32);
+  padding-top: var(--s-2);
+}
+
+.detail__metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-end;
+}
+
+.detail__metric-label {
+  color: var(--text-tertiary);
+}
+
+.detail__metric-value {
+  font: 600 30px/36px var(--font-sans);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.detail__metric-note {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.detail__metric-note--positive {
+  color: var(--positive);
+}
+
+.detail__metric-rule {
+  width: 1px;
+  background: var(--line-subtle);
+}
+
+.detail__split {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: var(--s-16);
+  min-height: 0;
+}
+
+.detail__add-note {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.detail__add-note:hover {
+  color: var(--accent-link-hover);
+}
+
+/* Projects table on the detail screen */
+
+.detail-projects {
+  --detail-projects-grid: 1.6fr 132px 124px 108px 140px 20px;
+}
+
+.detail-projects__header,
+.detail-projects__row {
+  display: grid;
+  grid-template-columns: var(--detail-projects-grid);
+  gap: var(--s-16);
+  align-items: center;
+}
+
+.detail-projects__header {
+  padding: 7px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  color: var(--text-tertiary);
+}
+
+.detail-projects__row {
+  padding: 9px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-projects__row:last-child {
+  border-bottom: 0;
+}
+
+.detail-projects__row:hover {
+  background: var(--bg-overlay);
+}
+
+.detail-projects__name {
+  font-weight: 500;
+}
+
+.detail-projects__logged {
+  color: var(--text-secondary);
+}
+
+.detail-projects__rate {
+  font-weight: 600;
+  color: var(--positive);
+}
+
+/* Invoices table */
+
+.detail-invoices {
+  --detail-invoices-grid: 104px 1fr 124px 108px;
+}
+
+.detail-invoices__header,
+.detail-invoices__row {
+  display: grid;
+  grid-template-columns: var(--detail-invoices-grid);
+  gap: var(--s-16);
+  align-items: center;
+}
+
+.detail-invoices__header {
+  padding: 7px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  color: var(--text-tertiary);
+}
+
+.detail-invoices__row {
+  padding: 9px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-invoices__row:last-child {
+  border-bottom: 0;
+}
+
+.detail-invoices__row:hover {
+  background: var(--bg-overlay);
+}
+
+/* Mono is for identifiers only — invoice numbers, never the money beside them. */
+.detail-invoices__number {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.detail-invoices__issued {
+  color: var(--text-secondary);
+}
+
+/* Notes */
+
+.detail-notes {
+  /* Stretches to the invoices panel beside it, as the artboard shows. */
+  flex: 1;
+  padding: 14px var(--card-padding);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.detail-notes__group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.detail-notes__rule {
+  height: 1px;
+  background: var(--line-subtle);
+}
+
+.detail-notes__entry {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.detail-notes__date {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.detail-notes__body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 21px;
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+
+/* ---- Modal ---------------------------------------------------------------- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--scrim);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 96px;
+}
+
+/*
+ * The scrim covers the whole window, bars included. On a frameless app that
+ * would leave no way to close the window while a dialog is open, so the custom
+ * controls stay above it — the bars dim, the three glyphs stay live.
+ */
+.window-controls {
+  position: relative;
+  z-index: 60;
+}
+
+.dialog {
+  width: 480px;
+  border-radius: var(--r-panel);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--e3);
+  overflow: hidden;
+}
+
+.dialog__head {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.dialog__title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.dialog__close {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.dialog__close:hover {
+  background: var(--line-subtle);
+  color: var(--text-primary);
+}
+
+.dialog__body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dialog__foot {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px;
+  border-top: 1px solid var(--line-subtle);
+  background: var(--bg-footer);
+}
+
+.dialog__foot-note {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.dialog__create {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  height: 30px;
+  padding: 0 13px;
+}
+
+.dialog__foot .button {
+  height: 30px;
+  padding: 0 13px;
+}
+
+/* ---- Form fields ---------------------------------------------------------- */
+
+.field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.field-row label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.field {
+  height: var(--row-height);
+  padding: 0 10px;
+  border-radius: var(--r-field);
+  background: var(--bg-base);
+  border: 1px solid var(--line-subtle);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  outline: none;
+}
+
+textarea.field {
+  height: auto;
+  padding: 7px 10px;
+  line-height: 20px;
+  resize: none;
+}
+
+/* "line.strong — focus ring, active field" */
+.field--filled,
+.field:focus {
+  border-color: var(--line-strong);
+}
+
+.field::placeholder {
+  color: var(--text-muted);
+}
+
+select.field {
+  appearance: none;
+  padding-right: 30px;
+  width: 100%;
+}
+
+.select-wrap {
+  position: relative;
+  display: flex;
+}
+
+.select-wrap__caret {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+/* ---- Dev panel: five screens need two rows -------------------------------- */
+
+.state-panel__options {
+  flex-wrap: wrap;
+}
+
+.state-panel__option {
+  flex: 1 1 60px;
+}
+
+/* ---- Projects toolbar ----------------------------------------------------- */
+
+.list-toolbar--projects {
+  gap: 10px;
+}
+
+.filter-dropdown {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--r-field);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-subtle);
+  cursor: pointer;
+}
+
+.filter-dropdown:hover {
+  background: var(--bg-overlay);
+}
+
+.filter-dropdown__label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.filter-dropdown__value {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.filter-dropdown__caret {
+  color: var(--text-tertiary);
+  flex: 0 0 11px;
+}
+
+/* ---- All-projects table ---------------------------------------------------
+ * A different table from the dashboard's: nine columns at gap 14, and the
+ * effective rate is a single figure rather than a two-line cell. */
+
+.all-projects {
+  --all-projects-grid: 1.5fr 1fr 104px 96px 104px 88px 116px 124px 104px;
+}
+
+.all-projects__header,
+.all-projects__row {
+  display: grid;
+  grid-template-columns: var(--all-projects-grid);
+  gap: 14px;
+  align-items: center;
+}
+
+.all-projects__header {
+  padding: 7px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  color: var(--text-tertiary);
+}
+
+.all-projects__row {
+  padding: 10px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.all-projects__row:hover {
+  background: var(--bg-overlay);
+}
+
+/* Cancelled: "row dims, name struck through" — and lifts back on hover. */
+.all-projects__row--dim {
+  opacity: 0.72;
+}
+
+.all-projects__row--dim:hover {
+  opacity: 1;
+}
+
+.all-projects__name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  min-width: 0;
+}
+
+.all-projects__label {
+  font-weight: 500;
+}
+
+/* Rows without the running dot align to the same text origin as the one with. */
+.all-projects__label--indented {
+  padding-left: 14px;
+}
+
+.all-projects__label--quiet {
+  color: var(--text-secondary);
+}
+
+.all-projects__label--struck {
+  color: var(--status-cancelled-text);
+  text-decoration: line-through;
+}
+
+.all-projects__client {
+  color: var(--text-secondary);
+}
+
+.all-projects__client--quiet {
+  color: var(--text-tertiary);
+}
+
+.all-projects__quiet {
+  color: var(--text-tertiary);
+}
+
+.all-projects__hours {
+  color: var(--text-secondary);
+}
+
+.all-projects__meter-cell {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.all-projects__checklist {
+  font-size: 12px;
+  color: var(--text-secondary);
+  width: 32px;
+}
+
+.all-projects__budget-pct {
+  font-size: 11px;
+  width: 28px;
+  text-align: right;
+}
+
+.all-projects__rate {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.all-projects__totals,
+.all-projects__totals:hover {
+  background: var(--bg-footer);
+  border-bottom: 0;
+}
+
+.all-projects__totals-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.all-projects__totals-value {
+  font-weight: 500;
+}
+
+/* ---- New project dialog --------------------------------------------------- */
+
+/* Per-dialog geometry: the client dialog is 480/96, this one 520/80. */
+.scrim--high {
+  padding-top: 80px;
+}
+
+.dialog--wide {
+  width: 520px;
+}
+
+.dialog__head-meta {
+  margin-left: 10px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.dialog__rule {
+  height: 1px;
+  background: var(--line-subtle);
+}
+
+.field-row__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+}
+
+.field-row__pair {
+  display: flex;
+  gap: var(--s-8);
+}
+
+.field-row__inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.field-row__split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-12);
+}
+
+.field-row__hint,
+.field-row__aside {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-tertiary);
+}
+
+.field-row__aside {
+  font-size: 12px;
+}
+
+/* Composite fields: the border lives on the wrapper, the input sits bare. */
+.money-field,
+.hours-field {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+}
+
+.money-field {
+  flex: 1;
+}
+
+.hours-field {
+  width: 116px;
+}
+
+.money-field__symbol {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.money-field__input,
+.hours-field__input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  outline: none;
+}
+
+.money-field__input {
+  padding: 0 0 0 6px;
+}
+
+.hours-field__input {
+  padding: 0;
+}
+
+.hours-field__suffix {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.select-wrap--narrow {
+  width: 116px;
+  flex: 0 0 116px;
+}
+
+.select-wrap--narrow .select-wrap__caret {
+  right: 9px;
+}
+
+/* ---- Implied rate preview -------------------------------------------------- */
+
+.implied {
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+  padding: 11px 14px;
+  border-radius: var(--r-card);
+  background: var(--bg-base);
+  border: 1px solid var(--line-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.implied__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.implied__label {
+  color: var(--text-tertiary);
+}
+
+.implied__basis {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.implied__figure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.implied__rate {
+  font: 600 20px/24px var(--font-sans);
+  letter-spacing: -0.01em;
+}
+
+.implied__unit {
+  font-size: 13px;
+  font-weight: 450;
+}
+
+.implied__note {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text-tertiary);
+}
