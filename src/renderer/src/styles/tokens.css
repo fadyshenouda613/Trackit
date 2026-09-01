@@ -8,6 +8,10 @@
  */
 
 :root {
+  /* Radios, select popups and scrollbars are drawn by the browser, not by us;
+     without this they render in light mode on top of a dark app. */
+  color-scheme: dark;
+
   /* ---- Surfaces & lines -------------------------------------------------- */
   --bg-ground: oklch(0.128 0.007 265); /* behind the window itself */
   --bg-sunken: oklch(0.161 0.008 265); /* sidebar, window chrome */
@@ -57,6 +61,27 @@
   --negative-text: oklch(0.820 0.130 22);
   --neutral-surface: var(--line-subtle);
   --neutral-text: var(--text-secondary);
+
+  /* ---- Negative, as a surface ---------------------------------------------
+   * The over-budget timer bar is the one place a semantic colour has to hold a
+   * whole bar rather than a chip, so negative needs the same line/divider/ctrl
+   * run the accent has. Same steps, hue 22. */
+  --negative-line: oklch(0.390 0.075 22);
+  --negative-divider: oklch(0.420 0.070 22);
+  --negative-text-dim: oklch(0.780 0.045 22);
+  --negative-ctrl: oklch(0.245 0.045 22);
+  --negative-ctrl-line: oklch(0.500 0.080 22);
+  --negative-ctrl-hover: oklch(0.290 0.055 22);
+  --negative-ctrl-line-hover: oklch(0.600 0.100 22);
+
+  /* ---- Meters -------------------------------------------------------------
+   * A 3px rail has no room for a subtle fill: at that height the eye reads
+   * lightness alone, so the track sits a step below the row it's on and the
+   * fill a long way above it. An untoned fill (the checklist) uses --meter-fill
+   * rather than a text grey, which was too close to the track to read as a
+   * proportion. */
+  --meter-track: oklch(0.335 0.011 265);
+  --meter-fill: oklch(0.810 0.008 265);
 
   /* ---- Status text --------------------------------------------------------
    * From the "Status pills" spec board: "two carry colour, four are neutral —
@@ -140,6 +165,8 @@
  * light palette is published.
  */
 :root[data-theme='light'] {
+  color-scheme: light;
+
   --bg-ground: oklch(0.900 0.006 265); /* INVENTED */
   --bg-sunken: oklch(0.955 0.004 265); /* INFERRED — most recessed surface */
   --bg-base: oklch(0.985 0.003 265); /* INFERRED */
@@ -182,6 +209,19 @@
   --negative-text: oklch(0.470 0.160 25);
   --neutral-surface: var(--line-subtle);
   --neutral-text: var(--text-secondary);
+
+  /* The negative surface family, inverted with the rest. All INVENTED. */
+  --negative-line: oklch(0.880 0.055 25);
+  --negative-divider: oklch(0.860 0.050 25);
+  --negative-text-dim: oklch(0.500 0.080 25);
+  --negative-ctrl: oklch(1 0 0);
+  --negative-ctrl-line: oklch(0.840 0.070 25);
+  --negative-ctrl-hover: oklch(0.965 0.020 25);
+  --negative-ctrl-line-hover: oklch(0.740 0.110 25);
+
+  /* Meters invert: pale track, dark fill. INVENTED. */
+  --meter-track: oklch(0.880 0.006 265);
+  --meter-fill: oklch(0.420 0.012 265);
 
   /* Status text darkens with the rest. All INVENTED. */
   --status-draft-text: oklch(0.500 0.008 265);

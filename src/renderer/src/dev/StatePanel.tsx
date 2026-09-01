@@ -1,20 +1,36 @@
 import { useState, type JSX } from 'react'
 import type { SyncState } from '../components/SyncStatus'
 
-export type Screen = 'dashboard' | 'empty' | 'clients' | 'client' | 'projects'
+export type Screen =
+  | 'dashboard'
+  | 'empty'
+  | 'clients'
+  | 'client'
+  | 'projects'
+  | 'project'
+  | 'time'
+  | 'newInvoice'
+
 export type Theme = 'dark' | 'light'
 
-/** Dialogs are states of a screen, not screens of their own. */
-export type Modal = null | 'client' | 'project'
+/**
+ * Off, running, and running past the budget. The third is a state of the timer
+ * bar rather than of any screen, and nothing in the app's own navigation can
+ * reach it.
+ */
+export type TimerState = 'off' | 'running' | 'over'
 
-type ScreenChoice = Screen | 'newClient' | 'newProject'
+/** Dialogs are states of a screen, not screens of their own. */
+export type Modal = null | 'client' | 'project' | 'recovery'
+
+type ScreenChoice = Screen | 'newClient' | 'newProject' | 'recovery'
 
 type StatePanelProps = {
   screen: Screen
   modal: Modal
   onScreen: (choice: ScreenChoice) => void
-  timerRunning: boolean
-  onTimerRunning: (running: boolean) => void
+  timer: TimerState
+  onTimer: (timer: TimerState) => void
   syncState: SyncState
   onSyncState: (state: SyncState) => void
   theme: Theme
@@ -90,7 +106,9 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
             ? 'newClient'
             : props.modal === 'project'
               ? 'newProject'
-              : props.screen
+              : props.modal === 'recovery'
+                ? 'recovery'
+                : props.screen
         }
         onChange={props.onScreen}
         options={[
@@ -100,17 +118,22 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
           { value: 'client', label: 'Detail' },
           { value: 'newClient', label: 'New client' },
           { value: 'projects', label: 'Projects' },
-          { value: 'newProject', label: 'New project' }
+          { value: 'project', label: 'Project' },
+          { value: 'newProject', label: 'New project' },
+          { value: 'time', label: 'Time' },
+          { value: 'recovery', label: 'Recovery' },
+          { value: 'newInvoice', label: 'New invoice' }
         ]}
       />
 
       <OptionRow
         label="Timer"
-        value={props.timerRunning ? 'on' : 'off'}
-        onChange={(value) => props.onTimerRunning(value === 'on')}
+        value={props.timer}
+        onChange={props.onTimer}
         options={[
-          { value: 'on', label: 'Running' },
-          { value: 'off', label: 'Stopped' }
+          { value: 'off', label: 'Stopped' },
+          { value: 'running', label: 'Running' },
+          { value: 'over', label: 'Over budget' }
         ]}
       />
 

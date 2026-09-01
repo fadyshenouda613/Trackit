@@ -228,7 +228,7 @@ const rows: Row[] = [
     hours: '3h 40m',
     budgetPct: 31,
     budgetLabel: '31%',
-    budgetTone: 'muted',
+    budgetTone: 'secondary',
     budgetLabelTone: 'neutral',
     rate: '—',
     rateTone: 'neutral',
@@ -236,7 +236,12 @@ const rows: Row[] = [
   }
 ]
 
-export function AllProjectsTable(): JSX.Element {
+type AllProjectsTableProps = {
+  /** Opens the project detail screen. */
+  onOpen?: (name: string) => void
+}
+
+export function AllProjectsTable({ onOpen }: AllProjectsTableProps): JSX.Element {
   return (
     <div className="panel all-projects">
       <div className="all-projects__header t-overline">
@@ -259,6 +264,15 @@ export function AllProjectsTable(): JSX.Element {
           <div
             className={cancelled ? 'all-projects__row all-projects__row--dim' : 'all-projects__row'}
             key={row.name}
+            role={onOpen ? 'button' : undefined}
+            tabIndex={onOpen ? 0 : undefined}
+            onClick={() => onOpen?.(row.name)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                onOpen?.(row.name)
+              }
+            }}
           >
             {row.running ? (
               <div className="all-projects__name">
@@ -275,8 +289,7 @@ export function AllProjectsTable(): JSX.Element {
                   'all-projects__label',
                   'all-projects__label--indented',
                   'truncate',
-                  draft ? 'all-projects__label--quiet' : '',
-                  cancelled ? 'all-projects__label--struck' : ''
+                  draft ? 'all-projects__label--quiet' : ''
                 ]
                   .filter(Boolean)
                   .join(' ')}
@@ -316,11 +329,7 @@ export function AllProjectsTable(): JSX.Element {
               {row.checklistPct === null ? (
                 <div className="meter" aria-hidden="true" />
               ) : (
-                <Meter
-                  value={row.checklistPct}
-                  tone={cancelled ? 'muted' : 'neutral'}
-                  label={`Checklist ${row.checklist}`}
-                />
+                <Meter value={row.checklistPct} label={`Checklist ${row.checklist}`} />
               )}
             </div>
 
@@ -359,15 +368,33 @@ export function AllProjectsTable(): JSX.Element {
         )
       })}
 
+      {/*
+       * Totals count the 11 projects that represent real work: draft has
+       * agreed nothing and cancelled will never be billed, so both would
+       * distort the money and drag the blended rate down. Hours follow the
+       * same basis, or the rate would not reconcile with the two figures
+       * beside it.
+       */}
       <div className="all-projects__row all-projects__totals">
-        <span className="all-projects__totals-label">14 projects · 2 not shown</span>
+        <div className="all-projects__totals-head">
+          <span className="all-projects__totals-title">Totals across 11 projects</span>
+          <span className="all-projects__totals-basis">
+            Draft and cancelled excluded from all three figures
+          </span>
+        </div>
+
+        <span className="align-right all-projects__totals-value">$47,800.00</span>
         <span />
-        <span className="align-right all-projects__totals-value">$56,500.00</span>
         <span />
-        <span />
-        <span className="align-right all-projects__totals-value">344h 55m</span>
-        <span />
-        <span className="align-right all-projects__totals-value">$163.82/hr</span>
+        <span className="align-right all-projects__totals-value">341h 25m</span>
+
+        <div className="all-projects__totals-figure">
+          <span className="all-projects__totals-value">$140.00/hr</span>
+          <span className="all-projects__totals-caption">
+            Blended — active and delivered work only
+          </span>
+        </div>
+
         <span />
       </div>
     </div>

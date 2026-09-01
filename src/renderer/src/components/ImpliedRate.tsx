@@ -1,19 +1,9 @@
 import type { JSX } from 'react'
+import { money, parseMoney } from './money'
 import { toneVar } from './tone'
 
 /** The rate floor the app judges every project against. */
 const RATE_FLOOR = 100
-
-const money = (value: number): string =>
-  `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-
-/** Strips the grouping commas the price field is typed with. */
-const parseNumber = (raw: string): number | null => {
-  const cleaned = raw.replace(/,/g, '').trim()
-  if (!cleaned) return null
-  const value = Number(cleaned)
-  return Number.isFinite(value) ? value : null
-}
 
 type ImpliedRateProps = {
   price: string
@@ -26,8 +16,8 @@ type ImpliedRateProps = {
  * previews live", so this recalculates as the two fields are typed.
  */
 export function ImpliedRate({ price, hours }: ImpliedRateProps): JSX.Element {
-  const priceValue = parseNumber(price)
-  const hoursValue = parseNumber(hours)
+  const priceValue = parseMoney(price)
+  const hoursValue = parseMoney(hours)
   const rate =
     priceValue !== null && hoursValue !== null && hoursValue > 0 ? priceValue / hoursValue : null
 

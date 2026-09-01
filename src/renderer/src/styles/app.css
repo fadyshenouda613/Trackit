@@ -171,6 +171,95 @@
   display: inline-block;
 }
 
+/*
+ * The budget cluster. "28h 15m of 32h" alone makes you do the arithmetic every
+ * time you glance up, so a 3px rail carries the proportion and the text carries
+ * the figures. The rail cannot use --meter-track: that grey is tuned for
+ * bg.raised and vanishes on the accent surface.
+ */
+.timer-bar__budget {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.timer-bar__meter {
+  width: 72px;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: var(--accent-ctrl);
+  overflow: hidden;
+}
+
+.timer-bar__meter-fill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--accent-text);
+}
+
+/* A long project name gives ground; the budget and the clock never do. */
+.timer-bar__project,
+.timer-bar__meta {
+  min-width: 0;
+}
+
+.timer-bar__budget,
+.timer-bar__elapsed,
+.timer-bar__stop {
+  flex: 0 0 auto;
+}
+
+/* ---- Timer bar, over budget ------------------------------------------------
+ * The design system gives --negative to "overdue, over budget, below floor", so
+ * the whole bar moves rather than one figure inside it: you are looking at this
+ * bar for hours, and the hours are the problem. The dot keeps pulsing — the
+ * timer is still running, which is the point of saying anything at all.
+ */
+
+.timer-bar--over {
+  background: var(--negative-surface);
+  border-bottom-color: var(--negative-line);
+}
+
+.timer-bar--over .timer-bar__dot {
+  background: var(--negative);
+}
+
+.timer-bar--over .timer-bar__label {
+  color: var(--negative-text);
+}
+
+.timer-bar--over .timer-bar__divider {
+  background: var(--negative-divider);
+}
+
+.timer-bar--over .timer-bar__meta {
+  color: var(--negative-text-dim);
+}
+
+.timer-bar--over .timer-bar__meter {
+  background: var(--negative-ctrl);
+}
+
+.timer-bar--over .timer-bar__meter-fill {
+  background: var(--negative);
+}
+
+.timer-bar--over .timer-bar__stop {
+  background: var(--negative-ctrl);
+  border-color: var(--negative-ctrl-line);
+}
+
+.timer-bar--over .timer-bar__stop:hover {
+  background: var(--negative-ctrl-hover);
+  border-color: var(--negative-ctrl-line-hover);
+}
+
+.timer-bar--over .window-controls__button:hover {
+  background: var(--negative-ctrl-hover);
+}
+
 /* ---- Sidebar ------------------------------------------------------------- */
 
 .sidebar {
@@ -518,10 +607,14 @@
   gap: var(--s-8);
 }
 
+/* Fixed and unshrinkable, as in the all-projects table: a figure that sizes
+ * itself gives every row a different rail length. */
 .projects__checklist-count {
   font-size: 12px;
   color: var(--text-secondary);
-  width: 34px;
+  flex: 0 0 40px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .projects__budget {
@@ -532,8 +625,9 @@
 
 .projects__budget-pct {
   font-size: 11px;
-  width: 30px;
+  flex: 0 0 32px;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .projects__rate {
@@ -557,18 +651,38 @@
   line-height: 14px;
 }
 
-/* ---- Meter --------------------------------------------------------------- */
+/* ---- Meter ----------------------------------------------------------------
+ * Thin by design, but the fill has to be unmistakably proportional: the track
+ * runs the full column at a low lightness, the fill sits far above it, and a
+ * non-zero value never disappears below 3px of width. Every rail in a column
+ * is the same length (see the fixed-width figures beside them), so two rows
+ * can be compared by eye. */
 
 .meter {
   flex: 1;
+  min-width: 0;
   height: 3px;
   border-radius: var(--r-pill);
-  background: var(--line-subtle);
+  background: var(--meter-track);
   overflow: hidden;
 }
 
+/*
+ * Used inside column-flex parents, where `flex: 1` resolves against the
+ * vertical axis: without this the rail stretched to the cell height in the
+ * metrics row and collapsed to nothing in the checklist summary.
+ */
+.meter--lg {
+  height: 5px;
+  flex: 0 0 5px;
+  align-self: stretch;
+}
+
 .meter__fill {
-  height: 3px;
+  height: 100%;
+  min-width: 3px;
+  border-radius: inherit;
+  background: var(--meter-fill);
 }
 
 /* ---- Attention ----------------------------------------------------------- */
@@ -1421,14 +1535,18 @@ select.field {
   pointer-events: none;
 }
 
-/* ---- Dev panel: five screens need two rows -------------------------------- */
+/* ---- Dev panel: ten screens need four rows ------------------------------- */
 
 .state-panel__options {
   flex-wrap: wrap;
 }
 
+/* Labels stay whole: a button that breaks "New project" across two lines in a
+   24px box reads as damage rather than as a wrapped word. */
 .state-panel__option {
-  flex: 1 1 60px;
+  flex: 1 1 auto;
+  padding: 0 var(--s-6);
+  white-space: nowrap;
 }
 
 /* ---- Projects toolbar ----------------------------------------------------- */
@@ -1473,7 +1591,7 @@ select.field {
  * effective rate is a single figure rather than a two-line cell. */
 
 .all-projects {
-  --all-projects-grid: 1.5fr 1fr 104px 96px 104px 88px 116px 124px 104px;
+  --all-projects-grid: 1.5fr 1fr 104px 96px 116px 88px 120px 124px 96px;
 }
 
 .all-projects__header,
@@ -1496,13 +1614,19 @@ select.field {
   font-variant-numeric: tabular-nums;
 }
 
+.all-projects__row[role='button'] {
+  cursor: pointer;
+}
+
 .all-projects__row:hover {
   background: var(--bg-overlay);
 }
 
-/* Cancelled: "row dims, name struck through" — and lifts back on hover. */
+/* Cancelled: the row dims and the pill names the state — no strikethrough on
+ * top of that, which read as damage rather than as a closed project. Hover
+ * lifts it back to full. */
 .all-projects__row--dim {
-  opacity: 0.72;
+  opacity: 0.66;
 }
 
 .all-projects__row--dim:hover {
@@ -1529,11 +1653,6 @@ select.field {
   color: var(--text-secondary);
 }
 
-.all-projects__label--struck {
-  color: var(--status-cancelled-text);
-  text-decoration: line-through;
-}
-
 .all-projects__client {
   color: var(--text-secondary);
 }
@@ -1556,16 +1675,22 @@ select.field {
   gap: 7px;
 }
 
+/* Fixed and unshrinkable: "11/12" is wider than "3/6", and letting the figure
+ * size itself gave every row a different rail length — which is why no two
+ * bars could be compared. Tabular figures keep the digits on one axis too. */
 .all-projects__checklist {
   font-size: 12px;
   color: var(--text-secondary);
-  width: 32px;
+  flex: 0 0 40px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .all-projects__budget-pct {
   font-size: 11px;
-  width: 28px;
+  flex: 0 0 32px;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .all-projects__rate {
@@ -1573,19 +1698,58 @@ select.field {
   font-weight: 600;
 }
 
+/* ---- All-projects totals --------------------------------------------------
+ * A sum is only readable if it says what it summed. The label spans the first
+ * two columns and states the basis; the rate carries its own caption because
+ * a blend has a narrower basis than the figures beside it. */
+
 .all-projects__totals,
 .all-projects__totals:hover {
   background: var(--bg-footer);
   border-bottom: 0;
+  align-items: start;
+  padding-top: var(--s-8);
+  padding-bottom: 10px;
 }
 
-.all-projects__totals-label {
-  font-size: 12px;
+.all-projects__totals-head {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.all-projects__totals-title {
+  color: var(--text-secondary);
+}
+
+.all-projects__totals-basis {
+  font-size: 11px;
+  line-height: 15px;
   color: var(--text-tertiary);
 }
 
+/* Spans the budget column so the caption has a line to itself, while the
+ * figure still right-aligns exactly under the rate column above it. */
+.all-projects__totals-figure {
+  grid-column: 7 / span 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
 .all-projects__totals-value {
-  font-weight: 500;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.all-projects__totals-caption {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--text-tertiary);
+  text-align: right;
 }
 
 /* ---- New project dialog --------------------------------------------------- */
@@ -1749,4 +1913,1833 @@ select.field {
   font-size: 11px;
   line-height: 14px;
   color: var(--text-tertiary);
+}
+
+/* ---- Back crumb -----------------------------------------------------------
+ * When a screen carries its own header the bar reduces to a way back, so the
+ * chevron flips and leads. */
+
+.top-bar__crumb--back {
+  gap: 5px;
+}
+
+.top-bar__crumb-chevron-back {
+  transform: rotate(180deg);
+  flex: 0 0 12px;
+}
+
+/* ---- Icon button and overflow menu ---------------------------------------- */
+
+.button--icon {
+  width: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+}
+
+.button--icon:hover {
+  color: var(--text-primary);
+}
+
+.overflow {
+  position: relative;
+  display: flex;
+}
+
+.overflow__menu {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  z-index: 20;
+  min-width: 184px;
+  padding: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-card);
+  border: 1px solid var(--line-subtle);
+  background: var(--bg-overlay);
+  box-shadow: var(--e3);
+}
+
+.overflow__item {
+  height: 28px;
+  padding: 0 var(--s-8);
+  display: flex;
+  align-items: center;
+  border: 0;
+  border-radius: var(--r-ctrl);
+  background: transparent;
+  color: var(--text-secondary);
+  font: var(--t-ui);
+  text-align: left;
+  cursor: pointer;
+}
+
+.overflow__item:hover {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+
+.overflow__item--danger:hover {
+  color: var(--negative);
+}
+
+.overflow__rule {
+  height: 1px;
+  margin: var(--s-4) 0;
+  background: var(--line-subtle);
+}
+
+/* ---- Project detail: header ------------------------------------------------
+ * The screen names itself, so the window bar above it only offers a way back.
+ * Name and status share a baseline; the client line underneath carries the
+ * three facts that decide what you do next. */
+
+.project {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.project__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-16);
+}
+
+.project__identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.project__title-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.project__client-line {
+  display: flex;
+  align-items: center;
+  gap: var(--s-6);
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.project__client {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.project__client:hover {
+  color: var(--accent-link-hover);
+}
+
+.project__sep {
+  color: var(--line-strong);
+}
+
+.project__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  padding-top: var(--s-4);
+}
+
+/* ---- Project detail: metrics row ------------------------------------------
+ * One panel split by hairlines rather than five cards: the figures are one
+ * calculation, and card gaps would read them as five unrelated numbers. */
+
+.project__metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.35fr 1fr;
+}
+
+.project__metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: 13px var(--card-padding) 14px;
+  border-left: 1px solid var(--line-subtle);
+  min-width: 0;
+}
+
+.project__metric:first-child {
+  border-left: 0;
+}
+
+.project__metric-label {
+  color: var(--text-tertiary);
+}
+
+.project__metric-value {
+  font: 600 22px/26px var(--font-sans);
+  letter-spacing: -0.015em;
+}
+
+.project__metric-unit {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.project__metric-note {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--text-tertiary);
+}
+
+.project__rate {
+  font: 600 34px/38px var(--font-sans);
+  letter-spacing: -0.025em;
+}
+
+.project__rate-unit {
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* ---- Project detail: body split -------------------------------------------- */
+
+.project__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 288px;
+  gap: var(--s-16);
+  align-items: start;
+}
+
+.project__work {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.project__pane {
+  min-width: 0;
+}
+
+/* ---- Tabs ------------------------------------------------------------------ */
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.tabs__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--s-6);
+  height: 30px;
+  padding: 0 10px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: var(--t-ui);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tabs__tab:hover {
+  color: var(--text-primary);
+}
+
+.tabs__tab--on,
+.tabs__tab--on:hover {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+}
+
+.tabs__meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.tabs__tab--on .tabs__meta {
+  color: var(--text-tertiary);
+}
+
+/* ---- Checklist -------------------------------------------------------------
+ * Flat, one level, every row the same shape. The only things that vary are the
+ * checkbox and a muted marker, so 14 rows scan as one list. */
+
+.checklist__summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  padding: var(--s-12) var(--card-padding) 13px;
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.checklist__summary-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+}
+
+.checklist__summary-count {
+  font-weight: 600;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.checklist__summary-pct {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Information, not a warning. Tertiary grey like every other caption in the
+ * app, no icon, no tint — the freelancer decides what it means.
+ */
+.checklist__later-line {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.checklist__list {
+  margin: 0;
+  padding: var(--s-4) 0;
+  list-style: none;
+}
+
+.checklist__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto 20px 20px;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 var(--card-padding);
+}
+
+.checklist__row:hover {
+  background: var(--bg-overlay);
+}
+
+/* The lifted row: raised off the list, with the line it would drop onto. */
+.checklist__row--lifted,
+.checklist__row--lifted:hover {
+  background: var(--bg-overlay);
+  border-radius: var(--r-field);
+  box-shadow: var(--e3), inset 0 0 0 1px var(--line-strong);
+  cursor: grabbing;
+}
+
+.checklist__dropline {
+  position: absolute;
+  left: var(--s-8);
+  right: var(--s-8);
+  top: -3px;
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+
+.checklist__box {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctrl);
+  background: transparent;
+  color: var(--bg-raised);
+  cursor: pointer;
+}
+
+.checklist__box:hover {
+  border-color: var(--text-secondary);
+}
+
+/* Done is a filled shape, not a colour — colour in this app means money. */
+.checklist__row--done .checklist__box {
+  border-color: var(--text-tertiary);
+  background: var(--text-tertiary);
+}
+
+.checklist__label {
+  min-width: 0;
+  height: 24px;
+  padding: 0 var(--s-6);
+  margin-left: calc(var(--s-6) * -1);
+  border: 1px solid transparent;
+  border-radius: var(--r-ctrl);
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--t-ui);
+  text-overflow: ellipsis;
+  outline: none;
+}
+
+.checklist__row:hover .checklist__label {
+  border-color: var(--line-subtle);
+}
+
+.checklist__label:focus {
+  border-color: var(--line-strong);
+  background: var(--bg-base);
+}
+
+.checklist__row--done .checklist__label {
+  color: var(--text-tertiary);
+}
+
+/* Kept in its own column so it reads as an annotation, not as part of a name. */
+.checklist__later {
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: var(--bg-base);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 15px;
+  white-space: nowrap;
+}
+
+.checklist__handle,
+.checklist__delete {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--r-ctrl);
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0;
+  cursor: pointer;
+}
+
+.checklist__handle {
+  cursor: grab;
+}
+
+.checklist__row:hover .checklist__handle,
+.checklist__row:hover .checklist__delete,
+.checklist__handle:focus-visible,
+.checklist__delete:focus-visible {
+  opacity: 1;
+}
+
+.checklist__row--lifted .checklist__handle {
+  opacity: 1;
+  color: var(--text-secondary);
+  cursor: grabbing;
+}
+
+.checklist__handle:hover {
+  color: var(--text-secondary);
+}
+
+.checklist__delete:hover {
+  color: var(--negative);
+  background: var(--bg-raised);
+}
+
+/* Always there, always last: adding an item costs one click, never two. */
+.checklist__add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 var(--card-padding);
+  border-top: 1px solid var(--line-subtle);
+  background: var(--bg-footer);
+}
+
+.checklist__add-glyph {
+  color: var(--text-muted);
+  flex: 0 0 13px;
+  margin-left: 1px;
+}
+
+.checklist__add-input {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--t-ui);
+  outline: none;
+}
+
+.checklist__add-input::placeholder {
+  color: var(--text-muted);
+}
+
+.checklist__add-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0;
+}
+
+.checklist__add:focus-within .checklist__add-hint {
+  opacity: 1;
+}
+
+/* ---- Scope tab ------------------------------------------------------------- */
+
+.scope {
+  padding: var(--s-16) var(--card-padding) var(--s-20);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-16);
+}
+
+.scope__body {
+  color: var(--text-secondary);
+  max-width: 62ch;
+}
+
+/* Four short facts read as a row, echoing the metrics above; two columns left
+ * half the pane empty. */
+.scope__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-12) var(--s-24);
+  border-top: 1px solid var(--line-subtle);
+}
+
+.scope__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: var(--s-12);
+}
+
+.scope__label {
+  color: var(--text-tertiary);
+}
+
+.scope__value {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Notes tab -------------------------------------------------------------- */
+
+.project-notes {
+  padding: var(--s-4) var(--card-padding) var(--s-12);
+}
+
+.project-notes__entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-12) 0;
+}
+
+.project-notes__rule {
+  height: 1px;
+  margin: calc(var(--s-12) * -1) 0 var(--s-12);
+  background: var(--line-subtle);
+}
+
+.project-notes__date {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.project-notes__body {
+  color: var(--text-secondary);
+  max-width: 68ch;
+}
+
+.project-notes__add {
+  align-self: flex-start;
+  height: 28px;
+  padding: 0 10px;
+  margin-top: var(--s-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-field);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.project-notes__add:hover {
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+
+/* ---- Time tab --------------------------------------------------------------- */
+
+.sessions__row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 88px;
+  align-items: center;
+  gap: var(--s-12);
+  height: 32px;
+  padding: 0 var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.sessions__row:hover {
+  background: var(--bg-overlay);
+}
+
+.sessions__date {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.sessions__note {
+  color: var(--text-secondary);
+}
+
+.sessions__length {
+  text-align: right;
+  font-weight: 500;
+}
+
+.sessions__row--total,
+.sessions__row--total:hover {
+  background: var(--bg-footer);
+  border-bottom: 0;
+}
+
+.sessions__row--total .sessions__date {
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.sessions__row--total .sessions__note {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.sessions__row--total .sessions__length {
+  font-weight: 600;
+}
+
+/* ---- Right rail -------------------------------------------------------------
+ * The same four blocks whichever tab is open, so the client's facts are never
+ * more than a glance away while you are working the list. */
+
+.rail {
+  position: sticky;
+  top: 0;
+  /* Clears the tab bar (30px) and its gap (10px) so the two panels align. */
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rail__card {
+  padding: var(--s-12) var(--card-padding) 14px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+
+.rail__title {
+  color: var(--text-tertiary);
+}
+
+.rail__client {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rail__client-names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rail__client-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.rail__client-name:hover {
+  color: var(--accent-link-hover);
+}
+
+.rail__client-company {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.rail__link {
+  font-size: 12px;
+  color: var(--accent-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rail__pills {
+  display: flex;
+  gap: var(--s-6);
+}
+
+.rail__aside {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--text-tertiary);
+}
+
+.rail__dates {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--s-6) var(--s-12);
+  font-size: 12px;
+}
+
+.rail__dates dt {
+  color: var(--text-tertiary);
+}
+
+.rail__dates dd {
+  margin: 0;
+  text-align: right;
+  color: var(--text-primary);
+}
+
+.rail__dates-empty {
+  color: var(--text-muted);
+}
+
+.rail__history {
+  margin: 0;
+  padding: 0 0 0 14px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rail__event {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* The thread joining one state to the next, drawn from each mark upwards. */
+.rail__event + .rail__event::after {
+  content: '';
+  position: absolute;
+  left: -11px;
+  bottom: 14px;
+  width: 1px;
+  height: 12px;
+  background: var(--line-subtle);
+}
+
+.rail__event-mark {
+  position: absolute;
+  left: -14px;
+  top: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-strong);
+  background: var(--bg-raised);
+}
+
+.rail__event--now .rail__event-mark {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.rail__event--now {
+  color: var(--text-primary);
+}
+
+.rail__event-label {
+  min-width: 0;
+}
+
+.rail__event-date {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.rail__invoice {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  padding: var(--s-8) 10px;
+  border-radius: var(--r-field);
+  border: 1px solid var(--line-subtle);
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+.rail__invoice:hover {
+  border-color: var(--line-strong);
+  color: var(--text-primary);
+}
+
+.rail__invoice-number {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.rail__invoice-total {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.rail__empty {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--text-tertiary);
+}
+
+/* ---- Time: the week bar -----------------------------------------------------
+ * The header's second tier, in the slot the Clients and Projects toolbars use.
+ * The week you are looking at on the left, what it came to on the right.
+ */
+
+.week-bar {
+  height: var(--timer-bar-height);
+  flex: 0 0 var(--timer-bar-height);
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+  padding: 0 var(--screen-gutter);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.week-bar__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.week-bar__arrow {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--r-ctrl);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.week-bar__arrow:hover {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+
+.week-bar__arrow:disabled {
+  background: transparent;
+  color: var(--text-muted);
+  cursor: default;
+}
+
+/* One glyph, two directions — the back crumb does the same. */
+.week-bar__arrow-glyph--back {
+  transform: rotate(180deg);
+}
+
+.week-bar__range {
+  font-weight: 500;
+}
+
+.week-bar__total-label {
+  color: var(--text-tertiary);
+}
+
+/* The same weight the timer bar gives its clock: the app's two big figures
+ * should look like the same kind of number. */
+.week-bar__total-value {
+  font: 600 20px/24px var(--font-sans);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Deliberately untinted. The system keeps colour for money moving, and four
+ * hours more than last week is neither good nor bad — the caret is enough.
+ */
+.week-bar__delta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.week-bar .button:disabled,
+.invoice__foot .button:disabled,
+.dialog__foot .button:disabled {
+  background: var(--bg-raised);
+  border-color: var(--line-subtle);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+/* ---- Time: the weekly log ---------------------------------------------------
+ * Seven columns across every project the week touched. The day headers put
+ * their total in the duration column, directly above the figures it sums.
+ */
+
+.time-log {
+  --time-grid: 1.25fr 0.85fr 1.7fr 78px 78px 88px 22px;
+}
+
+.time-log__header,
+.time-log__day,
+.time-log__row {
+  display: grid;
+  grid-template-columns: var(--time-grid);
+  gap: var(--s-12);
+  align-items: center;
+}
+
+.time-log__header {
+  padding: 7px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  color: var(--text-tertiary);
+}
+
+.time-log__day {
+  padding: 6px var(--card-padding);
+  background: var(--bg-footer);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.time-log__day-label {
+  grid-column: 1 / 6;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+  font: 600 13px/20px var(--font-sans);
+}
+
+.time-log__day-date {
+  font: var(--t-label);
+  color: var(--text-tertiary);
+}
+
+.time-log__day-total {
+  grid-column: 6;
+  text-align: right;
+  font-weight: 600;
+}
+
+/*
+ * A day with nothing on it is drawn rather than dropped. Omitting it would make
+ * a four-day week look like a full one; a hairline keeps the shape of the week
+ * without pretending the day was work.
+ */
+.time-log__blank {
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+  height: 30px;
+  padding: 0 var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.time-log__blank-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.time-log__blank-line {
+  flex: 1;
+  height: 1px;
+  background: var(--line-subtle);
+}
+
+.time-log__row {
+  padding: 5px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.time-log > *:last-child {
+  border-bottom: 0;
+}
+
+/*
+ * Editable in place. The fields are invisible until the row is under the
+ * cursor, so a week of work reads as a table and only becomes a form when you
+ * reach for it. The negative inline margin keeps the text on the column edge
+ * while the field is hidden, so nothing shifts when it appears.
+ */
+.time-log__cell {
+  height: 26px;
+  min-width: 0;
+  padding: 0 6px;
+  margin: 0 -6px;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctrl);
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--t-ui);
+}
+
+.time-log__row:hover .time-log__cell,
+.time-log__row:focus-within .time-log__cell {
+  border-color: var(--line-subtle);
+}
+
+.time-log__cell:hover,
+.time-log__cell:focus,
+.time-log__pick:focus-within {
+  background: var(--bg-base);
+}
+
+.time-log__cell:focus,
+.time-log__pick:focus-within {
+  border-color: var(--line-strong);
+}
+
+.time-log__note::placeholder {
+  color: var(--text-muted);
+}
+
+.time-log__time {
+  text-align: right;
+}
+
+/* Follows the project rather than being typed: one truth, one place to fix it. */
+.time-log__client {
+  color: var(--text-tertiary);
+}
+
+/* Derived from the two times beside it, so it is read, never typed. */
+.time-log__duration {
+  text-align: right;
+  font-weight: 500;
+}
+
+.time-log__pick {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-right: 22px;
+}
+
+.time-log__select {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--t-ui);
+  font-weight: 500;
+  appearance: none;
+  cursor: pointer;
+}
+
+/* The cell around it carries the ring, so the select must not draw a second. */
+.time-log__select:focus {
+  outline: none;
+}
+
+.time-log__select option {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+
+.time-log__caret {
+  position: absolute;
+  right: 6px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.time-log__row:hover .time-log__caret,
+.time-log__row:focus-within .time-log__caret {
+  opacity: 1;
+}
+
+.time-log__delete {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--r-ctrl);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+/* Hover reveals it; focus keeps it, or it would be unreachable by keyboard. */
+.time-log__row:hover .time-log__delete,
+.time-log__row:focus-within .time-log__delete,
+.time-log__delete:focus-visible {
+  opacity: 1;
+}
+
+.time-log__delete:hover {
+  background: var(--negative-surface);
+  color: var(--negative-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .time-log__delete {
+    transition: none;
+  }
+}
+
+/* ---- Time: the start control ------------------------------------------------
+ * Picker and button sit together in the header: once the project is right,
+ * starting a timer should cost one click.
+ */
+
+.timer-starter {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+
+.timer-starter__pick {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 172px;
+  height: 28px;
+  padding: 0 24px 0 10px;
+  border-radius: var(--r-field);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-subtle);
+}
+
+.timer-starter__pick:hover {
+  background: var(--bg-overlay);
+}
+
+.timer-starter__pick:focus-within {
+  border-color: var(--line-strong);
+}
+
+.timer-starter__select {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--t-label);
+  appearance: none;
+  cursor: pointer;
+}
+
+.timer-starter__select:focus {
+  outline: none;
+}
+
+.timer-starter__select option {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+
+.timer-starter__caret {
+  position: absolute;
+  right: 9px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.timer-starter__start {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* ---- Timer recovery ---------------------------------------------------------
+ * A laptop closed on a Thursday evening is not an incident. Nothing here is
+ * red, nothing carries a warning glyph: it is three answers to one question,
+ * with the likeliest one holding the input.
+ */
+
+.recovery__lede strong {
+  font-weight: 600;
+}
+
+.recovery__hint {
+  margin: -6px 0 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-tertiary);
+}
+
+.recovery__choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+
+.recovery__choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px var(--s-12);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--r-field);
+  background: var(--bg-base);
+  cursor: pointer;
+}
+
+.recovery__choice:hover {
+  border-color: var(--line-strong);
+}
+
+.recovery__choice--on {
+  background: var(--accent-surface);
+  border-color: var(--accent-line);
+}
+
+.recovery__radio {
+  margin: 3px 0 0;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
+.recovery__choice-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.recovery__choice-label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  font: var(--t-ui);
+  font-weight: 500;
+}
+
+.recovery__choice-note {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--text-tertiary);
+}
+
+.recovery__choice--on .recovery__choice-note {
+  color: var(--accent-text-dim);
+}
+
+.recovery__trim-input {
+  width: 92px;
+  height: 24px;
+  padding: 0 var(--s-8);
+  border-radius: var(--r-ctrl);
+  border: 1px solid var(--line-strong);
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  font: var(--t-ui);
+}
+
+.recovery__choice--on .recovery__trim-input {
+  background: var(--accent-ctrl);
+  border-color: var(--accent-ctrl-line);
+}
+
+/* ---- Create invoice: the screen ---------------------------------------------
+ * The same split as a project detail — work on the left, the facts that hold
+ * for the whole thing on the right — because it is the same reading order: you
+ * work down the lines and glance right to see what they come to. */
+
+.invoice__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 288px;
+  gap: var(--s-16);
+  align-items: start;
+}
+
+.invoice__work {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* No tab bar above it to clear, unlike the project rail. */
+.invoice__rail {
+  margin-top: 0;
+}
+
+.invoice__client {
+  padding: var(--s-12) var(--card-padding) 14px;
+}
+
+/*
+ * The un-chosen state. It says what will appear rather than apologising for an
+ * empty screen, so choosing a client fills in a shape already seen.
+ */
+.invoice__prompt {
+  padding: var(--s-20) var(--card-padding) var(--s-24);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.invoice__prompt-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.invoice__prompt-body {
+  margin: 0;
+  max-width: 62ch;
+  font: var(--t-body);
+  color: var(--text-tertiary);
+}
+
+/* Window furniture, like the timer bar: it belongs to the screen rather than to
+   the scrolling pane, so the two actions never scroll out of reach. */
+.invoice__foot {
+  flex: 0 0 auto;
+  height: var(--bar-height);
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  padding: 0 var(--screen-gutter);
+  border-top: 1px solid var(--line-subtle);
+  background: var(--bg-footer);
+}
+
+.invoice__foot-note {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* ---- Create invoice: what is billable ---------------------------------------
+ * A table in the Projects table idiom, with one column ahead of the name for
+ * the tick. Rows already on an invoice keep their place and dim, exactly as a
+ * cancelled project does there: a row that vanishes reads as something lost, a
+ * row that dims reads as something accounted for. */
+
+.billable {
+  /* The trailing column is empty: it matches the line table delete column, so
+     the two money columns stacked above each other share a right edge. */
+  --billable-grid: 18px minmax(0, 1fr) 108px 96px 20px;
+}
+
+.billable__head,
+.lines__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: var(--s-12) var(--card-padding) 11px;
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.billable__head .section__title,
+.lines__head .section__title {
+  margin: 0;
+}
+
+.billable__header,
+.billable__row {
+  display: grid;
+  grid-template-columns: var(--billable-grid);
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+}
+
+.billable__header {
+  padding: 7px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  color: var(--text-tertiary);
+}
+
+.billable__row {
+  height: 36px;
+  padding: 0 var(--card-padding);
+  border: 0;
+  border-bottom: 1px solid var(--line-subtle);
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--t-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.billable__row:last-child {
+  border-bottom: 0;
+}
+
+button.billable__row {
+  cursor: pointer;
+}
+
+button.billable__row:hover {
+  background: var(--bg-overlay);
+}
+
+.billable__row--dim {
+  opacity: 0.6;
+}
+
+.billable__name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  min-width: 0;
+  font-weight: 500;
+}
+
+/*
+ * The tick takes the accent, unlike the checklist grey fill. There, done is a
+ * state of the work; here a ticked row is money moving onto an invoice, which
+ * is the one thing this app spends colour on. The tint stays on the 16px box
+ * rather than the row — three purple rows would shout.
+ */
+.billable__box {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctrl);
+  color: var(--accent-on);
+}
+
+button.billable__row:hover .billable__box {
+  border-color: var(--text-secondary);
+}
+
+.billable__row--on .billable__box {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+/* An annotation on the name, not part of it — the register the checklist gives
+   its "added later" marker. */
+.billable__flag {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: var(--bg-base);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 15px;
+  white-space: nowrap;
+}
+
+.billable__date {
+  color: var(--text-tertiary);
+}
+
+/* The 5px matches the inner padding of the amount input in the line table
+   below, so the two money columns stacked over each other share a text edge
+   and can be read as one running total. */
+.billable__price {
+  padding-right: 5px;
+}
+
+.billable__row .billable__price {
+  font-weight: 500;
+}
+
+/*
+ * Two absences, two sentences. Nothing delivered is a prompt to go and deliver
+ * something; everything already billed is a reassurance, and keeps its evidence
+ * on screen below rather than replacing it.
+ */
+.billable__empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-16) var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.billable__empty-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.billable__empty-body {
+  margin: 0;
+  max-width: 64ch;
+  font: var(--t-body);
+  color: var(--text-tertiary);
+}
+
+.billable__empty-body strong {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.billable__empty-actions {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+  margin-top: var(--s-2);
+}
+
+.billable__empty-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font: var(--t-ui);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.billable__empty-link:hover {
+  color: var(--accent-link-hover);
+}
+
+.billable__empty-aside {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.billable__foot {
+  margin: 0;
+  padding: 9px var(--card-padding) 11px;
+  border-top: 1px solid var(--line-subtle);
+  background: var(--bg-footer);
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Create invoice: the line items -----------------------------------------
+ * The checklist row, priced. Same borderless label, same grip, same delete on
+ * hover — a freelancer who has reordered one list in this app has learnt how to
+ * reorder both. */
+
+.lines__list {
+  padding: var(--s-4) 0;
+}
+
+.lines__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 116px 20px;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 var(--card-padding);
+}
+
+.lines__row:hover {
+  background: var(--bg-overlay);
+}
+
+.lines__row--lifted,
+.lines__row--lifted:hover {
+  background: var(--bg-overlay);
+  border-radius: var(--r-field);
+  box-shadow: var(--e3), inset 0 0 0 1px var(--line-strong);
+  cursor: grabbing;
+}
+
+.lines__dropline {
+  position: absolute;
+  left: var(--s-8);
+  right: var(--s-8);
+  top: -3px;
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+
+.lines__label,
+.lines__amount {
+  min-width: 0;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctrl);
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--t-ui);
+  outline: none;
+}
+
+.lines__label {
+  padding: 0 var(--s-6);
+  margin-left: calc(var(--s-6) * -1);
+  text-overflow: ellipsis;
+}
+
+/* Right-aligned so the decimal points line up down the column. It is the only
+   way a reader can add the lines up by eye and catch the wrong one. */
+.lines__amount {
+  padding: 0 var(--s-8);
+  text-align: right;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.lines__row:hover .lines__label,
+.lines__row:hover .lines__amount {
+  border-color: var(--line-subtle);
+}
+
+.lines__label:focus,
+.lines__amount:focus {
+  border-color: var(--line-strong);
+  background: var(--bg-base);
+}
+
+.lines__handle,
+.lines__delete {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--r-ctrl);
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0;
+  cursor: pointer;
+}
+
+.lines__handle {
+  cursor: grab;
+}
+
+.lines__row:hover .lines__handle,
+.lines__row:hover .lines__delete,
+.lines__handle:focus-visible,
+.lines__delete:focus-visible {
+  opacity: 1;
+}
+
+.lines__row--lifted .lines__handle {
+  opacity: 1;
+  color: var(--text-secondary);
+  cursor: grabbing;
+}
+
+.lines__handle:hover {
+  color: var(--text-secondary);
+}
+
+.lines__delete:hover {
+  color: var(--negative);
+  background: var(--bg-raised);
+}
+
+.lines__blank {
+  margin: 0;
+  padding: var(--s-16) var(--card-padding);
+  max-width: 64ch;
+  font: var(--t-body);
+  color: var(--text-tertiary);
+}
+
+.lines__add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 var(--card-padding);
+  border-top: 1px solid var(--line-subtle);
+  background: var(--bg-footer);
+}
+
+.lines__add-glyph {
+  color: var(--text-muted);
+  flex: 0 0 13px;
+  margin-left: 1px;
+}
+
+.lines__add-input {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--t-ui);
+  outline: none;
+}
+
+.lines__add-input::placeholder {
+  color: var(--text-muted);
+}
+
+.lines__add-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0;
+}
+
+.lines__add:focus-within .lines__add-hint {
+  opacity: 1;
+}
+
+/* ---- Create invoice: the rail -----------------------------------------------
+ * Number, dates, totals, notes. Only the total takes weight: a subtotal and a
+ * tax line are the working, and the total is the figure the client acts on. */
+
+.inv-field {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+
+.inv-field label {
+  flex: 0 0 68px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.inv-field__control {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  text-align: right;
+}
+
+/* Read-only, because the terms decide it — but shown, because it is the thing
+   the client will argue about. */
+.inv-field__control[readonly] {
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+.inv-totals__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  min-height: 24px;
+}
+
+.inv-totals__label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.inv-totals__value {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* A rate, not a sum: narrow, and suffixed so nobody reads 20 as $20. */
+.inv-rate {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  padding: 0 var(--s-6);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--r-ctrl);
+  background: var(--bg-base);
+}
+
+.inv-rate:focus-within {
+  border-color: var(--line-strong);
+}
+
+/* The wrapper is the field, so it takes the focus ring; on the input alone the
+   ring cut across the per-cent sign. */
+.inv-rate__input:focus-visible {
+  outline: none;
+}
+
+.inv-rate:has(.inv-rate__input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.inv-rate__input {
+  width: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--t-label);
+  text-align: right;
+  outline: none;
+}
+
+.inv-rate__input::placeholder {
+  color: var(--text-muted);
+}
+
+.inv-rate__suffix {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* The one figure on this screen allowed to be loud. It sits on the footer tone
+   the totals row of every other table uses. */
+.inv-totals__total {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+  margin: var(--s-4) calc(var(--card-padding) * -1) -14px;
+  padding: 10px var(--card-padding) var(--s-12);
+  border-top: 1px solid var(--line-subtle);
+  background: var(--bg-footer);
+}
+
+.inv-totals__total-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.inv-totals__total-value {
+  margin-left: auto;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.inv-notes {
+  width: 100%;
+}
+
+/* ---- Focus ------------------------------------------------------------------
+ * The app defined none, and the checklist is keyboard work. */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: var(--r-ctrl);
 }

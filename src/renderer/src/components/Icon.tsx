@@ -12,6 +12,12 @@ export type IconName =
   | 'chevron'
   | 'close'
   | 'caret'
+  | 'more'
+  | 'grip'
+  | 'check'
+  | 'plus'
+  | 'play'
+  | 'trash'
 
 const paths: Record<IconName, JSX.Element> = {
   search: (
@@ -75,7 +81,53 @@ const paths: Record<IconName, JSX.Element> = {
       <line x1="12.5" y1="3.5" x2="3.5" y2="12.5" stroke="currentColor" strokeWidth="1.4" />
     </>
   ),
-  caret: <path d="M4 6.5L8 10.5L12 6.5" stroke="currentColor" strokeWidth="1.4" />
+  caret: <path d="M4 6.5L8 10.5L12 6.5" stroke="currentColor" strokeWidth="1.4" />,
+  more: (
+    <>
+      <circle cx="3.5" cy="8" r="1.35" fill="currentColor" />
+      <circle cx="8" cy="8" r="1.35" fill="currentColor" />
+      <circle cx="12.5" cy="8" r="1.35" fill="currentColor" />
+    </>
+  ),
+  grip: (
+    <>
+      <circle cx="6" cy="3.5" r="1.1" fill="currentColor" />
+      <circle cx="10" cy="3.5" r="1.1" fill="currentColor" />
+      <circle cx="6" cy="8" r="1.1" fill="currentColor" />
+      <circle cx="10" cy="8" r="1.1" fill="currentColor" />
+      <circle cx="6" cy="12.5" r="1.1" fill="currentColor" />
+      <circle cx="10" cy="12.5" r="1.1" fill="currentColor" />
+    </>
+  ),
+  check: (
+    <path
+      d="M3.5 8.4L6.5 11.4L12.5 4.9"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
+  plus: (
+    <>
+      <line x1="8" y1="3.5" x2="8" y2="12.5" stroke="currentColor" strokeWidth="1.4" />
+      <line x1="3.5" y1="8" x2="12.5" y2="8" stroke="currentColor" strokeWidth="1.4" />
+    </>
+  ),
+  /* Solid, unlike the rest: it sits inside a filled button, where a 1.3 stroke
+     at this size would disappear against the accent. */
+  play: <path d="M5.5 3.6L12 8L5.5 12.4Z" fill="currentColor" />,
+  trash: (
+    <>
+      <path d="M3.5 4.5h9" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M6.3 4.5V3.2h3.4v1.3" stroke="currentColor" strokeWidth="1.3" />
+      <path
+        d="M4.8 4.5l.6 8a.9.9 0 00.9.8h3.4a.9.9 0 00.9-.8l.6-8"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+    </>
+  )
 }
 
 type IconProps = {

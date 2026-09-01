@@ -7,7 +7,7 @@
  * Delivered  warm — work done, money not asked for
  * Invoiced   neutral, brighter text — waiting on them
  * Paid       positive — the only fully closed state
- * Cancelled  recessive — row dims, name struck through
+ * Cancelled  recessive — the row dims; the pill carries the meaning
  *
  * Sent and Archived are not on the board; they come from the Clients artboard
  * and live here so every status chip in the app resolves in one place.
