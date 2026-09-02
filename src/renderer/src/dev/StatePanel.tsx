@@ -10,6 +10,8 @@ export type Screen =
   | 'project'
   | 'time'
   | 'newInvoice'
+  | 'invoices'
+  | 'invoice'
 
 export type Theme = 'dark' | 'light'
 
@@ -21,9 +23,9 @@ export type Theme = 'dark' | 'light'
 export type TimerState = 'off' | 'running' | 'over'
 
 /** Dialogs are states of a screen, not screens of their own. */
-export type Modal = null | 'client' | 'project' | 'recovery'
+export type Modal = null | 'client' | 'project' | 'recovery' | 'payment'
 
-type ScreenChoice = Screen | 'newClient' | 'newProject' | 'recovery'
+type ScreenChoice = Screen | 'newClient' | 'newProject' | 'recovery' | 'voidInvoice' | 'payment'
 
 type StatePanelProps = {
   screen: Screen
@@ -108,7 +110,9 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
               ? 'newProject'
               : props.modal === 'recovery'
                 ? 'recovery'
-                : props.screen
+                : props.modal === 'payment'
+                  ? 'payment'
+                  : props.screen
         }
         onChange={props.onScreen}
         options={[
@@ -122,7 +126,11 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
           { value: 'newProject', label: 'New project' },
           { value: 'time', label: 'Time' },
           { value: 'recovery', label: 'Recovery' },
-          { value: 'newInvoice', label: 'New invoice' }
+          { value: 'newInvoice', label: 'New invoice' },
+          { value: 'invoices', label: 'Invoices' },
+          { value: 'invoice', label: 'Invoice' },
+          { value: 'voidInvoice', label: 'Void invoice' },
+          { value: 'payment', label: 'Record payment' }
         ]}
       />
 

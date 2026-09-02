@@ -10,7 +10,6 @@ type NavEntry = {
   icon: IconName
   /** Nothing to open yet on a new account. */
   disabled?: boolean
-  badge?: string
 }
 
 const nav: NavEntry[] = [
@@ -18,7 +17,7 @@ const nav: NavEntry[] = [
   { key: 'clients', label: 'Clients', icon: 'clients' },
   { key: 'projects', label: 'Projects', icon: 'projects' },
   { key: 'time', label: 'Time', icon: 'time' },
-  { key: 'invoices', label: 'Invoices', icon: 'invoices', badge: '2' },
+  { key: 'invoices', label: 'Invoices', icon: 'invoices' },
   { key: 'settings', label: 'Settings', icon: 'settings' }
 ]
 
@@ -32,6 +31,12 @@ type SidebarProps = {
    * screen shows 8 — so each screen passes its own rather than sharing one.
    */
   counts?: Partial<Record<NavKey, string>>
+  /**
+   * The badge on Invoices, which is the number of overdue ones. Counted by the
+   * caller from the register rather than typed here, so paying the last late
+   * invoice clears it instead of leaving a 2 behind.
+   */
+  overdueInvoices?: number
   /** Drives the marker on Time; the Clients frames run no timer. */
   timerRunning?: boolean
   syncState?: SyncState
@@ -42,6 +47,7 @@ export function Sidebar({
   variant = 'populated',
   active = 'dashboard',
   counts = {},
+  overdueInvoices = 0,
   timerRunning = false,
   syncState = 'saved',
   onNavigate
@@ -72,7 +78,10 @@ export function Sidebar({
           const disabled = empty && emptyDisabled.includes(entry.key)
           const count = empty ? undefined : counts[entry.key]
           const running = !empty && entry.key === 'time' && timerRunning
-          const badge = empty ? undefined : entry.badge
+          const badge =
+            !empty && entry.key === 'invoices' && overdueInvoices > 0
+              ? String(overdueInvoices)
+              : undefined
 
           return (
             <button

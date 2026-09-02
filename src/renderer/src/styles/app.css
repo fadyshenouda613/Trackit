@@ -43,6 +43,16 @@
 }
 
 /*
+ * Panels keep their natural height. Without this they are flex items like any
+ * other, so a table taller than the pane is shrunk to fit and clipped by the
+ * panel's own rounded corners — losing rows silently, which is the exact
+ * thing the note above says must not happen. Now the pane scrolls instead.
+ */
+.main__content > * {
+  flex-shrink: 0;
+}
+
+/*
  * macOS keeps its traffic lights inside the app's own chrome, so whichever bar
  * is topmost must start its content clear of them — the artboard's 16px bar
  * gutter plus 72px of padding, i.e. an 88px content origin.
@@ -3742,4 +3752,730 @@ button.billable__row:hover .billable__box {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
   border-radius: var(--r-ctrl);
+}
+
+/* ---- Live toolbar controls --------------------------------------------------
+ * The Clients and Projects toolbars draw their filters and sort as inert text.
+ * The Invoices toolbar drives real state with the same controls, so both now
+ * render as buttons when they are given a handler — and a button carries the
+ * browser's own border, background and font, all of which have to go before it
+ * looks like the thing it replaced. */
+
+.segmented__option,
+button.filter-dropdown {
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+
+button.filter-dropdown {
+  border: 1px solid var(--line-subtle);
+  background: var(--bg-raised);
+}
+
+.filter-dropdown--open,
+.filter-dropdown--open:hover {
+  background: var(--bg-overlay);
+  border-color: var(--line-strong);
+}
+
+/* The toolbar menus hang from the left edge of their control, unlike the
+   overflow menu on a detail header, which hangs from the right. */
+.overflow__menu--left {
+  right: auto;
+  left: 0;
+  top: 32px;
+  min-width: 168px;
+}
+
+.overflow__item--on {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.overflow__tick {
+  color: var(--accent);
+  flex: 0 0 12px;
+}
+
+/* ---- Invoices: the header figure --------------------------------------------
+ * One figure, because there is only one question a list of invoices is opened
+ * to answer. It sits in the metric card's register but runs the full width, so
+ * it reads as a statement about the table beneath it rather than as the first
+ * of three cards that never arrive. */
+
+.inv-figure {
+  display: flex;
+  align-items: center;
+  gap: var(--s-16);
+  padding: var(--s-12) var(--card-padding) 13px;
+}
+
+.inv-figure__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.inv-figure__label {
+  color: var(--text-tertiary);
+}
+
+.inv-figure__value {
+  font: 600 30px/36px var(--font-sans);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-figure__facts {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-figure__fact--late {
+  color: var(--negative);
+}
+
+.inv-figure__fact--quiet {
+  color: var(--text-muted);
+}
+
+.inv-figure__sep {
+  color: var(--line-strong);
+}
+
+/* ---- Invoices: the list -----------------------------------------------------
+ * Seven columns in the all-projects idiom. The due column is the wide one, and
+ * deliberately: it is the only cell in the app that carries two things, a date
+ * and how far past it we are. */
+
+.invoices {
+  /* Nothing in this table needs to be wide, so no single column takes the
+     slack in a big window — it is shared out, and the row stays a row
+     instead of two clumps with a hole between them. */
+  --invoices-grid: 104px minmax(140px, 1.5fr) minmax(104px, 0.6fr)
+    minmax(172px, 0.9fr) minmax(112px, 0.55fr) minmax(112px, 0.55fr) 140px;
+}
+
+.invoices__header,
+.invoices__row {
+  display: grid;
+  grid-template-columns: var(--invoices-grid);
+  gap: 14px;
+  align-items: center;
+}
+
+.invoices__header {
+  padding: 7px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  color: var(--text-tertiary);
+}
+
+.invoices__row {
+  padding: var(--s-8) var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.invoices__row:hover {
+  background: var(--bg-overlay);
+}
+
+/* Voided: the row recedes and the pill says why. The same treatment a cancelled
+   project gets, and for the same reason — a row that vanished would read as
+   something lost, where this reads as something accounted for. */
+.invoices__row--dim {
+  opacity: 0.6;
+}
+
+/* Mono is for identifiers only — invoice numbers, never the money beside them. */
+.invoices__number {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.invoices__client {
+  color: var(--text-secondary);
+}
+
+.invoices__date {
+  color: var(--text-secondary);
+}
+
+.invoices__quiet {
+  color: var(--text-muted);
+}
+
+.invoices__received {
+  color: var(--text-secondary);
+}
+
+/*
+ * Overdue lives here and nowhere else. The status column keeps saying what the
+ * invoice is — sent, part paid — because that has not changed; what has changed
+ * is that a date went past, so the date is what is marked. The colour is not
+ * enough on its own at 12px, so the count comes with it.
+ */
+.invoices__due {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  min-width: 0;
+}
+
+.invoices__due-date {
+  font-variant-numeric: tabular-nums;
+}
+
+.invoices__empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-20) var(--card-padding) var(--s-24);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.invoices__empty-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.invoices__empty-body {
+  margin: 0;
+  max-width: 62ch;
+  font: var(--t-body);
+  color: var(--text-tertiary);
+}
+
+/* ---- Invoices: the footer summary -------------------------------------------
+ * Same basis, same sentence as the all-projects totals: state what is excluded,
+ * or the three figures are three numbers nobody can rebuild. */
+
+.invoices__totals,
+.invoices__totals:hover {
+  background: var(--bg-footer);
+  border-bottom: 0;
+  cursor: default;
+}
+
+.invoices__totals-head {
+  grid-column: span 4;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.invoices__totals-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.invoices__totals-basis {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--text-muted);
+}
+
+.invoices__totals-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.invoices__totals-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: flex-start;
+}
+
+.invoices__totals-caption {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--text-muted);
+}
+
+/* ---- Invoices: the document -------------------------------------------------
+ * The one document in an app of tables, and it stays on the same surface as
+ * every panel around it. A white sheet would be a second palette to keep true
+ * in two themes, and the app has spent its whole colour budget on money moving.
+ *
+ * So it reads as a document typographically instead: a wide margin the tables
+ * never take, the sender and the invoice facing each other across the head, and
+ * every amount landing on one decimal edge from the first line to the total. */
+
+.doc-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.doc {
+  padding: var(--s-32);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-24);
+}
+
+.doc--void {
+  border-color: var(--negative-line);
+}
+
+/* Everything but the banner recedes: the invoice is still legible, because you
+   still have to be able to read what was voided, but it stops asking to be
+   acted on. */
+.doc--void .doc__head,
+.doc--void .doc__bill,
+.doc--void .doc__lines,
+.doc--void .doc__foot {
+  opacity: 0.5;
+}
+
+.doc__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-32);
+}
+
+.doc__from {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-secondary);
+}
+
+.doc__from-name {
+  font: var(--t-subhead);
+  letter-spacing: -0.005em;
+  color: var(--text-primary);
+  margin-bottom: var(--s-4);
+}
+
+.doc__from-aside {
+  color: var(--text-tertiary);
+}
+
+.doc__meta {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-2);
+}
+
+.doc__kind {
+  color: var(--text-tertiary);
+}
+
+.doc__number {
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  margin-bottom: var(--s-8);
+}
+
+.doc__dates {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 3px var(--s-16);
+  font-size: 12px;
+}
+
+.doc__dates dt {
+  color: var(--text-tertiary);
+}
+
+.doc__dates dd {
+  margin: 0;
+  text-align: right;
+  color: var(--text-secondary);
+}
+
+.doc__rule {
+  height: 1px;
+  background: var(--line-subtle);
+}
+
+.doc__bill {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.doc__bill-label {
+  color: var(--text-tertiary);
+  margin-bottom: var(--s-6);
+}
+
+.doc__bill-name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.doc__bill-line {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-secondary);
+}
+
+/* The work, grouped by the project it was done on. A client billed for two
+   projects should be able to tell which is which before agreeing to the total,
+   so the group is a heading with its own sum — and with one project that sum
+   would be the invoice total said twice, so the component drops it. */
+
+.doc__lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-20);
+}
+
+.doc__group {
+  display: flex;
+  flex-direction: column;
+}
+
+.doc__group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-12);
+  padding-bottom: var(--s-6);
+  margin-bottom: var(--s-4);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.doc__group-name {
+  color: var(--text-tertiary);
+}
+
+.doc__group-total {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.doc__line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-16);
+  padding: var(--s-6) 0;
+  font-size: 13px;
+}
+
+.doc__line-label {
+  color: var(--text-secondary);
+}
+
+.doc__line-amount {
+  margin-left: auto;
+  color: var(--text-primary);
+}
+
+.doc__foot {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-32);
+}
+
+.doc__notes {
+  flex: 1;
+  margin: 0;
+  max-width: 44ch;
+  font-size: 12px;
+  line-height: 19px;
+  color: var(--text-tertiary);
+  text-wrap: pretty;
+}
+
+.doc__totals {
+  position: relative;
+  /* Pushed to the sheet edge so Subtotal, Tax and Total land on the same
+     decimal edge the line amounts above them do — the column the eye is
+     already running down. */
+  margin-left: auto;
+  flex: 0 0 260px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.doc__totals-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-12);
+  font-size: 13px;
+}
+
+.doc__totals-label {
+  color: var(--text-tertiary);
+}
+
+.doc__totals-value {
+  margin-left: auto;
+  color: var(--text-secondary);
+}
+
+/* The figure the client acts on, and the only one on the sheet with weight. */
+.doc__totals-total {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-12);
+  margin-top: var(--s-4);
+  padding-top: 10px;
+  border-top: 1px solid var(--line-strong);
+}
+
+.doc__totals-total-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.doc__totals-total-value {
+  margin-left: auto;
+  font: 600 22px/26px var(--font-sans);
+  letter-spacing: -0.015em;
+}
+
+/* The stamp is the third thing that says void, after the banner and the fade.
+   Any one of them alone could be missed on a screen full of figures. */
+.doc__stamp {
+  position: absolute;
+  left: -132px;
+  top: 6px;
+  font: 700 44px/44px var(--font-sans);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--negative);
+  opacity: 0.22;
+  transform: rotate(-11deg);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ---- Invoices: the void banner ----------------------------------------------
+ * Above the sheet rather than on it, because it is not part of the invoice —
+ * it is the reason the invoice underneath no longer counts. */
+
+.doc-void {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--r-card);
+  border: 1px solid var(--negative-line);
+  background: var(--negative-surface);
+}
+
+.doc-void__mark {
+  flex: 0 0 auto;
+  color: var(--negative-text);
+}
+
+.doc-void__text {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--negative-text-dim);
+  text-wrap: pretty;
+}
+
+.doc-void__link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--negative-text);
+  cursor: pointer;
+}
+
+.doc-void__link:hover {
+  color: var(--text-primary);
+}
+
+.doc-draft {
+  margin: 0;
+  padding: 0 var(--s-4);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ---- Invoices: the actions rail ---------------------------------------------
+ * Where it stands, and the small number of things you can do about it. The
+ * dates are not repeated here: the document beside it prints them, and a rail
+ * that restates the sheet is a second copy to keep true. */
+
+.inv-state__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+
+.inv-state__figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+  margin: var(--s-2) 0 var(--s-4);
+}
+
+.inv-state__label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.inv-state__value {
+  margin-left: auto;
+  font: 600 22px/26px var(--font-sans);
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-acts {
+  gap: 10px;
+}
+
+/* Full width and left-aligned: a stacked list of actions is a menu, not a row
+   of buttons, and centred labels in a column read as ransom notes. */
+.inv-acts__button {
+  width: 100%;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.inv-acts__button--danger {
+  color: var(--negative-text-dim);
+}
+
+.inv-acts__button--danger:hover {
+  border-color: var(--negative-ctrl-line);
+  background: var(--negative-ctrl);
+  color: var(--negative-text);
+}
+
+.inv-acts__rule {
+  height: 1px;
+  margin: var(--s-2) 0;
+  background: var(--line-subtle);
+}
+
+.inv-acts__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+}
+
+.inv-acts__confirm-text {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+
+.inv-acts__confirm-row {
+  display: flex;
+  gap: var(--s-6);
+}
+
+.inv-acts__confirm-row .inv-acts__button {
+  justify-content: center;
+}
+
+/* ---- Invoices: the payments -------------------------------------------------
+ * Under the document rather than beside it, because they are the answer to it:
+ * the bill asks for a figure and this says what came back. In the rail they
+ * would have been filed as metadata. */
+
+.payments-section {
+  margin-top: var(--s-4);
+}
+
+.payments {
+  --payments-grid: 132px 128px 144px minmax(0, 1fr);
+}
+
+.payments__header,
+.payments__row {
+  display: grid;
+  grid-template-columns: var(--payments-grid);
+  gap: 14px;
+  align-items: center;
+}
+
+.payments__header {
+  padding: 7px var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  color: var(--text-tertiary);
+}
+
+.payments__row {
+  padding: var(--s-8) var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.payments__date {
+  color: var(--text-secondary);
+}
+
+.payments__amount {
+  font-weight: 500;
+}
+
+.payments__method {
+  color: var(--text-secondary);
+}
+
+.payments__note {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.payments__empty {
+  padding: var(--s-16) var(--card-padding);
+  max-width: 62ch;
+  font: var(--t-body);
+  color: var(--text-tertiary);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+/* The figure the freelancer actually opened this screen for, on the footer tone
+   every totals row in the app uses. */
+.payments__balance,
+.payments__balance:hover {
+  background: var(--bg-footer);
+  border-bottom: 0;
+}
+
+.payments__balance-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.payments__balance-value {
+  font: 600 15px/20px var(--font-sans);
+  letter-spacing: -0.01em;
+}
+
+.payments__balance-basis {
+  grid-column: 3 / span 2;
+  font-size: 11px;
+  color: var(--text-muted);
 }

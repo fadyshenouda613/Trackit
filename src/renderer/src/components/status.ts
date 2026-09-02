@@ -11,6 +11,16 @@
  *
  * Sent and Archived are not on the board; they come from the Clients artboard
  * and live here so every status chip in the app resolves in one place.
+ *
+ * Partially paid and Void come from the Invoices list, and both follow the rule
+ * rather than bending it. Partially paid is warm because money has been asked
+ * for and only some of it has arrived — the same register Delivered uses for
+ * work that is done and unpaid. Void is recessive, like Cancelled: the row dims
+ * and the pill says why. Neither is a stage of the other four.
+ *
+ * Being overdue is deliberately not in this list. It is a fact about a due date,
+ * not a state of the invoice, so it is drawn on the date cell instead — see
+ * overdueToneOf in invoices-data.ts.
  */
 export type Status =
   | 'draft'
@@ -21,6 +31,8 @@ export type Status =
   | 'cancelled'
   | 'sent'
   | 'archived'
+  | 'partial'
+  | 'void'
 
 type StatusStyle = {
   label: string
@@ -70,5 +82,15 @@ export const statusStyles: Record<Status, StatusStyle> = {
     label: 'Archived',
     background: 'var(--neutral-surface)',
     color: 'var(--neutral-text)'
+  },
+  partial: {
+    label: 'Partially paid',
+    background: 'var(--warning-surface)',
+    color: 'var(--status-partial-text)'
+  },
+  void: {
+    label: 'Void',
+    background: 'var(--bg-overlay)',
+    color: 'var(--status-void-text)'
   }
 }

@@ -78,12 +78,12 @@ export const billingClients: BillingClient[] = [
       name: 'Site copy refresh',
       delivered: '2026-06-28',
       price: 2400,
-      invoicedOn: 'INV-0139'
+      invoicedOn: 'INV-0131'
     }
   ]),
   client('sable', 'USD ($)', 'Net 30', 30, 1, []),
-  client('kestrel', 'GBP (£)', 'Net 30', 30, 2, []),
-  client('ortega', 'EUR (€)', 'Net 7', 7, 1, []),
+  client('kestrel', 'USD ($)', 'Net 30', 30, 2, []),
+  client('ortega', 'USD ($)', 'Net 7', 7, 1, []),
   client('halcyon', 'USD ($)', 'Due on receipt', 0, 1, []),
   client('marlow', 'USD ($)', 'Net 14', 14, 1, [
     {
@@ -111,8 +111,8 @@ export const billingClients: BillingClient[] = [
 export const clientById = (id: string): BillingClient | null =>
   billingClients.find((entry) => entry.id === id) ?? null
 
-/** Follows INV-0148, the last one the Projects and Clients screens show. */
-export const NEXT_NUMBER = 'INV-0149'
+/** Follows INV-0149, the draft already sitting at the top of the Invoices list. */
+export const NEXT_NUMBER = 'INV-0150'
 
 export const ISSUE_DATE = shortDate(TODAY)
 

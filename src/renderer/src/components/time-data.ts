@@ -85,6 +85,8 @@ const MONTHS = [
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+const pad2 = (value: number): string => String(value).padStart(2, '0')
+
 const asDate = (iso: string): Date => new Date(`${iso}T00:00:00Z`)
 
 const asIso = (date: Date): string => date.toISOString().slice(0, 10)
@@ -138,15 +140,20 @@ export function weekRangeLabel(start: string): string {
   return `${from.getUTCDate()} ${month(from)} – ${to.getUTCDate()} ${month(to)} ${year}`
 }
 
-/** "26 Aug 2026" — the form every date on an invoice takes. */
+/**
+ * "26 Aug 2026" — the form every date on an invoice takes.
+ *
+ * The day is padded. On its own "2 Jul" would be the friendlier reading, but
+ * these dates stack into columns of tabular figures on the Invoices list, and
+ * an unpadded day puts a ragged left edge down a column the eye is scanning
+ * for one that fell before another.
+ */
 export function shortDate(iso: string): string {
   const date = asDate(iso)
-  return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()].slice(0, 3)} ${date.getUTCFullYear()}`
+  return `${pad2(date.getUTCDate())} ${MONTHS[date.getUTCMonth()].slice(0, 3)} ${date.getUTCFullYear()}`
 }
 
 /* ---- Durations ----------------------------------------------------------- */
-
-const pad2 = (value: number): string => String(value).padStart(2, '0')
 
 export const durationOf = (entry: TimeEntry): number =>
   (entry.endMin - entry.startMin + 1440) % 1440
@@ -261,3 +268,10 @@ export function weekFor(offset: number): Week {
     entries: seed.entries.map((item) => ({ ...item }))
   }
 }
+
+/**
+ * Whole days from `from` to `to`, negative when `to` is earlier. The invoice
+ * register measures overdue in days and had no way to ask.
+ */
+export const daysBetween = (from: string, to: string): number =>
+  Math.round((asDate(to).getTime() - asDate(from).getTime()) / 86400000)

@@ -130,7 +130,7 @@ export function ClientDetail(): JSX.Element {
             <span className="t-overline detail__metric-label">Outstanding</span>
             <span className="detail__metric-value">$6,500.00</span>
             <span className="detail__metric-note detail__metric-note--positive num">
-              1 invoice · due in 7 days
+              1 invoice · due in 10 days
             </span>
           </div>
         </div>

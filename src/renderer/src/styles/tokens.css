@@ -94,6 +94,12 @@
   --status-invoiced-text: oklch(0.860 0.008 265); /* neutral, but brighter */
   --status-paid-text: oklch(0.860 0.110 156);
   --status-cancelled-text: oklch(0.640 0.010 265);
+  /* The two the Invoices list adds. Partially paid takes Delivered's warm
+     register — money asked for, not all of it in — and Void takes Cancelled's
+     recessive one. Sharing is deliberate: neither pair ever appears in the
+     same table, and the label carries the difference. */
+  --status-partial-text: oklch(0.880 0.110 78);
+  --status-void-text: oklch(0.640 0.010 265);
 
   /* ---- One-offs lifted from the artboards --------------------------------
    * Not in the design system's named ramp: --bg-footer sits between bg.base
@@ -231,6 +237,8 @@
   --status-invoiced-text: oklch(0.330 0.008 265);
   --status-paid-text: oklch(0.420 0.110 156);
   --status-cancelled-text: oklch(0.580 0.008 265);
+  --status-partial-text: oklch(0.460 0.110 70);
+  --status-void-text: oklch(0.580 0.008 265);
 
   --bg-footer: oklch(0.968 0.003 265); /* INVENTED */
   --scrim: rgba(20, 22, 28, 0.35); /* INVENTED — a black scrim is far too heavy on white */
