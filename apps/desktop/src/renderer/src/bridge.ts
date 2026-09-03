@@ -1,10 +1,26 @@
-import type { LedgerApi } from '@trackit/shared/api'
+import type { DataApi, LedgerApi, Result } from '@trackit/shared/api'
 
 /**
  * The preload bridge, with a no-op stand-in for when the renderer is opened
  * directly in a browser (Vite's dev URL) rather than inside the Electron shell.
  * Without it every window-control call would throw outside the app.
  */
+
+const detachedResult: Result<never> = {
+  ok: false,
+  error: { code: 'detached', message: 'No bridge: the renderer is running outside Electron' }
+}
+
+/*
+ * Every data method answers "detached". A Proxy rather than fifty stubs: the
+ * shape is DataApi's to define, and this stand-in has nothing to add to it.
+ */
+const detachedGroup = new Proxy(
+  {},
+  { get: () => (): Promise<Result<never>> => Promise.resolve(detachedResult) }
+)
+const detachedData = new Proxy({}, { get: () => detachedGroup }) as DataApi
+
 const detached: LedgerApi = {
   platform: 'win32',
   window: {
@@ -14,7 +30,8 @@ const detached: LedgerApi = {
     isMaximized: () => Promise.resolve(false),
     onMaximizedChanged: () => () => undefined,
     setTheme: () => undefined
-  }
+  },
+  data: detachedData
 }
 
 export const ledger: LedgerApi =

@@ -13,6 +13,6 @@
  * `@trackit/shared/schemas` and `@trackit/shared/helpers` so a file can say
  * which one it wants.
  */
-export type { LedgerApi } from './api'
+export type { ApiError, ApiErrorCode, DataApi, LedgerApi, Result } from './api'
 export * from './schemas'
 export * from './helpers'

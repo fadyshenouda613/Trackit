@@ -108,3 +108,51 @@ export const updateInvoiceLineInputSchema = line.update
 export type InvoiceLine = z.infer<typeof invoiceLineSchema>
 export type CreateInvoiceLineInput = z.infer<typeof createInvoiceLineInputSchema>
 export type UpdateInvoiceLineInput = z.infer<typeof updateInvoiceLineInputSchema>
+
+/* ---- Raising one ---------------------------------------------------------- */
+
+/**
+ * A line as the Create invoice screen supplies it. On a line ticked from a
+ * project the label and amount may be left out: the store copies the
+ * project's name and price into the line at that moment, and from then on
+ * the line is its own record. A line typed by hand has nothing to copy from,
+ * so it must carry both.
+ */
+export const newInvoiceLineInputSchema = z
+  .object({
+    id: idSchema,
+    projectId: idSchema.nullable(),
+    milestoneId: idSchema.nullable().default(null),
+    label: z.string().trim().min(1).optional(),
+    amountCents: centsSchema.optional(),
+    sortOrder: sortOrderSchema
+  })
+  .refine(
+    (line) => line.projectId !== null || (line.label !== undefined && line.amountCents !== undefined),
+    { message: 'A line typed by hand needs a label and an amount' }
+  )
+export type NewInvoiceLineInput = z.infer<typeof newInvoiceLineInputSchema>
+
+/**
+ * What raising an invoice takes. Everything else on the row is the store's:
+ * the status starts at draft, the dates are set at issue, the totals are
+ * summed from the lines, and a number or currency left out is taken from the
+ * numbering scheme and the client.
+ */
+export const newInvoiceInputSchema = z.object({
+  id: idSchema,
+  clientId: idSchema,
+  number: z.string().trim().min(1).optional(),
+  currency: currencyCodeSchema.optional(),
+  taxRate: z.number().min(0).max(100),
+  notes: z.string().default(''),
+  lines: z.array(newInvoiceLineInputSchema).min(1)
+})
+export type NewInvoiceInput = z.infer<typeof newInvoiceInputSchema>
+
+/** Voiding needs a reason; naming the invoice reissued in its place is optional. */
+export const voidInvoiceInputSchema = z.object({
+  reason: z.string().trim().min(1),
+  replacedByInvoiceId: idSchema.nullable().default(null)
+})
+export type VoidInvoiceInput = z.infer<typeof voidInvoiceInputSchema>

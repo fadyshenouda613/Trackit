@@ -1,9 +1,24 @@
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
+import { registerDataIpc } from './data-ipc'
+import { openDatabase } from './db'
 import { registerWindowIpc } from './ipc'
 import { createTray, type TrayTimerState } from './tray'
 import { createMainWindow } from './window'
 
 const CLIENT = 'Northwind Studio'
+
+/**
+ * The database lives beside the rest of this app's per-user state. `userData`
+ * follows the app's name, so the seed — which runs as this same entry with
+ * `--seed` — lands on the same file by construction.
+ */
+function databasePath(): string {
+  const directory = app.getPath('userData')
+  mkdirSync(directory, { recursive: true })
+  return join(directory, 'trackit.db')
+}
 
 /*
  * There is no store behind the timer yet, so the tray runs off a stub that
@@ -18,8 +33,26 @@ let timer: TrayTimerState = {
   elapsedSeconds: 5076
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  /*
+   * `electron . --seed` loads the fixture data and exits; no window, no tray.
+   * The seed is a separate chunk, pulled in only on this path.
+   */
+  if (process.argv.includes('--seed')) {
+    const { runSeed } = await import('./seed')
+    const code = await runSeed({
+      file: databasePath(),
+      reset: process.argv.includes('--reset'),
+      log: (message) => console.log(`[seed] ${message}`)
+    })
+    app.exit(code)
+    return
+  }
+
+  const db = openDatabase(databasePath(), { log: (message) => console.log(`[db] ${message}`) })
+
   registerWindowIpc()
+  registerDataIpc(db)
 
   const window = createMainWindow()
 
@@ -53,6 +86,7 @@ app.whenReady().then(() => {
   app.on('before-quit', () => {
     clearInterval(tick)
     tray.destroy()
+    db.close()
   })
 
   app.on('activate', () => {
