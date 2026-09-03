@@ -1,5 +1,5 @@
 import type { JSX } from 'react'
-import { money } from './money'
+import { formatMoney } from '@trackit/shared'
 import { Meter, toneVar, type Tone } from './Meter'
 import { TableSkeleton } from './TableSkeleton'
 
@@ -144,7 +144,7 @@ export function ProjectsTable({ rateFloor, loading = false }: ProjectsTableProps
         <h2 className="section__title">Active projects</h2>
         <span className="section__count">{rows.length}</span>
         <div className="spacer" />
-        <span className="section__note num">Rate floor {money(rateFloor)}/hr</span>
+        <span className="section__note num">Rate floor {formatMoney(rateFloor)}/hr</span>
       </div>
 
       {loading ? (

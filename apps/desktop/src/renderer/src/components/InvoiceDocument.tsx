@@ -1,5 +1,5 @@
 import type { JSX } from 'react'
-import { money } from './money'
+import { formatMoney } from '@trackit/shared'
 import {
   billTo,
   business,
@@ -115,13 +115,13 @@ export function InvoiceDocument({ invoice, onOpen }: InvoiceDocumentProps): JSX.
               <section className="doc__group" key={entry.project}>
                 <div className="doc__group-head">
                   <span className="t-overline doc__group-name">{entry.project}</span>
-                  {grouped && <span className="doc__group-total num">{money(groupTotal)}</span>}
+                  {grouped && <span className="doc__group-total num">{formatMoney(groupTotal)}</span>}
                 </div>
 
                 {entry.lines.map((line) => (
                   <div className="doc__line" key={line.id}>
                     <span className="doc__line-label">{line.label}</span>
-                    <span className="doc__line-amount num">{money(line.amount)}</span>
+                    <span className="doc__line-amount num">{formatMoney(line.amount)}</span>
                   </div>
                 ))}
               </section>
@@ -141,7 +141,7 @@ export function InvoiceDocument({ invoice, onOpen }: InvoiceDocumentProps): JSX.
           <div className="doc__totals">
             <div className="doc__totals-row">
               <span className="doc__totals-label">Subtotal</span>
-              <span className="doc__totals-value num">{money(subtotal)}</span>
+              <span className="doc__totals-value num">{formatMoney(subtotal)}</span>
             </div>
 
             {/* Only the invoice that has tax on it shows a tax line — a row
@@ -149,13 +149,13 @@ export function InvoiceDocument({ invoice, onOpen }: InvoiceDocumentProps): JSX.
             {invoice.taxRate > 0 && (
               <div className="doc__totals-row">
                 <span className="doc__totals-label">Tax {invoice.taxRate}%</span>
-                <span className="doc__totals-value num">{money(tax)}</span>
+                <span className="doc__totals-value num">{formatMoney(tax)}</span>
               </div>
             )}
 
             <div className="doc__totals-total">
               <span className="doc__totals-total-label">Total</span>
-              <span className="doc__totals-total-value num">{money(totalOf(invoice))}</span>
+              <span className="doc__totals-total-value num">{formatMoney(totalOf(invoice))}</span>
             </div>
 
             {voided && (

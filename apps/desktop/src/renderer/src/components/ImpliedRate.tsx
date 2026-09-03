@@ -1,5 +1,13 @@
 import type { JSX } from 'react'
-import { money, parseMoney } from './money'
+import {
+  formatCents,
+  formatMoney,
+  impliedRateCents,
+  parseMoney,
+  parseMoneyToCents,
+  rateVsFloorPercent,
+  toCents
+} from '@trackit/shared'
 import { toneVar } from './tone'
 
 type ImpliedRateProps = {
@@ -15,22 +23,25 @@ type ImpliedRateProps = {
  * previews live", so this recalculates as the two fields are typed.
  */
 export function ImpliedRate({ price, hours, rateFloor }: ImpliedRateProps): JSX.Element {
-  const priceValue = parseMoney(price)
+  const priceCents = parseMoneyToCents(price)
   const hoursValue = parseMoney(hours)
   const rate =
-    priceValue !== null && hoursValue !== null && hoursValue > 0 ? priceValue / hoursValue : null
+    priceCents !== null && hoursValue !== null && hoursValue > 0
+      ? impliedRateCents(priceCents, hoursValue)
+      : null
 
-  const percent = rate === null ? null : Math.round((rate / rateFloor - 1) * 100)
-  const tone = rate === null ? 'neutral' : rate >= rateFloor ? 'positive' : 'negative'
+  const floorCents = toCents(rateFloor)
+  const percent = rate === null ? null : rateVsFloorPercent(rate, floorCents)
+  const tone = rate === null ? 'neutral' : rate >= floorCents ? 'positive' : 'negative'
 
   return (
     <div className="implied">
       <div className="implied__text">
         <span className="t-overline implied__label">If you hit that budget</span>
         <span className="implied__basis">
-          {priceValue === null || hoursValue === null || hoursValue <= 0
+          {priceCents === null || hoursValue === null || hoursValue <= 0
             ? 'Enter a price and an hours budget to see your implied rate'
-            : `${money(priceValue)} ÷ ${hoursValue}h — recalculated from real hours as you log them`}
+            : `${formatCents(priceCents)} ÷ ${hoursValue}h — recalculated from real hours as you log them`}
         </span>
       </div>
 
@@ -38,13 +49,13 @@ export function ImpliedRate({ price, hours, rateFloor }: ImpliedRateProps): JSX.
 
       <div className="implied__figure">
         <span className="implied__rate" style={{ color: toneVar[tone] }}>
-          {rate === null ? '—' : money(rate)}
+          {rate === null ? '—' : formatCents(rate)}
           {rate !== null && <span className="implied__unit">/hr</span>}
         </span>
         <span className="implied__note">
           {percent === null
-            ? `Floor ${money(rateFloor)}`
-            : `${percent >= 0 ? '+' : '−'}${Math.abs(percent)}% vs ${money(rateFloor)} floor`}
+            ? `Floor ${formatMoney(rateFloor)}`
+            : `${percent >= 0 ? '+' : '−'}${Math.abs(percent)}% vs ${formatMoney(rateFloor)} floor`}
         </span>
       </div>
     </div>

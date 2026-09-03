@@ -2,7 +2,7 @@ import { useMemo, useState, type JSX } from 'react'
 import { InvoicesTable } from './InvoicesTable'
 import { TableSkeleton } from './TableSkeleton'
 import { ALL, InvoicesToolbar } from './InvoicesToolbar'
-import { money } from './money'
+import { formatMoney } from '@trackit/shared'
 import { statusStyles } from './status'
 import {
   clientOf,
@@ -103,7 +103,7 @@ export function InvoicesScreen({
         <section className="panel inv-figure">
           <div className="inv-figure__text">
             <span className="t-overline inv-figure__label">Outstanding</span>
-            <span className="inv-figure__value">{money(figures.outstanding)}</span>
+            <span className="inv-figure__value">{formatMoney(figures.outstanding)}</span>
           </div>
 
           <div className="spacer" />
@@ -115,7 +115,7 @@ export function InvoicesScreen({
             <span className="inv-figure__sep">·</span>
             {figures.overdueCount > 0 ? (
               <span className="inv-figure__fact inv-figure__fact--late">
-                {money(figures.overdueAmount)} overdue on {figures.overdueCount}
+                {formatMoney(figures.overdueAmount)} overdue on {figures.overdueCount}
               </span>
             ) : (
               <span className="inv-figure__fact">Nothing overdue</span>

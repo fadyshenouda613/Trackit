@@ -1,0 +1,29 @@
+/*
+ * A deliverable on a project's checklist.
+ *
+ * `addedAfterKickoff` is the whole point of the list: the number of items that
+ * arrived once the project was active is what scope creep looks like as a
+ * figure rather than a feeling. It is set when the item is created and never
+ * changes — the checklist shows it, and never flags it. (The renderer's
+ * fixture calls the same flag `addedLater`.)
+ */
+import { z } from 'zod'
+import { idSchema, sortOrderSchema, syncableEntity } from './primitives'
+
+const checklistItemFields = {
+  projectId: idSchema,
+  label: z.string().trim().min(1),
+  done: z.boolean(),
+  addedAfterKickoff: z.boolean(),
+  sortOrder: sortOrderSchema
+}
+
+const entity = syncableEntity(checklistItemFields)
+
+export const checklistItemSchema = entity.schema
+export const createChecklistItemInputSchema = entity.create
+export const updateChecklistItemInputSchema = entity.update
+
+export type ChecklistItem = z.infer<typeof checklistItemSchema>
+export type CreateChecklistItemInput = z.infer<typeof createChecklistItemInputSchema>
+export type UpdateChecklistItemInput = z.infer<typeof updateChecklistItemInputSchema>

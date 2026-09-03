@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import { projectRows } from './AllProjectsTable'
-import { money, parseMoney } from './money'
+import { formatMoney, parseMoney } from '@trackit/shared'
 import { SettingsRow, SettingsSection } from './SettingsRow'
 import { SettingsShortcutField } from './SettingsShortcutField'
 import type { Settings } from './settings-data'
@@ -85,7 +85,7 @@ export function SettingsTracking({ settings, onChange }: SettingsTrackingProps):
                 )}
               </span>
               <span className="implied__note">
-                {floor === null ? 'No floor set' : `fall below ${money(floor)}/hr`}
+                {floor === null ? 'No floor set' : `fall below ${formatMoney(floor)}/hr`}
               </span>
             </div>
           </div>

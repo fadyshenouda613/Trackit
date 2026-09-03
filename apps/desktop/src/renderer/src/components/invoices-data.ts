@@ -1,5 +1,13 @@
 import { clientById, type BillingClient } from './invoice-data'
-import { TODAY, addDays, daysBetween, shortDate } from './time-data'
+import {
+  addDays,
+  invoiceStatusOf,
+  overdueDays,
+  overdueJudgement,
+  shortDate,
+  toCents
+} from '@trackit/shared'
+import { TODAY } from './time-data'
 import type { Status } from './status'
 
 /*
@@ -386,19 +394,19 @@ export const dueOf = (invoice: Invoice): string | null => {
  * not sent any more, and a void one is not a stage of anything.
  */
 export function statusOf(invoice: Invoice): Status {
-  if (invoice.voided) return 'void'
-  if (!invoice.issued) return 'draft'
-  if (balanceOf(invoice) <= 0) return 'paid'
-  return paidOf(invoice) > 0 ? 'partial' : 'sent'
+  return invoiceStatusOf({
+    voided: invoice.voided !== undefined,
+    issued: invoice.issued !== null,
+    totalCents: toCents(totalOf(invoice)),
+    paidCents: toCents(paidOf(invoice))
+  })
 }
 
 /** Days past due, or null. A void, draft or settled invoice is never overdue. */
 export function overdueDaysOf(invoice: Invoice): number | null {
   const status = statusOf(invoice)
   if (status !== 'sent' && status !== 'partial') return null
-  const due = dueOf(invoice)
-  if (!due || due >= TODAY) return null
-  return daysBetween(due, TODAY)
+  return overdueDays(dueOf(invoice), TODAY)
 }
 
 /**
@@ -407,8 +415,7 @@ export function overdueDaysOf(invoice: Invoice): number | null {
  * pill — the state of the invoice is that it was sent; being late is a fact
  * about the date, and that is the cell it belongs in.
  */
-export const overdueToneOf = (days: number): 'warning' | 'negative' =>
-  days <= 14 ? 'warning' : 'negative'
+export const overdueToneOf = (days: number): 'warning' | 'negative' => overdueJudgement(days)
 
 export const overdueLabel = (days: number): string => `${days}d overdue`
 

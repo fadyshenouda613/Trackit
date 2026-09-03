@@ -1,5 +1,5 @@
 import type { JSX } from 'react'
-import { money } from './money'
+import { formatMoney } from '@trackit/shared'
 
 type InvoiceRailProps = {
   number: string
@@ -93,7 +93,7 @@ export function InvoiceRail({
         <div className="inv-totals__row">
           <span className="inv-totals__label">Subtotal</span>
           <span className="inv-totals__value num">
-            {subtotal === null ? '—' : money(subtotal, symbol)}
+            {subtotal === null ? '—' : formatMoney(subtotal, symbol)}
           </span>
         </div>
 
@@ -112,13 +112,13 @@ export function InvoiceRail({
             />
             <span className="inv-rate__suffix">%</span>
           </div>
-          <span className="inv-totals__value num">{tax === null ? '—' : money(tax, symbol)}</span>
+          <span className="inv-totals__value num">{tax === null ? '—' : formatMoney(tax, symbol)}</span>
         </div>
 
         <div className="inv-totals__total">
           <span className="inv-totals__total-label">Total</span>
           <span className="inv-totals__total-value num">
-            {total === null ? '—' : money(total, symbol)}
+            {total === null ? '—' : formatMoney(total, symbol)}
           </span>
         </div>
       </section>

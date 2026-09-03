@@ -1,13 +1,11 @@
 import { Fragment, useEffect, useRef, useState, type JSX } from 'react'
+import { formatClock, formatDuration, parseClock } from '@trackit/shared'
 import { Icon } from './Icon'
 import {
   clientFor,
   dayLabel,
   daysOf,
   durationOf,
-  formatClock,
-  formatDuration,
-  parseClock,
   projectNames,
   totalOf,
   type TimeEntry,

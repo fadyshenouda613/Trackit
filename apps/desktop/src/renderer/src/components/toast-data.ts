@@ -1,5 +1,4 @@
-import { money } from './money'
-import { formatDuration } from './time-data'
+import { formatDuration, formatMoney } from '@trackit/shared'
 import type { Tone } from './tone'
 
 /**
@@ -52,7 +51,7 @@ export const pdfToast = (number: string): Toast =>
   make('pdf', 'neutral', `Invoice ${number} saved as PDF`, 'Show in folder')
 
 export const paymentToast = (amount: number, number: string): Toast =>
-  make('payment', 'positive', `${money(amount)} recorded against ${number}`, 'View invoice')
+  make('payment', 'positive', `${formatMoney(amount)} recorded against ${number}`, 'View invoice')
 
 export const deliveredToast = (project: string): Toast =>
   make('delivered', 'neutral', `${project} marked delivered`, 'Create invoice')
