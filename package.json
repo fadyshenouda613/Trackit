@@ -1,7 +1,7 @@
 {
-  "name": "ledgerline",
+  "name": "trackit",
   "version": "0.1.0",
-  "description": "Ledgerline - freelance time and billing",
+  "description": "Trackit - freelance time and billing",
   "main": "./out/main/index.js",
   "license": "UNLICENSED",
   "private": true,

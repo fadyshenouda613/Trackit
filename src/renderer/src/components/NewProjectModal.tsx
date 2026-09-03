@@ -5,6 +5,8 @@ import { Pill } from './Pill'
 
 type NewProjectModalProps = {
   onClose: () => void
+  /** Passed through to the implied-rate preview, which judges against it. */
+  rateFloor: number
 }
 
 type Fields = {
@@ -33,7 +35,7 @@ const initial: Fields = {
  * "Fixed fee for the whole project · implied rate previews live." The price and
  * hours fields feed the preview card; nothing is saved on submit.
  */
-export function NewProjectModal({ onClose }: NewProjectModalProps): JSX.Element {
+export function NewProjectModal({ onClose, rateFloor }: NewProjectModalProps): JSX.Element {
   const [fields, setFields] = useState<Fields>(initial)
   const dialogRef = useRef<HTMLDivElement>(null)
 
@@ -148,7 +150,7 @@ export function NewProjectModal({ onClose }: NewProjectModalProps): JSX.Element 
             </div>
 
             <span className="field-row__hint">
-              The total you invoice on completion. Ledgerline never multiplies this by your hours.
+              The total you invoice on completion. Trackit never multiplies this by your hours.
             </span>
           </div>
 
@@ -171,7 +173,7 @@ export function NewProjectModal({ onClose }: NewProjectModalProps): JSX.Element 
             </div>
           </div>
 
-          <ImpliedRate price={fields.price} hours={fields.budgetHours} />
+          <ImpliedRate price={fields.price} hours={fields.budgetHours} rateFloor={rateFloor} />
 
           <div className="field-row__split">
             <div className="field-row">

@@ -2,12 +2,11 @@ import type { JSX } from 'react'
 import { money, parseMoney } from './money'
 import { toneVar } from './tone'
 
-/** The rate floor the app judges every project against. */
-const RATE_FLOOR = 100
-
 type ImpliedRateProps = {
   price: string
   hours: string
+  /** The rate floor the app judges every project against, from Settings. */
+  rateFloor: number
 }
 
 /**
@@ -15,14 +14,14 @@ type ImpliedRateProps = {
  * judged against the rate floor. The artboard is captioned "implied rate
  * previews live", so this recalculates as the two fields are typed.
  */
-export function ImpliedRate({ price, hours }: ImpliedRateProps): JSX.Element {
+export function ImpliedRate({ price, hours, rateFloor }: ImpliedRateProps): JSX.Element {
   const priceValue = parseMoney(price)
   const hoursValue = parseMoney(hours)
   const rate =
     priceValue !== null && hoursValue !== null && hoursValue > 0 ? priceValue / hoursValue : null
 
-  const percent = rate === null ? null : Math.round((rate / RATE_FLOOR - 1) * 100)
-  const tone = rate === null ? 'neutral' : rate >= RATE_FLOOR ? 'positive' : 'negative'
+  const percent = rate === null ? null : Math.round((rate / rateFloor - 1) * 100)
+  const tone = rate === null ? 'neutral' : rate >= rateFloor ? 'positive' : 'negative'
 
   return (
     <div className="implied">
@@ -44,8 +43,8 @@ export function ImpliedRate({ price, hours }: ImpliedRateProps): JSX.Element {
         </span>
         <span className="implied__note">
           {percent === null
-            ? `Floor ${money(RATE_FLOOR)}`
-            : `${percent >= 0 ? '+' : '−'}${Math.abs(percent)}% vs ${money(RATE_FLOOR)} floor`}
+            ? `Floor ${money(rateFloor)}`
+            : `${percent >= 0 ? '+' : '−'}${Math.abs(percent)}% vs ${money(rateFloor)} floor`}
         </span>
       </div>
     </div>

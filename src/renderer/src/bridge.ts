@@ -12,7 +12,8 @@ const detached: LedgerApi = {
     toggleMaximize: () => undefined,
     close: () => undefined,
     isMaximized: () => Promise.resolve(false),
-    onMaximizedChanged: () => () => undefined
+    onMaximizedChanged: () => () => undefined,
+    setTheme: () => undefined
   }
 }
 

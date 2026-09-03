@@ -16,6 +16,9 @@
 }
 
 .main {
+  /* The toast layer is positioned against this, which is what keeps it clear
+     of the sidebar and below the timer bar without measuring either. */
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -84,7 +87,7 @@
 }
 
 .window-controls__button:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -289,12 +292,11 @@
   padding: 0 14px;
 }
 
-.sidebar__mark {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  background: var(--accent);
-  flex: 0 0 18px;
+/* The mark itself is drawn by Logo.tsx; the sidebar only has to stop flexbox
+   squeezing it. */
+.brand-mark {
+  display: block;
+  flex: 0 0 auto;
 }
 
 .sidebar__name {
@@ -385,11 +387,22 @@
 }
 
 .sidebar__footer {
+  /* Anchors the sync popover. Neither this nor .sidebar clips, so the panel
+     can be wider than the 232px column without needing a portal. */
+  position: relative;
   padding: var(--s-8);
   border-top: 1px solid var(--line-subtle);
 }
 
 .sync {
+  /* A button now: it always had a hover state, and at last has something
+     behind it. Resets are the browser's button chrome, not new styling. */
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: var(--t-ui);
+  text-align: left;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: var(--s-8);
@@ -399,7 +412,8 @@
   color: var(--text-tertiary);
 }
 
-.sync:hover {
+.sync:hover,
+.sync--open {
   background: var(--bg-raised);
 }
 
@@ -447,7 +461,7 @@
 }
 
 .button:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -583,7 +597,7 @@
 }
 
 .projects__row:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 .align-right {
@@ -712,7 +726,7 @@
 }
 
 .attention__row:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 .attention__subject {
@@ -733,7 +747,12 @@
   flex: 0 0 12px;
 }
 
-/* ---- Empty state --------------------------------------------------------- */
+/* ---- Empty state ------------------------------------------------------------
+ * Two variants of one idea. `screen` is the whole window with nothing in it.
+ * `panel` is one section of a working screen, and sits inside the panel above
+ * whatever footer or totals row it still has, so the table's own shape
+ * survives the absence rather than being replaced by a message.
+ */
 
 .empty {
   flex: 1;
@@ -800,6 +819,61 @@
   color: var(--text-tertiary);
 }
 
+/* ---- Empty state, inside a panel ---- */
+
+.empty--panel {
+  flex: none;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: var(--s-6);
+  padding: var(--s-16) var(--card-padding);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.empty__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.empty--panel .empty__body {
+  margin: 0;
+  max-width: 62ch;
+}
+
+.empty__body strong {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.empty--panel .empty__actions {
+  align-items: baseline;
+  gap: var(--s-8);
+  padding-top: 0;
+  margin-top: var(--s-2);
+}
+
+/* The quiet CTA: a panel is still working, so its one offer is a link rather
+   than a filled button competing with the screen's own primary action. */
+.empty__link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font: var(--t-ui);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.empty__link:hover {
+  color: var(--accent-link-hover);
+}
+
+.empty--panel .empty__aside {
+  color: var(--text-muted);
+}
+
 /* ---- Dev state panel -----------------------------------------------------
  * Not part of the product surface: it stands in for the artboard's props so
  * every designed state is reachable while there is no real data. */
@@ -835,6 +909,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-8);
+  /* Four more rows than it was drawn with; it has to be able to scroll rather
+     than run off the top of the window. */
+  max-height: calc(100vh - var(--s-32));
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .state-panel__head {
@@ -1080,13 +1159,13 @@
 }
 
 .clients__row:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 /* The current client stays marked whether or not the pointer is over it. */
 .clients__row--selected,
 .clients__row--selected:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 .clients__name {
@@ -1279,7 +1358,7 @@
 }
 
 .detail-projects__row:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 .detail-projects__name {
@@ -1326,7 +1405,7 @@
 }
 
 .detail-invoices__row:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 /* Mono is for identifiers only — invoice numbers, never the money beside them. */
@@ -1578,7 +1657,7 @@ select.field {
 }
 
 .filter-dropdown:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 .filter-dropdown__label {
@@ -1629,7 +1708,7 @@ select.field {
 }
 
 .all-projects__row:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 /* Cancelled: the row dims and the pill names the state — no strikethrough on
@@ -1820,7 +1899,8 @@ select.field {
 
 /* Composite fields: the border lives on the wrapper, the input sits bare. */
 .money-field,
-.hours-field {
+.hours-field,
+.pct-field {
   display: flex;
   align-items: center;
   padding: 0 10px;
@@ -1840,7 +1920,8 @@ select.field {
 }
 
 .money-field__input,
-.hours-field__input {
+.hours-field__input,
+.pct-field__input {
   flex: 1;
   min-width: 0;
   height: 30px;
@@ -1856,13 +1937,27 @@ select.field {
   padding: 0 0 0 6px;
 }
 
-.hours-field__input {
+.hours-field__input,
+.pct-field__input {
   padding: 0;
 }
 
-.hours-field__suffix {
+.hours-field__suffix,
+.money-field__suffix {
   font-size: 12px;
   color: var(--text-tertiary);
+}
+
+/* A rate is not a sum: it takes the width of the figure it holds, not the
+   column it sits in. */
+.pct-field {
+  width: 96px;
+}
+
+.money-field--fixed {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: 152px;
 }
 
 .select-wrap--narrow {
@@ -2239,13 +2334,13 @@ select.field {
 }
 
 .checklist__row:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 /* The lifted row: raised off the list, with the line it would drop onto. */
 .checklist__row--lifted,
 .checklist__row--lifted:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
   border-radius: var(--r-field);
   box-shadow: var(--e3), inset 0 0 0 1px var(--line-strong);
   cursor: grabbing;
@@ -2506,7 +2601,7 @@ select.field {
 }
 
 .sessions__row:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 .sessions__date {
@@ -3051,7 +3146,7 @@ select.field {
 }
 
 .timer-starter__pick:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 .timer-starter__pick:focus-within {
@@ -3314,7 +3409,7 @@ button.billable__row {
 }
 
 button.billable__row:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 .billable__row--dim {
@@ -3384,63 +3479,6 @@ button.billable__row:hover .billable__box {
   font-weight: 500;
 }
 
-/*
- * Two absences, two sentences. Nothing delivered is a prompt to go and deliver
- * something; everything already billed is a reassurance, and keeps its evidence
- * on screen below rather than replacing it.
- */
-.billable__empty {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-6);
-  padding: var(--s-16) var(--card-padding);
-  border-bottom: 1px solid var(--line-subtle);
-}
-
-.billable__empty-title {
-  margin: 0;
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.billable__empty-body {
-  margin: 0;
-  max-width: 64ch;
-  font: var(--t-body);
-  color: var(--text-tertiary);
-}
-
-.billable__empty-body strong {
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.billable__empty-actions {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-8);
-  margin-top: var(--s-2);
-}
-
-.billable__empty-link {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--accent-text);
-  font: var(--t-ui);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.billable__empty-link:hover {
-  color: var(--accent-link-hover);
-}
-
-.billable__empty-aside {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
 .billable__foot {
   margin: 0;
   padding: 9px var(--card-padding) 11px;
@@ -3471,12 +3509,12 @@ button.billable__row:hover .billable__box {
 }
 
 .lines__row:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 .lines__row--lifted,
 .lines__row--lifted:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
   border-radius: var(--r-field);
   box-shadow: var(--e3), inset 0 0 0 1px var(--line-strong);
   cursor: grabbing;
@@ -3776,7 +3814,7 @@ button.filter-dropdown {
 
 .filter-dropdown--open,
 .filter-dropdown--open:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
   border-color: var(--line-strong);
 }
 
@@ -3884,7 +3922,7 @@ button.filter-dropdown {
 }
 
 .invoices__row:hover {
-  background: var(--bg-overlay);
+  background: var(--bg-hover);
 }
 
 /* Voided: the row recedes and the pill says why. The same treatment a cancelled
@@ -3931,27 +3969,6 @@ button.filter-dropdown {
 
 .invoices__due-date {
   font-variant-numeric: tabular-nums;
-}
-
-.invoices__empty {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-6);
-  padding: var(--s-20) var(--card-padding) var(--s-24);
-  border-bottom: 1px solid var(--line-subtle);
-}
-
-.invoices__empty-title {
-  margin: 0;
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.invoices__empty-body {
-  margin: 0;
-  max-width: 62ch;
-  font: var(--t-body);
-  color: var(--text-tertiary);
 }
 
 /* ---- Invoices: the footer summary -------------------------------------------
@@ -4447,14 +4464,6 @@ button.filter-dropdown {
   color: var(--text-muted);
 }
 
-.payments__empty {
-  padding: var(--s-16) var(--card-padding);
-  max-width: 62ch;
-  font: var(--t-body);
-  color: var(--text-tertiary);
-  border-bottom: 1px solid var(--line-subtle);
-}
-
 /* The figure the freelancer actually opened this screen for, on the footer tone
    every totals row in the app uses. */
 .payments__balance,
@@ -4478,4 +4487,1103 @@ button.filter-dropdown {
   grid-column: 3 / span 2;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+/* ---- Settings --------------------------------------------------------------
+ *
+ * Deliberately the plainest screen in the app. No cards, no chips, no accent
+ * except where a value is being judged: a settings screen is an inventory you
+ * scan, and every panel edge drawn around a text field is one more line between
+ * you and the label you came looking for.
+ *
+ * The sub-nav is part of the screen rather than the shell, so the rail holds
+ * still while the pane beside it scrolls. */
+
+.settings {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.settings__nav {
+  flex: 0 0 196px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-16) var(--s-12);
+  border-right: 1px solid var(--line-subtle);
+}
+
+.settings__nav-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 30px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--r-field);
+  background: transparent;
+  color: var(--text-secondary);
+  font: var(--t-ui);
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings__nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/*
+ * Quiet on purpose. The sidebar's Settings item is already accent while you are
+ * on this screen, and the system's rule is that accent marks one selected
+ * thing — two accent blocks in one window and neither means anything.
+ */
+.settings__nav-item--on,
+.settings__nav-item--on:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.settings__nav-note {
+  padding: 0 9px;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--text-muted);
+  text-wrap: pretty;
+}
+
+.settings__pane {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--s-20) var(--screen-gutter) var(--s-40);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* Settings is prose and short fields; letting either run the width of a 1440px
+   window makes both harder to read than the window is wide. */
+.settings__inner {
+  max-width: 660px;
+}
+
+/* ---- A section ---- */
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.settings-section__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-bottom: var(--s-16);
+  margin-bottom: var(--s-4);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.settings-section__title {
+  margin: 0;
+  font: var(--t-subhead);
+  letter-spacing: -0.005em;
+}
+
+.settings-section__note {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-tertiary);
+  text-wrap: pretty;
+}
+
+/* ---- A row ----
+ * Label and explanation left, control right. The dialogs stack label over field
+ * instead; a dialog is one task, and this is a list of what the app knows. */
+
+.settings-row {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: var(--s-16);
+  align-items: start;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.settings-row:last-child {
+  border-bottom: 0;
+}
+
+.settings-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  /* Sits on the field's optical centre rather than its top edge. */
+  padding-top: 6px;
+  min-width: 0;
+}
+
+.settings-row__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.settings-row__hint {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-tertiary);
+  text-wrap: pretty;
+}
+
+.settings-row__hint code {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Buttons take their own width here; only fields are given the column. */
+.settings-row__control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+/* A plain field takes the column; a composite one keeps the width of the figure
+   it holds, so a tax rate does not span the same distance as an address. */
+.settings-row__control > .field:not(.pct-field):not(.money-field),
+.settings-row__control > .select-wrap {
+  width: 100%;
+}
+
+.settings-row__stack {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  min-width: 0;
+}
+
+.settings-prose {
+  max-width: 62ch;
+  color: var(--text-tertiary);
+}
+
+.settings-prose strong {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* ---- Numbering preview ----
+ * The rule above produces a value, and the value is what you are actually
+ * setting — so it is stated, in the face reserved for identifiers. */
+
+.settings-preview {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-12);
+  padding: 9px 12px;
+  border-radius: var(--r-card);
+  background: var(--bg-base);
+  border: 1px solid var(--line-subtle);
+}
+
+.settings-preview__label {
+  color: var(--text-tertiary);
+}
+
+.settings-preview__value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Not red: an unfinished scheme is not money in trouble. */
+.settings-preview__blank {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* The rate floor's consequence card borrows .implied wholesale and only softens
+   the unit, which counts projects rather than naming a sum. */
+.settings-consequence .implied__unit {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* ---- Logo ---- */
+
+.settings-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--s-12);
+}
+
+.settings-logo__preview {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-card);
+  border: 1px solid var(--line-subtle);
+  background: var(--bg-base);
+  overflow: hidden;
+}
+
+.settings-logo__image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* The app's own mark, dimmed, so the tile shows the size a logo will take
+   rather than an empty box. */
+.settings-logo__placeholder {
+  display: flex;
+  opacity: 0.35;
+}
+
+.settings-logo__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-logo__remove {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: var(--t-label);
+  cursor: pointer;
+}
+
+.settings-logo__remove:hover {
+  color: var(--text-primary);
+}
+
+/* ---- Account facts ----
+ * Read-only, so they are stated rather than framed as controls. */
+
+.settings-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-12) var(--s-24);
+  padding-bottom: var(--s-16);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.settings-facts__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.settings-facts__label {
+  color: var(--text-tertiary);
+}
+
+.settings-facts__value {
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The path is long and worth reading in one piece, so it takes the control
+   column rather than the narrow hint column beside the label. */
+.settings-path-row {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-path {
+  flex: 1;
+  min-width: 0;
+  height: var(--row-height);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: var(--r-field);
+  background: var(--bg-base);
+  border: 1px solid var(--line-subtle);
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Shortcut capture ---- */
+
+.shortcut {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  align-items: flex-start;
+}
+
+.shortcut__field {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 132px;
+  height: var(--row-height);
+  padding: 0 10px;
+  border-radius: var(--r-field);
+  border: 1px solid var(--line-subtle);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.shortcut__field:hover {
+  border-color: var(--line-strong);
+}
+
+/* Armed is the app waiting on you, which is what accent is for. */
+.shortcut__field--armed,
+.shortcut__field--armed:hover {
+  border-color: var(--accent-ctrl-line);
+  background: var(--accent-ctrl);
+}
+
+.shortcut__key {
+  padding: 1px 5px;
+  border-radius: var(--r-ctrl);
+  /* A step off the field it sits in, in either theme. */
+  background: var(--line-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.shortcut__field--armed .shortcut__key {
+  background: var(--accent-ctrl-hover);
+}
+
+.shortcut__prompt {
+  font-size: 12px;
+  color: var(--accent-text-dim);
+}
+
+.shortcut__note {
+  max-width: 52ch;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-tertiary);
+  text-wrap: pretty;
+}
+
+/* ---- The destructive block ----
+ * Set apart by space and a rule rather than by a red box: it should be hard to
+ * reach by accident, not frightening to read. */
+
+.settings-danger {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  margin-top: var(--s-24);
+}
+
+.settings-danger__rule {
+  height: 1px;
+  background: var(--line-subtle);
+}
+
+.settings-danger__label {
+  color: var(--text-muted);
+}
+
+.settings-danger .settings-row {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.settings-danger__button {
+  width: auto;
+  justify-content: center;
+}
+
+/* ---- Account screens -------------------------------------------------------
+ * Sign in, sign up, the welcome card and the offline first launch. One centred
+ * card in the app's own window: the surface descent is the same one the dialogs
+ * use — sunken ground, raised card, recessed fields — so this reads as a screen
+ * of Trackit rather than a login page laid over it.
+ *
+ * No light-mode block below: every value here is a token, and the tokens already
+ * invert. */
+
+.auth {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-sunken);
+}
+
+/* These screens return before TopBar, the app's only drag region, so this bar
+   is the whole of the window chrome on them. Same height and insets as
+   `.top-bar` + `.top-bar.drag` — including the gap macOS traffic lights sit in
+   — but no bottom rule, because there is nothing below it to divide. */
+.auth__chrome {
+  height: var(--bar-height);
+  flex: 0 0 var(--bar-height);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--screen-gutter) 0 var(--chrome-leading, var(--screen-gutter));
+}
+
+/* The bottom padding carries the chrome bar's own height, so the card sits
+   centred in the window rather than in the space below the bar.
+   Centring is left to the card's own auto margins rather than `align-items`,
+   which clips the top of an overflowing child instead of scrolling to it — and
+   the sign-up card is taller than the 640px minimum window can show. */
+.auth__stage {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  overflow-y: auto;
+  padding: var(--s-24) var(--screen-gutter) calc(var(--bar-height) + var(--s-24));
+}
+
+/* The dialog recipe without the head and foot bars: this is a card, not a task
+   interrupting one. 400px against the dialogs' 480 because there is one column
+   of fields here and no footer to span. */
+.auth__card {
+  width: 400px;
+  flex: 0 0 auto;
+  /* Centres in the stage while there is room, and gives way to its padding
+     when there is not. */
+  margin-top: auto;
+  margin-bottom: auto;
+  padding: 24px;
+  border-radius: var(--r-panel);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--e3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-12);
+}
+
+/* ---- Masthead ---- */
+
+.auth__lockup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Two steps up from the sidebar's 13px, because here it is the only thing
+   naming the app rather than a label above a nav. */
+.auth__wordmark {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.auth__lede {
+  margin: 0;
+  max-width: 44ch;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-tertiary);
+  text-wrap: pretty;
+}
+
+/* The overline naming the form does the work a second heading would, in one
+   line instead of four. */
+.auth__step {
+  color: var(--text-tertiary);
+  padding-top: var(--s-4);
+}
+
+/* ---- The form ---- */
+
+/* Composite field: the border is on the wrapper and the input sits bare, which
+   is what leaves room for the reveal. Same arrangement as the money field. */
+.auth__password {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  padding: 0 10px;
+}
+
+.auth__password-input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  outline: none;
+}
+
+.auth__reveal {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.auth__reveal:hover {
+  color: var(--text-secondary);
+}
+
+/* One persistent line, always rendered: the hint, the correction and the retry
+   result all land here, so nothing above it moves when the sentence changes. */
+.auth__note {
+  margin: 0;
+  min-height: 32px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-tertiary);
+  text-wrap: pretty;
+}
+
+/* A correction reads one step brighter so the change registers. Still grey:
+   the app states refusals in prose, never in red. */
+.auth__note--correction {
+  color: var(--text-secondary);
+}
+
+/* The primary, spanning the card. The one accent element on these screens
+   besides the mark. */
+.auth__submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: var(--row-height);
+  border-radius: var(--r-field);
+  border: 1px solid var(--accent-hover);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth__submit:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+/* Still legibly a button, which is why it keeps the strong border and the
+   raised fill: dropping to the field colours made it read as a third empty
+   field and left the card with nothing the eye could find as the action. */
+.auth__submit:disabled {
+  border-color: var(--line-strong);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+/* ---- Below the form ---- */
+
+.auth__switch {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* A button, because it navigates inside the app rather than to a URL, styled as
+   the link it reads as. */
+.auth__link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.auth__link:hover {
+  color: var(--accent-link-hover);
+}
+
+.auth__aside {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-tertiary);
+  text-wrap: pretty;
+}
+
+/* ---- Welcome ---- */
+
+/* Arrival, not a form: no rule, no overline, and the gaps open up because there
+   are four things on it instead of ten. */
+.auth__card--welcome {
+  gap: 14px;
+}
+
+/* The empty dashboard's call to action, repeated exactly — the button offered
+   here is visibly the button waiting on the screen it hands you to. */
+.auth__cta {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  height: var(--row-height);
+  padding: 0 14px;
+  margin-top: var(--s-4);
+  border-radius: var(--r-field);
+  border: 1px solid var(--accent-hover);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth__cta:hover {
+  background: var(--accent-hover);
+}
+
+/* ---- Offline ---- */
+
+/* The dot and overline the sidebar footer states sync with, so offline looks
+   the same here as it does everywhere else in the app. */
+.auth__state {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  color: var(--text-secondary);
+}
+
+/* ---- Sync popover -----------------------------------------------------------
+ * What is behind the footer. It hangs upward out of the sidebar's 232px,
+ * because the questions it answers want sentences and the column has no room
+ * for one. The menu recipe for the shell; the project rail's timeline for the
+ * log at the bottom.
+ */
+
+.sync-pop {
+  position: absolute;
+  bottom: calc(100% + var(--s-6));
+  left: var(--s-8);
+  z-index: 20;
+  width: 320px;
+  padding: var(--s-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  border-radius: var(--r-card);
+  border: 1px solid var(--line-subtle);
+  background: var(--bg-overlay);
+  box-shadow: var(--e3);
+}
+
+.sync-pop:focus {
+  outline: none;
+}
+
+.sync-pop__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+}
+
+.sync-pop__state {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* The reason gets its own line under the state. Beside it, it would read as a
+   subtitle; underneath, it reads as the answer. */
+.sync-pop__reason {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-tertiary);
+  text-wrap: pretty;
+}
+
+.sync-pop__rule {
+  height: 1px;
+  background: var(--line-subtle);
+}
+
+.sync-pop__fact {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+}
+
+.sync-pop__fact-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.sync-pop__fact-value {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.sync-pop__fact-clock {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.sync-pop__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+
+.sync-pop__title {
+  color: var(--text-muted);
+}
+
+.sync-pop__empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.sync-pop__pending {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.sync-pop__pending-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-8);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* A fixed column for the count, so every label starts on the same line down
+   the list however many digits its number has. */
+.sync-pop__pending-count {
+  flex: 0 0 20px;
+  text-align: right;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sync-pop__action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-6);
+  width: 100%;
+}
+
+.sync-pop__action:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.sync-pop__action:disabled:hover {
+  background: var(--bg-raised);
+  color: var(--text-muted);
+}
+
+/* The gap is the rail's 10px, not tightened: the thread joining one event to
+   the next is drawn to that spacing and detaches at anything smaller. */
+.sync-pop__log {
+  padding-left: 15px;
+}
+
+/* The mark is drawn for the rail's --bg-raised card. Here it sits on the
+   popover's overlay, and has to be filled with the surface it is really on. */
+.sync-pop__log .rail__event-mark {
+  background: var(--bg-overlay);
+}
+
+.sync-pop__log .rail__event-label {
+  font-size: 12px;
+}
+
+.sync-pop__log .rail__event-date {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* ---- Notices ----------------------------------------------------------------
+ * The void banner's recipe with the tone lifted out: a tinted surface, an edge
+ * that matches it, body text a step dimmer than the title. Colour arrives
+ * inline from noticeVars, so nothing here names one.
+ *
+ * In the flow of the page rather than over it. A notice is taking up room and
+ * should say so; floating it would only mean covering something being read.
+ */
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-card);
+  border: 1px solid;
+}
+
+.notice__mark {
+  display: flex;
+  flex: 0 0 auto;
+  padding-top: 1px;
+}
+
+.notice__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.notice__title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.notice__body {
+  margin: 0;
+  max-width: 74ch;
+  font-size: 12px;
+  line-height: 18px;
+  color: inherit;
+  text-wrap: pretty;
+}
+
+.notice__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-8);
+  padding-top: var(--s-4);
+}
+
+/* Outlined in the notice's own colour rather than the app's greys, so the
+   buttons belong to the strip instead of sitting on top of it. The primary
+   action keeps its accent fill. */
+.notice__button {
+  height: 26px;
+}
+
+.notice__button:not(.button--primary) {
+  background: transparent;
+  border-color: currentColor;
+  color: inherit;
+  opacity: 0.9;
+}
+
+.notice__button:not(.button--primary):hover {
+  background: transparent;
+  color: inherit;
+  opacity: 1;
+}
+
+/* The invoice rail's in-place confirm, borrowed whole. Its buttons are
+   full-width because that rail is a narrow column; a notice is a wide strip,
+   so here they size to their text and stay on one line. */
+.notice .inv-acts__button {
+  width: auto;
+  white-space: nowrap;
+}
+
+.notice .inv-acts__confirm-text {
+  color: inherit;
+}
+
+.notice__close {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--r-ctrl);
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.notice__close:hover {
+  opacity: 1;
+}
+
+/* The slot above every screen's content, on the screen gutter so a notice
+   lines up with the panels underneath it. */
+.notice-bar {
+  padding: var(--s-12) var(--screen-gutter) 0;
+  padding-left: var(--chrome-leading, var(--screen-gutter));
+}
+
+/* ---- Toasts -----------------------------------------------------------------
+ * Top-centre, inside .main. Being a child of the content column rather than of
+ * the window is what keeps it clear of the sidebar and under the timer bar
+ * without measuring either.
+ *
+ * z-index 40 puts it below the scrim's 50 on purpose: a dialog is a question
+ * being asked of you, and news about something that already finished has no
+ * business on top of it.
+ */
+
+.toasts {
+  position: absolute;
+  top: var(--s-8);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-6);
+  /* The layer spans the column; only the cards take the pointer, so the
+     toolbar underneath stays clickable around them. */
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 420px;
+  padding: var(--s-8) 10px var(--s-8) 12px;
+  border-radius: var(--r-field);
+  border: 1px solid var(--line-strong);
+  background: var(--bg-overlay);
+  box-shadow: var(--e2);
+  animation: llrise 140ms ease-out;
+}
+
+.toast__text {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.toast__action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font: var(--t-ui);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.toast__action:hover {
+  color: var(--accent-link-hover);
+}
+
+.toast__close {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--r-ctrl);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.toast__close:hover {
+  background: var(--line-subtle);
+  color: var(--text-primary);
+}
+
+/* The app's second keyframe. It travels the distance a toast needs to read as
+   having arrived rather than as always having been there, and no further. */
+@keyframes llrise {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+/* ---- Table skeleton ---------------------------------------------------------
+ * The skeleton borrows the real table's block and row classes, so the grid
+ * comes from that table's own --*-grid and the two cannot drift apart. Only
+ * the cell contents are ours.
+ */
+
+.skeleton {
+  cursor: default;
+}
+
+/*
+ * The margins matter as much as the height. A bar has to occupy the line box
+ * the text it replaces would have, or the skeleton comes out shorter than the
+ * table and the whole page jumps when the rows land — which is the one thing a
+ * skeleton exists to prevent. 9px bar in a 20px line, 7px in a 16px one.
+ */
+.skeleton__bar {
+  display: block;
+  height: 9px;
+  margin: 5px 0 6px;
+  border-radius: var(--r-ctrl);
+  /* A step above the row it sits on, for the reason the meter rail gives: at
+     this height the eye reads lightness alone. */
+  background: var(--meter-track);
+}
+
+.skeleton__bar--head {
+  height: 7px;
+  margin: 4px 0 5px;
+  opacity: 0.6;
+}
+
+/* Drawn with the real chip's classes, so its box is the real chip's box. */
+.skeleton__pill {
+  width: 64px;
+  background: var(--meter-track);
+  color: transparent;
+}
+
+/* The two-line cell: a figure over its note, as the real cell is drawn. */
+.skeleton__stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.skeleton__stack .skeleton__bar--note {
+  height: 7px;
+  margin: 4px 0 5px;
+  opacity: 0.7;
+}
+
+/* Rows standing in for data are not rows you can point at. */
+.skeleton__row:hover {
+  background: transparent;
 }

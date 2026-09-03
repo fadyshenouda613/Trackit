@@ -1,4 +1,5 @@
 import type { JSX } from 'react'
+import { EmptyState } from './EmptyState'
 import { Icon } from './Icon'
 import { deliveredLabel, type BillableProject, type BillingClient } from './invoice-data'
 import { money } from './money'
@@ -53,14 +54,15 @@ export function BillableProjects({
       </div>
 
       {(nothingDelivered || allInvoiced) && (
-        <div className="billable__empty">
-          <p className="billable__empty-title">
-            {nothingDelivered
+        <EmptyState
+          variant="panel"
+          title={
+            nothingDelivered
               ? `Nothing to bill for ${client.company}`
-              : `Everything delivered for ${client.company} is already invoiced`}
-          </p>
-          <p className="billable__empty-body">
-            {nothingDelivered ? (
+              : `Everything delivered for ${client.company} is already invoiced`
+          }
+          body={
+            nothingDelivered ? (
               <>
                 An invoice is built from projects marked <strong>delivered</strong>.{' '}
                 {client.openProjects === 0
@@ -73,15 +75,11 @@ export function BillableProjects({
                 The last one went out on {deliveredLabel(last)}. Deliver more work and it will
                 appear here.
               </>
-            )}
-          </p>
-          <div className="billable__empty-actions">
-            <button type="button" className="billable__empty-link" onClick={onOpenProjects}>
-              Open {client.company}&rsquo;s projects
-            </button>
-            <span className="billable__empty-aside">or add a line by hand below</span>
-          </div>
-        </div>
+            )
+          }
+          action={{ label: `Open ${client.company}’s projects`, onClick: onOpenProjects }}
+          aside="or add a line by hand below"
+        />
       )}
 
       {client.delivered.length > 0 && (

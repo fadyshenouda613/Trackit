@@ -18,6 +18,9 @@ export type IconName =
   | 'plus'
   | 'play'
   | 'trash'
+  | 'alert'
+  | 'update'
+  | 'sync'
 
 const paths: Record<IconName, JSX.Element> = {
   search: (
@@ -117,6 +120,56 @@ const paths: Record<IconName, JSX.Element> = {
   /* Solid, unlike the rest: it sits inside a filled button, where a 1.3 stroke
      at this size would disappear against the accent. */
   play: <path d="M5.5 3.6L12 8L5.5 12.4Z" fill="currentColor" />,
+  /* A triangle rather than a circle: the circle glyphs in this set are all
+     objects (search, time, settings), and this one is a judgement. */
+  alert: (
+    <>
+      <path
+        d="M8 2.6L14.4 13.4H1.6L8 2.6Z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <line x1="8" y1="6.4" x2="8" y2="9.6" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="8" cy="11.5" r="0.8" fill="currentColor" />
+    </>
+  ),
+  /* Arrow into a floor, not a cloud: the update is already downloaded and
+     waiting to be installed, which is a local act. */
+  update: (
+    <>
+      <path d="M8 2.6v7.2" stroke="currentColor" strokeWidth="1.4" />
+      <path
+        d="M5.2 5.4L8 2.6l2.8 2.8"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M3 12.6h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </>
+  ),
+  /* Two arcs with a head each: a round trip, which is what a sync is. */
+  sync: (
+    <>
+      <path d="M13 8a5 5 0 01-8.5 3.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M3 8a5 5 0 018.5-3.5" stroke="currentColor" strokeWidth="1.3" />
+      <path
+        d="M11.5 1.9v2.7H8.8"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M4.5 14.1v-2.7h2.7"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </>
+  ),
   trash: (
     <>
       <path d="M3.5 4.5h9" stroke="currentColor" strokeWidth="1.3" />

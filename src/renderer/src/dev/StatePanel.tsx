@@ -1,5 +1,7 @@
 import { useState, type JSX } from 'react'
-import type { SyncState } from '../components/SyncStatus'
+import type { SyncState } from '../components/sync-data'
+import type { Theme } from '../components/theme'
+import type { ToastKind } from '../components/toast-data'
 
 export type Screen =
   | 'dashboard'
@@ -12,8 +14,16 @@ export type Screen =
   | 'newInvoice'
   | 'invoices'
   | 'invoice'
+  | 'settings'
+  | 'printed'
 
-export type Theme = 'dark' | 'light'
+/**
+ * Which account card is showing instead of the app. `null` means the app itself
+ * is. Not part of `Screen`, because these are not screens of the app — they are
+ * what stands in front of it, the same way the timer and sync states below are
+ * conditions rather than places.
+ */
+export type AuthView = 'signIn' | 'signUp' | 'welcome' | 'offline'
 
 /**
  * Off, running, and running past the budget. The third is a state of the timer
@@ -22,19 +32,46 @@ export type Theme = 'dark' | 'light'
  */
 export type TimerState = 'off' | 'running' | 'over'
 
+/**
+ * Which non-modal notice is up. Its own axis rather than part of `Screen`,
+ * because a notice is a condition of a record and not a place: the same
+ * project screen is the one that shows it and the one that does not.
+ */
+export type NoticeState = 'none' | 'conflict' | 'reorder' | 'update'
+
+/**
+ * Whether the tables have their rows yet. There is no asynchrony in this app —
+ * every row is a synchronous import — so the loading state is unreachable
+ * without a switch for it, and a skeleton nobody can look at is a skeleton
+ * nobody maintains.
+ */
+export type DataState = 'ready' | 'loading'
+
 /** Dialogs are states of a screen, not screens of their own. */
 export type Modal = null | 'client' | 'project' | 'recovery' | 'payment'
 
 type ScreenChoice = Screen | 'newClient' | 'newProject' | 'recovery' | 'voidInvoice' | 'payment'
 
+/** `in` is the way back to the app; the rest map straight to an `AuthView`. */
+type AccountChoice = 'in' | AuthView
+
 type StatePanelProps = {
   screen: Screen
   modal: Modal
   onScreen: (choice: ScreenChoice) => void
+  authView: AuthView | null
+  onAuthView: (view: AuthView | null) => void
   timer: TimerState
   onTimer: (timer: TimerState) => void
   syncState: SyncState
   onSyncState: (state: SyncState) => void
+  notice: NoticeState
+  onNotice: (notice: NoticeState) => void
+  data: DataState
+  onData: (data: DataState) => void
+  /* A toast is an event, not a state: there is nothing to switch to, only
+     something to set off. So this axis fires rather than selects. */
+  onToast: (kind: ToastKind) => void
   theme: Theme
   onTheme: (theme: Theme) => void
 }
@@ -130,7 +167,29 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
           { value: 'invoices', label: 'Invoices' },
           { value: 'invoice', label: 'Invoice' },
           { value: 'voidInvoice', label: 'Void invoice' },
-          { value: 'payment', label: 'Record payment' }
+          { value: 'payment', label: 'Record payment' },
+          { value: 'settings', label: 'Settings' },
+          { value: 'printed', label: 'Printed invoice' }
+        ]}
+      />
+
+      {/*
+       * Its own row rather than four more entries above, because "which screen"
+       * and "signed in or not" are two questions, and the screen row already
+       * asks a long one. Switching here only changes what is drawn — it never
+       * touches the stored session, so the sign-up card can be inspected from
+       * inside a signed-in app and left again with nothing changed.
+       */}
+      <OptionRow
+        label="Account"
+        value={props.authView ?? 'in'}
+        onChange={(choice: AccountChoice) => props.onAuthView(choice === 'in' ? null : choice)}
+        options={[
+          { value: 'in', label: 'In' },
+          { value: 'signIn', label: 'Sign in' },
+          { value: 'signUp', label: 'Sign up' },
+          { value: 'welcome', label: 'Welcome' },
+          { value: 'offline', label: 'Offline' }
         ]}
       />
 
@@ -152,9 +211,57 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
         options={[
           { value: 'saved', label: 'Saved' },
           { value: 'syncing', label: 'Syncing' },
-          { value: 'offline', label: 'Offline' }
+          { value: 'pending', label: 'Pending' },
+          { value: 'failed', label: 'Failed' }
         ]}
       />
+
+      {/* The first two need the project screen to be visible to show anything;
+          the update notice appears on whichever screen you are already on. */}
+      <OptionRow
+        label="Notice"
+        value={props.notice}
+        onChange={props.onNotice}
+        options={[
+          { value: 'none', label: 'None' },
+          { value: 'conflict', label: 'Conflict' },
+          { value: 'reorder', label: 'Reorder' },
+          { value: 'update', label: 'Update' }
+        ]}
+      />
+
+      <OptionRow
+        label="Data"
+        value={props.data}
+        onChange={props.onData}
+        options={[
+          { value: 'ready', label: 'Ready' },
+          { value: 'loading', label: 'Loading' }
+        ]}
+      />
+
+      <div className="state-panel__row">
+        <span className="state-panel__label">Toast</span>
+        <div className="state-panel__options">
+          {(
+            [
+              { value: 'pdf', label: 'PDF' },
+              { value: 'payment', label: 'Payment' },
+              { value: 'delivered', label: 'Delivered' },
+              { value: 'timer', label: 'Timer' }
+            ] as { value: ToastKind; label: string }[]
+          ).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className="state-panel__option"
+              onClick={() => props.onToast(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <OptionRow
         label="Theme"
@@ -162,7 +269,8 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
         onChange={props.onTheme}
         options={[
           { value: 'dark', label: 'Dark' },
-          { value: 'light', label: 'Light' }
+          { value: 'light', label: 'Light' },
+          { value: 'system', label: 'System' }
         ]}
       />
     </div>

@@ -1,5 +1,6 @@
 import { useMemo, useState, type JSX } from 'react'
 import { InvoicesTable } from './InvoicesTable'
+import { TableSkeleton } from './TableSkeleton'
 import { ALL, InvoicesToolbar } from './InvoicesToolbar'
 import { money } from './money'
 import { statusStyles } from './status'
@@ -52,6 +53,8 @@ type InvoicesScreenProps = {
   /** The live register, so a payment recorded on a detail moves this list too. */
   register: Invoice[]
   onOpen: (number: string) => void
+  /** Rows not in yet. The figures above stay, because they are already known. */
+  loading?: boolean
 }
 
 /**
@@ -62,7 +65,11 @@ type InvoicesScreenProps = {
  * outstanding total that does not move when you ask "just Ortega, then" is a
  * decoration, and this screen exists to answer exactly that question.
  */
-export function InvoicesScreen({ register, onOpen }: InvoicesScreenProps): JSX.Element {
+export function InvoicesScreen({
+  register,
+  onOpen,
+  loading = false
+}: InvoicesScreenProps): JSX.Element {
   const [status, setStatus] = useState(ALL)
   const [client, setClient] = useState(ALL)
   const [sort, setSort] = useState('Issued')
@@ -122,7 +129,7 @@ export function InvoicesScreen({ register, onOpen }: InvoicesScreenProps): JSX.E
           </div>
         </section>
 
-        <InvoicesTable rows={rows} onOpen={onOpen} />
+        {loading ? <TableSkeleton block="invoices" /> : <InvoicesTable rows={rows} onOpen={onOpen} />}
       </div>
     </>
   )

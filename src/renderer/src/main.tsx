@@ -9,6 +9,7 @@ import '@fontsource-variable/jetbrains-mono'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/app.css'
+import './styles/print.css'
 
 import { App } from './App'
 

@@ -12,7 +12,8 @@ const api: LedgerApi = {
       const handler = (_event: unknown, maximized: boolean): void => listener(maximized)
       ipcRenderer.on('window:maximized-changed', handler)
       return () => ipcRenderer.removeListener('window:maximized-changed', handler)
-    }
+    },
+    setTheme: (theme) => ipcRenderer.send('window:set-theme', theme)
   }
 }
 

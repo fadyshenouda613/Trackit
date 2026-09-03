@@ -4,7 +4,7 @@ import { toneVar, type TextTone } from './tone'
 import { StatusPill } from './StatusPill'
 import type { Status } from './status'
 
-type Row = {
+export type Row = {
   name: string
   client: string
   price: string
@@ -24,7 +24,13 @@ type Row = {
   running?: boolean
 }
 
-const rows: Row[] = [
+/*
+ * Exported so Settings can count how many of these fall below the rate floor
+ * you are typing. It reads the same rows this table renders, in the way
+ * invoice-data reads clientRows out of ClientsTable: one set of figures, so the
+ * count and the column can never disagree.
+ */
+export const projectRows: Row[] = [
   {
     name: 'Brand refresh',
     client: 'Northwind Studio',
@@ -256,7 +262,7 @@ export function AllProjectsTable({ onOpen }: AllProjectsTableProps): JSX.Element
         <span className="align-right">Delivered</span>
       </div>
 
-      {rows.map((row) => {
+      {projectRows.map((row) => {
         const draft = row.status === 'draft'
         const cancelled = row.status === 'cancelled'
 

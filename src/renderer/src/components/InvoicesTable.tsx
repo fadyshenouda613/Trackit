@@ -1,4 +1,5 @@
 import type { JSX } from 'react'
+import { EmptyState } from './EmptyState'
 import { money } from './money'
 import { Pill } from './Pill'
 import { StatusPill } from './StatusPill'
@@ -49,13 +50,11 @@ export function InvoicesTable({ rows, onOpen }: InvoicesTableProps): JSX.Element
       </div>
 
       {rows.length === 0 && (
-        <div className="invoices__empty">
-          <p className="invoices__empty-title">No invoices match those filters</p>
-          <p className="invoices__empty-body">
-            Clear one of them to widen the list. The figures above and below count only what
-            is showing.
-          </p>
-        </div>
+        <EmptyState
+          variant="panel"
+          title="No invoices match those filters"
+          body="Clear one of them to widen the list. The figures above and below count only what is showing."
+        />
       )}
 
       {rows.map((invoice) => {

@@ -1,4 +1,5 @@
 import type { JSX } from 'react'
+import { EmptyState } from './EmptyState'
 import { money } from './money'
 import {
   balanceOf,
@@ -41,13 +42,23 @@ export function InvoicePayments({ invoice }: InvoicePaymentsProps): JSX.Element 
 
       <div className="panel payments">
         {invoice.payments.length === 0 ? (
-          <div className="payments__empty">
-            {status === 'void'
-              ? 'Nothing was received against this invoice before it was voided.'
-              : status === 'draft'
-                ? 'Nothing can be received yet — this invoice has not been sent.'
-                : 'No payments recorded yet. Record one as it lands and the balance below follows.'}
-          </div>
+          <EmptyState
+            variant="panel"
+            title={
+              status === 'void'
+                ? 'Nothing was received'
+                : status === 'draft'
+                  ? 'Nothing can be received yet'
+                  : 'No payments recorded yet'
+            }
+            body={
+              status === 'void'
+                ? 'This invoice was voided before any money arrived against it.'
+                : status === 'draft'
+                  ? 'This invoice has not been sent, so there is nothing for the client to pay.'
+                  : 'Record one as it lands and the balance below follows.'
+            }
+          />
         ) : (
           <>
             <div className="payments__header t-overline">

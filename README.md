@@ -1,0 +1,356 @@
+# Trackit
+
+**Freelance time and billing for people who charge a fixed price.**
+
+Trackit is an Electron desktop app that tracks hours against fixed-price
+projects and tells you what you are *actually* earning per hour — then turns
+delivered work into an invoice and follows the money until it lands.
+
+![Trackit dashboard in dark mode](docs/screenshots/dashboard-dark.jpg)
+
+---
+
+## Status
+
+This repository is a **complete, working UI build** of the app — every screen,
+dialog, notice and empty state is designed, implemented and reachable. What is
+*not* here yet is a backend:
+
+- There is **no database**. Clients, projects, time entries and invoices are
+  seeded fixtures the running app mutates in memory. A reload resets them.
+- There is **no sync service**. The sync footer walks its real states, but
+  nothing is uploaded anywhere.
+- There is **no account service**. Any email plus `admin` / `admin` signs you in.
+
+Two things genuinely persist across launches, in `localStorage`: your theme
+preference (`trackit.theme`) and the fact that you are signed in
+(`trackit.session`, `trackit.welcome-seen`).
+
+Everything below is real, running code — the screenshots are captures of the
+app, not mockups.
+
+---
+
+## The idea
+
+Fixed-price work hides its own margin. You agree $6,500 for a brand refresh,
+the scope quietly grows, and you find out months later that you worked for $49
+an hour. Trackit's whole job is to make that visible *while there is still time
+to act*:
+
+- Every project carries an **agreed price** and an **hours budget**.
+- Every hour you log recalculates the **effective rate** — price ÷ hours.
+- You set a **rate floor**. Anything below it is drawn in red, everywhere.
+- The dashboard's **Attention** list names the specific thing to do about it:
+  renegotiate, re-scope, bill the added scope, chase the overdue invoice.
+
+![Projects table](docs/screenshots/projects-dark.jpg)
+
+Fourteen projects, each with its price, checklist progress, hours against
+budget, and effective rate against the floor. The blended rate sits in the
+footer.
+
+---
+
+## Features
+
+### Time tracking
+
+![Time screen](docs/screenshots/time-dark.jpg)
+
+A running timer lives in the window chrome above everything else, showing the
+client, the project, the deliverable, elapsed time, and how much of the budget
+it has eaten. Stop it and it tells you what it just logged.
+
+The week view groups entries by day with per-day and per-week totals, and
+compares the week against the last one.
+
+**Over budget** turns the whole bar red and switches the readout from
+*"88% of budget"* to *"40m over"*:
+
+![Over-budget timer and a sync conflict](docs/screenshots/over-budget-conflict-dark.jpg)
+
+*(Also shown: the two-device edit conflict notice.)*
+
+**Crash recovery.** If the app quits with a timer running, the next launch asks
+what to do with the orphaned run rather than silently keeping or dropping it:
+
+![Timer recovery dialog](docs/screenshots/timer-recovery-dark.jpg)
+
+### Projects and scope creep
+
+![Project detail](docs/screenshots/project-dark.jpg)
+
+Each project has a price, a deliverable checklist, an hours budget, notes, and
+its own time log. Items added after kickoff are tagged **added later** — so
+"4 of 14 items were added after kickoff" is a sentence you can take to a client
+rather than a feeling you have. Checklist items reorder by drag.
+
+Creating a project shows you the deal you are agreeing to *before* you agree to
+it — price ÷ estimated hours, checked against your floor:
+
+![New project dialog](docs/screenshots/new-project-dark.jpg)
+
+### Clients
+
+![Clients](docs/screenshots/clients-dark.jpg)
+
+Sorted by outstanding, with lifetime billed, active project count, and how late
+each debt is.
+
+![Client detail](docs/screenshots/client-detail-dark.jpg)
+
+A client's record pulls together their projects, their invoices, how fast they
+actually pay, and free-text notes.
+
+### Invoicing
+
+![Invoices](docs/screenshots/invoices-dark.jpg)
+
+The register: draft, sent, partially paid, paid, void and overdue, with search,
+status and client filters, and an outstanding total that includes how much is
+overdue and on how many invoices.
+
+**Building an invoice** starts from what is delivered and not yet billed.
+Tick the projects; anything already on an invoice is shown but locked, so
+nothing gets billed twice. Lines can be reworded, repriced and reordered:
+
+![New invoice](docs/screenshots/new-invoice-dark.jpg)
+
+**The invoice record** shows the document, its payment history, and the actions
+available given its state:
+
+![Invoice detail](docs/screenshots/invoice-dark.jpg)
+
+**Recording a payment** opens at the full outstanding amount and tells you the
+balance after it lands before you commit:
+
+![Record payment](docs/screenshots/record-payment-dark.jpg)
+
+**The printed artefact** — grouped by project, with subtotals, tax and payment
+terms. This is the thing the client receives, so it is rendered without any of
+the app's chrome:
+
+![Printed invoice](docs/screenshots/printed-invoice.jpg)
+
+### Settings
+
+![Business profile settings](docs/screenshots/settings-business-dark.jpg)
+
+Six panes: **Business profile** (what gets printed on every invoice),
+**Invoicing** (currency, tax rate, payment terms, and a numbering scheme that
+understands `{YYYY}`, `{YY}`, `{MM}` and a zero-run counter — `INV-0000` and
+`INV-000000` differ only in width), **Tracking** (the rate floor and the global
+timer shortcut), **Appearance**, **Account and sync**, and **Data**.
+
+### Notices, toasts and states
+
+![Payment toast](docs/screenshots/toast-dark.jpg)
+
+Actions confirm themselves and stay actionable — the toast above names the
+amount and the invoice it landed on, and links straight to it. The sidebar
+footer carries four distinct sync states (`saved`, `syncing`, `pending`,
+`failed`) because *"work is queued"* and *"the last attempt failed"* are
+different situations that need different responses.
+
+### First run
+
+![Sign in](docs/screenshots/sign-in-dark.jpg)
+
+You only need an account the first time; after that Trackit opens straight into
+your work, online or not.
+
+![Empty state](docs/screenshots/empty-state-dark.jpg)
+
+A new account starts with one thing to do, and the sidebar dims everything that
+does not exist yet.
+
+---
+
+## Dark and light
+
+Trackit ships both themes as first-class designs — not a filter over one
+palette. Every colour is an `oklch()` token in
+[`src/renderer/src/styles/tokens.css`](src/renderer/src/styles/tokens.css); no
+component file contains a raw colour. The light theme redefines the tokens, and
+inverts the ones that have to go the other way (hover, for instance, steps
+*down* in light and *up* in dark).
+
+| Dark | Light |
+|---|---|
+| ![Dashboard, dark](docs/screenshots/dashboard-dark.jpg) | ![Dashboard, light](docs/screenshots/dashboard-light.jpg) |
+| ![Project, dark](docs/screenshots/project-dark.jpg) | ![Project, light](docs/screenshots/project-light.jpg) |
+| ![Invoice, dark](docs/screenshots/invoice-dark.jpg) | ![Invoice, light](docs/screenshots/invoice-light.jpg) |
+
+Choose Light, Dark or System in **Settings → Appearance**:
+
+| Dark | Light |
+|---|---|
+| ![Appearance settings, dark](docs/screenshots/settings-appearance-dark.jpg) | ![Appearance settings, light](docs/screenshots/settings-appearance-light.jpg) |
+
+Three details make the switch feel native rather than bolted on:
+
+1. **No flash of the wrong theme.** `src/renderer/public/theme-boot.js` is a
+   classic (non-module, non-deferred) script in `<head>` that stamps
+   `data-theme` from `localStorage` before the first paint.
+2. **The OS is followed live.** "System" is a standing instruction, not a third
+   palette — a `matchMedia` listener repaints when the OS flips.
+3. **The native window follows too.** The preference is sent to the main
+   process over IPC and handed verbatim to Electron's `nativeTheme`, which
+   tints macOS traffic lights and native menus. The window's own
+   `backgroundColor` is repainted to match, so a resize never flashes a dark
+   slab behind a light app.
+
+---
+
+## Desktop integration
+
+**Frameless on every platform.** On macOS the traffic lights stay, inset into
+the app's own chrome; on Windows and Linux the renderer draws its own controls
+and talks to the main process over IPC.
+
+**Menu-bar / tray timer.** The tray glyph is the app's recording dot — filled
+while a timer runs, hollow while it does not — so the menu bar answers the
+question without being opened. Its menu carries the current project, a live
+elapsed clock, and Start/Stop. On macOS the elapsed time also sits beside the
+icon. Both the tray glyph and the app icon are rasterized in code
+(`src/main/tray.ts`, `src/main/icon.ts`) rather than shipped as build assets, so
+they cannot drift out of sync with `Logo.tsx`.
+
+**Global shortcut.** <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Shift</kbd> +
+<kbd>S</kbd> toggles the timer from anywhere. If the binding is already taken,
+the app logs a warning rather than showing a hint that does nothing.
+
+**Security.** `contextIsolation: true`, `nodeIntegration: false`, a strict CSP
+in `index.html`, and a preload bridge that exposes exactly six window methods
+and the platform string — nothing else (see
+[`src/shared/api.ts`](src/shared/api.ts)). External links open in the real
+browser, never in an app window.
+
+---
+
+## Getting started
+
+**Requirements** — Node 20.19+ or 22.12+ (Vite 7's baseline; developed on
+v24.13.0).
+
+```bash
+npm install      # install dependencies
+npm run dev      # electron-vite dev — launches the app with HMR
+```
+
+`npm run dev` also serves the renderer at <http://localhost:5173>. Opening that
+URL in a browser works: `src/renderer/src/bridge.ts` supplies a no-op stand-in
+for the preload bridge, so everything but the native window controls behaves
+normally. (That is how the screenshots above were taken.)
+
+Sign in with any email address and `admin` / `admin`.
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Dev server + Electron, with hot reload |
+| `npm run build` | Build main, preload and renderer into `out/` |
+| `npm start` | `electron-vite preview` — run the built app |
+| `npm run typecheck` | Type-check both projects (node + web) |
+| `npm run typecheck:node` | Main and preload only |
+| `npm run typecheck:web` | Renderer only |
+
+There is no packaging step (electron-builder or similar) configured yet.
+
+### The States panel
+
+Because there is no data layer, some states are unreachable by navigating —
+the empty account, a failed sync, an orphaned timer, a void invoice, a loading
+skeleton. A dev panel covers all of them. Click **States** in the bottom-right
+corner of the window and you get eight axes:
+
+| Axis | Options |
+|---|---|
+| Screen | 17, including every dialog and the printed invoice |
+| Account | In, Sign in, Sign up, Welcome, Offline |
+| Timer | Stopped, Running, Over budget |
+| Sync | Saved, Syncing, Pending, Failed |
+| Notice | None, Conflict, Reorder, Update |
+| Data | Ready, Loading |
+| Toast | PDF, Payment, Delivered, Timer *(fires rather than selects)* |
+| Theme | Dark, Light, System |
+
+It lives in [`src/renderer/src/dev/StatePanel.tsx`](src/renderer/src/dev/StatePanel.tsx)
+and is the fastest way to see the whole app.
+
+---
+
+## Project structure
+
+```
+src/
+├── main/                  Electron main process
+│   ├── index.ts             App lifecycle, tray timer state
+│   ├── window.ts            Frameless BrowserWindow, per-theme background fill
+│   ├── ipc.ts               Window controls + nativeTheme sync
+│   ├── tray.ts              Tray icon, menu, global shortcut
+│   └── icon.ts              App icon, rasterized from Logo.tsx's geometry
+├── preload/index.ts       contextBridge → window.ledger
+├── shared/api.ts          The contract between the two, in one file
+└── renderer/
+    ├── index.html           CSP + pre-paint theme boot
+    ├── public/theme-boot.js Stamps data-theme before the first paint
+    └── src/
+        ├── App.tsx          Screen routing and the state that crosses screens
+        ├── bridge.ts        The preload bridge, with a browser stand-in
+        ├── components/      62 components + 14 data/helper modules
+        ├── dev/StatePanel.tsx
+        └── styles/
+            ├── tokens.css   Ledgerline design system — the token layer
+            └── app.css      Everything drawn from those tokens
+```
+
+**Stack:** Electron 44, React 19, TypeScript 5.9, Vite 7 via electron-vite 5.
+No UI framework, no CSS-in-JS, no state library — plain CSS against a token
+layer, and React state lifted only as far as it needs to go.
+
+**Type-checking is split** the way the processes are: `tsconfig.node.json`
+covers main and preload, `tsconfig.web.json` covers the renderer, so neither
+can accidentally import the other's globals.
+
+---
+
+## Design notes
+
+The design system is called **Ledgerline**. A few of its rules explain most of
+what you see:
+
+- **Cool-neutral greys, one accent, three semantics.** The accent is never
+  decorative — it means a running timer, the primary action, or the one
+  selected row.
+- **Money is the loudest thing on screen.** Figures are set large, in a
+  tabular-figure face, and coloured only when the colour carries meaning
+  (below your floor, overdue, over budget).
+- **State is a condition, not a place.** A notice, a timer, a sync failure and a
+  dialog are all conditions of a screen rather than screens of their own — which
+  is why the States panel has separate axes for them.
+- **Every empty state names the next action.** No blank canvases.
+
+The codebase is heavily commented, and the comments explain *why* rather than
+*what* — why the theme is read synchronously instead of in an effect, why sync
+has four states instead of three, why settings hold typed text instead of
+numbers. They are worth reading if you are picking the project up.
+
+---
+
+## Troubleshooting
+
+**`electron-vite dev` fails with an Electron "uninstall" error** even though
+`npm install` looked clean — npm's postinstall can silently skip fetching the
+Electron binary. Fix it with:
+
+```bash
+node node_modules/electron/install.js
+```
+
+---
+
+## Screenshots
+
+All images in this README live in [`docs/screenshots/`](docs/screenshots) and
+were captured from the running app at a 1500×1000 window.

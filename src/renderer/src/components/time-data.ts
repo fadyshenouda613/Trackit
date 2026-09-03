@@ -275,3 +275,53 @@ export function weekFor(offset: number): Week {
  */
 export const daysBetween = (from: string, to: string): number =>
   Math.round((asDate(to).getTime() - asDate(from).getTime()) / 86400000)
+
+/* ---- Wall-clock recency ---------------------------------------------------
+ * Everything above is ledger time: ISO dates measured against TODAY, which is
+ * a constant because the app has no clock and a fixture that drifted would
+ * make the artboards' figures wrong overnight.
+ *
+ * A sync timestamp is the opposite kind of fact. It is not something the
+ * ledger records — it is something that happened to this machine a moment ago,
+ * and "4 minutes ago" is only true while you are reading it. So these two take
+ * epoch milliseconds and measure against a real Date.now(), and they are kept
+ * apart from the dates above on purpose: mixing the two would either freeze
+ * the footer at a fictional hour or start moving the invoice dates.
+ */
+
+const MINUTE = 60_000
+const HOUR = 3_600_000
+const DAY = 86_400_000
+
+const plural = (count: number, unit: string): string =>
+  `${count} ${unit}${count === 1 ? '' : 's'} ago`
+
+/**
+ * Prose, for the popover: 'just now', '4 minutes ago', '2 hours ago', and past
+ * a day the date itself, because "31 hours ago" is arithmetic, not a time.
+ */
+export function agoLabel(at: number | null, now: number = Date.now()): string {
+  if (at === null) return '—'
+  const since = Math.max(0, now - at)
+  if (since < 45_000) return 'just now'
+  if (since < HOUR) return plural(Math.round(since / MINUTE), 'minute')
+  if (since < DAY) return plural(Math.round(since / HOUR), 'hour')
+  return shortDate(new Date(at).toISOString().slice(0, 10))
+}
+
+/**
+ * The same fact for the sidebar's 10px mono slot, where a sentence does not
+ * fit: 'now', '4m', '2h', then the day and month.
+ */
+export function agoShort(at: number | null, now: number = Date.now()): string {
+  if (at === null) return '—'
+  const since = Math.max(0, now - at)
+  if (since < 45_000) return 'now'
+  if (since < HOUR) return `${Math.round(since / MINUTE)}m`
+  if (since < DAY) return `${Math.round(since / HOUR)}h`
+  return shortDate(new Date(at).toISOString().slice(0, 10)).slice(0, 6)
+}
+
+/** The exact time a sync landed, 24-hour, as the app states every other clock. */
+export const clockOf = (at: number): string =>
+  `${pad2(new Date(at).getHours())}:${pad2(new Date(at).getMinutes())}`

@@ -126,7 +126,7 @@ export function TimerRecoveryDialog({ onResolve }: TimerRecoveryDialogProps): JS
         </div>
 
         <div className="dialog__foot">
-          <span className="dialog__foot-note">Ledgerline stopped the timer when it quit.</span>
+          <span className="dialog__foot-note">Trackit stopped the timer when it quit.</span>
           <div className="spacer" />
           {/* Discarding is a legitimate answer, not the encouraged one — it gets
               the plain button rather than the accent, and never a red one. */}

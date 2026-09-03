@@ -33,3 +33,50 @@ export const tintVars: Record<Tone, { background: string; color: string }> = {
   warning: { background: 'var(--warning-surface)', color: 'var(--warning-text)' },
   negative: { background: 'var(--negative-surface)', color: 'var(--negative-text)' }
 }
+
+/**
+ * Tinted surface + border + body text: the banner family.
+ *
+ * A chip states one word and needs two values. A banner holds a sentence, an
+ * edge and sometimes a button, so it needs the third step — the border — and a
+ * dimmer text than the chip's, because a whole paragraph at chip brightness
+ * shouts. Same three tokens for every tone, so a notice can change register
+ * without changing shape.
+ */
+export const noticeVars: Record<Tone, { background: string; borderColor: string; color: string }> =
+  {
+    neutral: {
+      background: 'var(--bg-overlay)',
+      borderColor: 'var(--neutral-line)',
+      color: 'var(--neutral-text-dim)'
+    },
+    accent: {
+      background: 'var(--accent-surface)',
+      borderColor: 'var(--accent-line)',
+      color: 'var(--accent-text-dim)'
+    },
+    positive: {
+      background: 'var(--positive-surface)',
+      borderColor: 'var(--positive-line)',
+      color: 'var(--positive-text-dim)'
+    },
+    warning: {
+      background: 'var(--warning-surface)',
+      borderColor: 'var(--warning-line)',
+      color: 'var(--warning-text-dim)'
+    },
+    negative: {
+      background: 'var(--negative-surface)',
+      borderColor: 'var(--negative-line)',
+      color: 'var(--negative-text-dim)'
+    }
+  }
+
+/** The mark, title and link inside a notice: one step brighter than its body. */
+export const noticeAccentVar: Record<Tone, string> = {
+  neutral: 'var(--text-primary)',
+  accent: 'var(--accent-text)',
+  positive: 'var(--positive-text)',
+  warning: 'var(--warning-text)',
+  negative: 'var(--negative-text)'
+}

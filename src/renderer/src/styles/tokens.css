@@ -17,7 +17,11 @@
   --bg-sunken: oklch(0.161 0.008 265); /* sidebar, window chrome */
   --bg-base: oklch(0.191 0.008 265); /* main content canvas */
   --bg-raised: oklch(0.223 0.009 265); /* cards, table rows, inputs */
-  --bg-overlay: oklch(0.255 0.010 265); /* menus, dialogs, hover */
+  --bg-overlay: oklch(0.255 0.010 265); /* menus, dialogs, toasts */
+  /* Hover is a separate step because the two themes disagree about which way
+     it goes. Here it is the same value as --bg-overlay, a step up from
+     --bg-raised; on light it has to go the other way. See the light block. */
+  --bg-hover: var(--bg-overlay);
   --line-subtle: oklch(0.288 0.011 265); /* default 1px divider */
   --line-strong: oklch(0.365 0.013 265); /* focus ring, active field */
 
@@ -61,6 +65,19 @@
   --negative-text: oklch(0.820 0.130 22);
   --neutral-surface: var(--line-subtle);
   --neutral-text: var(--text-secondary);
+
+  /* The two steps a bordered surface needs, which the family above stops short
+   * of. Only accent and negative carried them, because only they had ever had
+   * to hold a whole bar rather than a chip; a notice is the second such
+   * surface, and it can take any tone. Same steps as --accent-line and
+   * --accent-text-dim, at the hue of the tint each belongs to. Neutral borrows
+   * the greys, exactly as its tint does. */
+  --positive-line: oklch(0.390 0.075 156);
+  --positive-text-dim: oklch(0.780 0.045 156);
+  --warning-line: oklch(0.390 0.075 78);
+  --warning-text-dim: oklch(0.780 0.045 78);
+  --neutral-line: var(--line-subtle);
+  --neutral-text-dim: var(--text-tertiary);
 
   /* ---- Negative, as a surface ---------------------------------------------
    * The over-budget timer bar is the one place a semantic colour has to hold a
@@ -162,89 +179,157 @@
 }
 
 /*
- * Light — "same tokens, remapped. Chroma held, lightness inverted. Ramp order
- * is identical, so components need no light-mode variants."
+ * Light — a warm-paper adaptation, not an inversion.
  *
- * The design system's light swatch row is unlabelled, so only some values below
- * are given by it. Anything marked INFERRED or INVENTED is a reading of the
- * system rather than a specified value, and should be replaced when the real
- * light palette is published.
+ * Three things separate this from a flipped ramp:
+ *
+ * 1. Hue. The dark theme's neutrals are cool (265). Inverted, they read as a
+ *    cold screen-grey. Here the surfaces move to hue 80 at very low chroma —
+ *    paper stock — and the text neutrals follow at half that chroma, so ink
+ *    and paper belong to one family. The accent stays cool at 274, which makes
+ *    the theme's one temperature contrast deliberate: ink-blue on warm stock.
+ *
+ * 2. Structure. Elevation barely registers on a light ground, so the surface
+ *    ramp compresses and the lines take over. --line-subtle is a long step
+ *    darker than a straight inversion would give it, and cards, panels, rows
+ *    and the totals row all read by their edge. Shadows are kept for things
+ *    that genuinely float, and are warm-tinted: pure black over warm stock
+ *    reads as dirt rather than shadow.
+ *
+ * 3. Legibility. Lightness is set from measured contrast, not by mirroring the
+ *    dark value. Every text token clears 4.5:1 on --bg-base, --bg-raised and
+ *    --bg-hover; every tint text clears 4.5:1 on its own chip. --text-muted is
+ *    the one exception at 3.4:1 and is for non-essential text only. Where a
+ *    hue could not hold the dark theme's chroma at a legible lightness, chroma
+ *    is pulled to the sRGB gamut edge rather than lightness being raised:
+ *    --positive and --warning are the two that clip.
+ *
+ * Nothing outside colour is re-declared. Type, spacing, radii and row density
+ * are theme-invariant by design.
  */
 :root[data-theme='light'] {
   color-scheme: light;
 
-  --bg-ground: oklch(0.900 0.006 265); /* INVENTED */
-  --bg-sunken: oklch(0.955 0.004 265); /* INFERRED — most recessed surface */
-  --bg-base: oklch(0.985 0.003 265); /* INFERRED */
-  --bg-raised: oklch(1 0 0); /* INFERRED — cards go white */
-  --bg-overlay: oklch(0.955 0.004 265); /* INFERRED — hover on white must darken */
-  --line-subtle: oklch(0.900 0.006 265); /* given */
-  --line-strong: oklch(0.820 0.008 265); /* INVENTED */
+  /* ---- Surfaces & lines --------------------------------------------------
+   * The ramp stays monotonic — ground < sunken < base < raised < overlay — so
+   * a component that reaches for a surface gets the same relative position in
+   * either theme and needs no light-mode variant. --bg-raised is off-white,
+   * not white: white cards on a warm canvas read as holes cut in the page. */
+  --bg-ground: oklch(0.892 0.008 80); /* behind the window itself */
+  --bg-sunken: oklch(0.940 0.007 80); /* sidebar, window chrome */
+  --bg-base: oklch(0.966 0.006 80); /* main content canvas */
+  --bg-raised: oklch(0.988 0.004 80); /* cards, table rows, inputs */
+  --bg-overlay: oklch(0.997 0.002 80); /* menus, dialogs, toasts */
+  --bg-hover: oklch(0.944 0.007 80); /* hover — the one step that must invert */
+  --line-subtle: oklch(0.868 0.010 80); /* default 1px divider */
+  --line-strong: oklch(0.760 0.013 80); /* focus ring, active field */
 
-  --text-primary: oklch(0.240 0.010 265); /* given */
-  --text-secondary: oklch(0.480 0.010 265); /* given */
-  --text-tertiary: oklch(0.580 0.010 265); /* INVENTED */
-  --text-muted: oklch(0.680 0.010 265); /* INVENTED */
+  /* ---- Text -------------------------------------------------------------- */
+  --text-primary: oklch(0.255 0.006 80); /* 14.3:1 on base */
+  --text-secondary: oklch(0.435 0.006 80); /* 7.2:1 */
+  --text-tertiary: oklch(0.529 0.006 80); /* 4.8:1 — set by the hover row, its darkest ground */
+  --text-muted: oklch(0.630 0.006 80); /* 3.4:1 — non-essential text only */
 
-  --accent: oklch(0.505 0.190 274); /* given */
-  --accent-hover: oklch(0.455 0.190 274); /* INVENTED */
-  --accent-link-hover: oklch(0.420 0.180 274); /* INVENTED */
-  --accent-on: oklch(0.995 0.005 274); /* INVENTED */
-  --accent-surface: oklch(0.945 0.030 274); /* INVENTED */
-  --accent-line: oklch(0.880 0.055 274); /* INVENTED */
-  --accent-divider: oklch(0.860 0.050 274); /* INVENTED */
-  --accent-text: oklch(0.430 0.150 274); /* INVENTED */
-  --accent-text-dim: oklch(0.500 0.080 274); /* INVENTED */
-  --accent-text-strong: oklch(0.400 0.170 274); /* INVENTED */
-  --accent-ctrl: oklch(1 0 0); /* INVENTED */
-  --accent-ctrl-line: oklch(0.840 0.070 274); /* INVENTED */
-  --accent-ctrl-hover: oklch(0.965 0.020 274); /* INVENTED */
-  --accent-ctrl-line-hover: oklch(0.740 0.110 274); /* INVENTED */
+  /* ---- Accent ------------------------------------------------------------
+   * Hover and link-hover darken here rather than lighten: on a light ground
+   * the accent is already the dark element, so "more" means deeper. */
+  --accent: oklch(0.520 0.190 274); /* 5.3:1 on base */
+  --accent-hover: oklch(0.470 0.190 274);
+  --accent-link-hover: oklch(0.430 0.180 274);
+  --accent-on: oklch(0.985 0.006 80); /* 5.6:1 on a solid accent fill */
+  --accent-surface: oklch(0.930 0.033 274); /* timer bar, active nav, chips */
+  --accent-line: oklch(0.855 0.050 274);
+  --accent-divider: oklch(0.880 0.045 274);
+  --accent-text: oklch(0.435 0.091 274);
+  --accent-text-dim: oklch(0.505 0.045 274);
+  --accent-text-strong: oklch(0.380 0.130 274); /* initials on an accent avatar */
+  /* A control on --accent-surface sits above it here, where in the dark theme
+     it sat below. Chroma is at the gamut ceiling for these lightnesses. */
+  --accent-ctrl: oklch(0.988 0.005 274);
+  --accent-ctrl-line: oklch(0.820 0.060 274);
+  --accent-ctrl-hover: oklch(0.965 0.016 274);
+  --accent-ctrl-line-hover: oklch(0.720 0.090 274);
 
-  --positive: oklch(0.520 0.130 156); /* given */
-  --warning: oklch(0.600 0.130 70); /* given */
-  --negative: oklch(0.545 0.180 25); /* given */
+  /* ---- Semantics ----------------------------------------------------------
+   * Hues are the dark theme's exactly (156 / 78 / 22) so the two themes are
+   * recognisably one brand. Lightness sits at the 4.5:1 ceiling on --bg-base;
+   * positive and warning clip out of sRGB at the dark theme's chroma, so their
+   * chroma is reduced rather than their lightness raised. */
+  --positive: oklch(0.520 0.126 156); /* 4.7:1 */
+  --warning: oklch(0.535 0.112 78); /* 4.8:1 */
+  --negative: oklch(0.545 0.190 22); /* 5.0:1 */
 
-  /* Tint family inverts with everything else: pale surface, dark text. All
-   * INVENTED — the design system specifies no light tints. */
-  --positive-surface: oklch(0.945 0.030 156);
-  --positive-text: oklch(0.430 0.110 156);
-  --warning-surface: oklch(0.950 0.035 70);
-  --warning-text: oklch(0.470 0.110 70);
-  --negative-surface: oklch(0.945 0.030 25);
-  --negative-text: oklch(0.470 0.160 25);
-  --neutral-surface: var(--line-subtle);
+  /* ---- Tint family --------------------------------------------------------
+   * The dark rule is "low-chroma surface near L .300, high-chroma text near
+   * L .86". Adapted: surface at L .930, text at L .435, one chroma per row.
+   *
+   * Both chromas are set by the narrowest hue rather than chosen: at these
+   * lightnesses sRGB runs out long before the dark theme did, and .033 on the
+   * surface row is all red and violet can hold, .091 on the text row all that
+   * yellow can. Holding one chroma across the row is what makes four chips read
+   * as one family; letting each hue take its own ceiling made red and violet
+   * look washed out beside green. Every chip lands between 5:1 and 7:1.
+   *
+   * Neutral is the one member that does not borrow --line-subtle the way the
+   * dark theme's does. At L .868 that line is a workable border but far too
+   * dark as a chip fill, and it drags the recessive statuses under 4:1. */
+  --positive-surface: oklch(0.930 0.033 156);
+  --positive-text: oklch(0.435 0.091 156);
+  --warning-surface: oklch(0.930 0.033 78);
+  --warning-text: oklch(0.435 0.091 78);
+  --negative-surface: oklch(0.930 0.033 22);
+  --negative-text: oklch(0.435 0.091 22);
+  --neutral-surface: oklch(0.930 0.004 80);
   --neutral-text: var(--text-secondary);
 
-  /* The negative surface family, inverted with the rest. All INVENTED. */
-  --negative-line: oklch(0.880 0.055 25);
-  --negative-divider: oklch(0.860 0.050 25);
-  --negative-text-dim: oklch(0.500 0.080 25);
-  --negative-ctrl: oklch(1 0 0);
-  --negative-ctrl-line: oklch(0.840 0.070 25);
-  --negative-ctrl-hover: oklch(0.965 0.020 25);
-  --negative-ctrl-line-hover: oklch(0.740 0.110 25);
+  /* The two steps a bordered surface needs, at each tint's hue. */
+  --positive-line: oklch(0.855 0.050 156);
+  --positive-text-dim: oklch(0.505 0.045 156);
+  --warning-line: oklch(0.855 0.050 78);
+  --warning-text-dim: oklch(0.505 0.045 78);
+  --neutral-line: var(--line-subtle);
+  --neutral-text-dim: var(--text-tertiary);
 
-  /* Meters invert: pale track, dark fill. INVENTED. */
-  --meter-track: oklch(0.880 0.006 265);
-  --meter-fill: oklch(0.420 0.012 265);
+  /* ---- Negative, as a surface --------------------------------------------- */
+  --negative-line: oklch(0.855 0.050 22);
+  --negative-divider: oklch(0.880 0.045 22);
+  --negative-text-dim: oklch(0.505 0.045 22);
+  --negative-ctrl: oklch(0.988 0.005 22);
+  --negative-ctrl-line: oklch(0.820 0.060 22);
+  --negative-ctrl-hover: oklch(0.965 0.016 22);
+  --negative-ctrl-line-hover: oklch(0.720 0.090 22);
 
-  /* Status text darkens with the rest. All INVENTED. */
-  --status-draft-text: oklch(0.500 0.008 265);
-  --status-draft-line: oklch(0.780 0.010 265);
-  --status-active-text: oklch(0.420 0.150 274);
-  --status-delivered-text: oklch(0.460 0.110 70);
-  --status-invoiced-text: oklch(0.330 0.008 265);
-  --status-paid-text: oklch(0.420 0.110 156);
-  --status-cancelled-text: oklch(0.580 0.008 265);
-  --status-partial-text: oklch(0.460 0.110 70);
-  --status-void-text: oklch(0.580 0.008 265);
+  /* ---- Meters -------------------------------------------------------------
+   * Same reasoning as the dark theme, pointing the other way: at 3px the eye
+   * reads lightness alone, so the track sits a step below the row it is on and
+   * the fill a long way below the track. 5.3:1 between them. */
+  --meter-track: oklch(0.895 0.008 80);
+  --meter-fill: oklch(0.455 0.010 80);
 
-  --bg-footer: oklch(0.968 0.003 265); /* INVENTED */
-  --scrim: rgba(20, 22, 28, 0.35); /* INVENTED — a black scrim is far too heavy on white */
+  /* ---- Status text --------------------------------------------------------
+   * The three that carry colour take the tint family's text step at their hue.
+   * The neutral four are set against --neutral-surface, the darkest ground any
+   * of them sits on; Cancelled and Void are the floor at exactly 4.5:1. */
+  --status-draft-text: oklch(0.505 0.006 80);
+  --status-draft-line: oklch(0.800 0.008 80); /* the dashed edge */
+  --status-active-text: oklch(0.435 0.091 274);
+  --status-delivered-text: oklch(0.435 0.091 78);
+  --status-invoiced-text: oklch(0.360 0.006 80); /* neutral, but darker */
+  --status-paid-text: oklch(0.435 0.091 156);
+  --status-cancelled-text: oklch(0.519 0.006 80);
+  --status-partial-text: oklch(0.435 0.091 78);
+  --status-void-text: oklch(0.519 0.006 80);
 
-  /* Dark-mode alphas are far too heavy on white. */
-  --e1: 0 1px 2px rgba(0, 0, 0, 0.08);
-  --e2: 0 4px 12px -2px rgba(0, 0, 0, 0.12);
-  --e3: 0 16px 32px -8px rgba(0, 0, 0, 0.16);
+  /* ---- One-offs ----------------------------------------------------------- */
+  --bg-footer: oklch(0.977 0.005 80); /* between bg.base and bg.raised, as in dark */
+  --scrim: rgba(46, 40, 30, 0.32); /* warm — a black scrim greys out warm paper */
+
+  /* ---- Elevation ----------------------------------------------------------
+   * Warm-tinted and tighter than the dark theme's. Two reasons: black over
+   * warm stock reads as dirt rather than shadow, and elevation is a weak
+   * signal on a light ground, so it is spent only where something genuinely
+   * floats. The borders above carry the rest. */
+  --e1: 0 1px 2px rgba(60, 50, 35, 0.07);
+  --e2: 0 3px 10px -2px rgba(60, 50, 35, 0.11);
+  --e3: 0 12px 28px -8px rgba(60, 50, 35, 0.16);
 }

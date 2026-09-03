@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
 import { Avatar } from './Avatar'
+import { RecordConflictNotice } from './ConflictNotice'
 import { Icon } from './Icon'
 import { Meter } from './Meter'
 import { Pill } from './Pill'
 import { ProjectChecklist } from './ProjectChecklist'
 import { StatusPill } from './StatusPill'
+import { money } from './money'
 import { toneVar } from './tone'
 import type { Status } from './status'
 
-/** The rate every project is judged against, from Settings. */
-const RATE_FLOOR = '$100.00'
+/* $6,500.00 against the 28h 15m logged below. Named rather than typed twice,
+   because the caption beside it does arithmetic against the rate floor. */
+const EFFECTIVE_RATE = 230.09
 
 /** The single step that moves a project forward. Paid and cancelled are ends. */
 const advance: Partial<Record<Status, { label: string; to: Status; entry: string }>> = {
@@ -120,6 +123,14 @@ type HistoryEntry = { label: string; date: string }
 type ProjectDetailProps = {
   /** Delivered is the one step that opens a screen rather than just moving on. */
   onCreateInvoice?: () => void
+  /** The rate every project is judged against, from Settings. */
+  rateFloor: number
+  /** Fires once the project reaches delivered, so the shell can say so. */
+  onDelivered?: (project: string) => void
+  /** Whether this project came back from a sync disagreeing with itself. */
+  conflict?: boolean
+  /** The same, for the checklist's order — a separate disagreement. */
+  reorderConflict?: boolean
 }
 
 /**
@@ -127,8 +138,15 @@ type ProjectDetailProps = {
  * far through it is, and what the hours have done to the rate — then the work
  * itself, with the client's facts kept in view beside it.
  */
-export function ProjectDetail({ onCreateInvoice }: ProjectDetailProps): JSX.Element {
+export function ProjectDetail({
+  onCreateInvoice,
+  rateFloor,
+  onDelivered,
+  conflict = false,
+  reorderConflict = false
+}: ProjectDetailProps): JSX.Element {
   const [status, setStatus] = useState<Status>('active')
+  const [conflictShown, setConflictShown] = useState(true)
   const [tab, setTab] = useState<Tab>('checklist')
   const [history, setHistory] = useState<HistoryEntry[]>([
     { label: 'Draft created', date: '8 Aug 2026' },
@@ -142,6 +160,8 @@ export function ProjectDetail({ onCreateInvoice }: ProjectDetailProps): JSX.Elem
     if (!next) return
     setStatus(next.to)
     setHistory((current) => [...current, { label: next.entry, date: '1 Sep 2026' }])
+    /* The pill changing is visible; what is worth saying is what it unlocked. */
+    if (next.to === 'delivered') onDelivered?.('Brand refresh')
     /* The invoice is what makes a delivered project invoiced, so this step
        opens the screen that raises it rather than only flipping the pill. */
     if (status === 'delivered') onCreateInvoice?.()
@@ -183,6 +203,12 @@ export function ProjectDetail({ onCreateInvoice }: ProjectDetailProps): JSX.Elem
         </div>
       </header>
 
+      {/* Above the figures, because it is a caveat on all five of them: two of
+          these numbers are the ones that disagreed. */}
+      {conflict && conflictShown && (
+        <RecordConflictNotice onDismiss={() => setConflictShown(false)} />
+      )}
+
       {/*
        * Five figures on one line. The effective rate is the only one that
        * answers "was this worth doing", so it is the largest and the only one
@@ -212,11 +238,17 @@ export function ProjectDetail({ onCreateInvoice }: ProjectDetailProps): JSX.Elem
 
         <div className="project__metric">
           <span className="t-overline project__metric-label">Effective rate</span>
-          <span className="project__rate num" style={{ color: toneVar.positive }}>
-            $230.09<span className="project__rate-unit">/hr</span>
+          <span
+            className="project__rate num"
+            style={{ color: toneVar[EFFECTIVE_RATE >= rateFloor ? 'positive' : 'negative'] }}
+          >
+            {money(EFFECTIVE_RATE)}
+            <span className="project__rate-unit">/hr</span>
           </span>
           <span className="project__metric-note">
-            Earning $130.09/hr over your {RATE_FLOOR} floor
+            {EFFECTIVE_RATE >= rateFloor
+              ? `Earning ${money(EFFECTIVE_RATE - rateFloor)}/hr over your ${money(rateFloor)} floor`
+              : `Running ${money(rateFloor - EFFECTIVE_RATE)}/hr under your ${money(rateFloor)} floor`}
           </span>
         </div>
 
@@ -249,7 +281,7 @@ export function ProjectDetail({ onCreateInvoice }: ProjectDetailProps): JSX.Elem
           </div>
 
           <div className="panel project__pane" role="tabpanel">
-            {tab === 'checklist' && <ProjectChecklist />}
+            {tab === 'checklist' && <ProjectChecklist conflict={reorderConflict} />}
 
             {tab === 'scope' && (
               <div className="scope">

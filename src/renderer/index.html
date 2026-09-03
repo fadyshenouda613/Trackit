@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,7 +7,12 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:"
     />
-    <title>Ledgerline</title>
+    <title>Trackit</title>
+    <!-- Stamps data-theme before the first paint. Must stay in the head and
+         must stay classic (no type="module", no defer): the CSP above forbids
+         inline script, and a deferred one would run too late to stop a flash
+         of the wrong theme. See public/theme-boot.js. -->
+    <script src="./theme-boot.js"></script>
   </head>
   <body>
     <div id="root"></div>

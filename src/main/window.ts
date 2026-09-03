@@ -1,5 +1,18 @@
 import { join } from 'node:path'
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, nativeTheme, shell } from 'electron'
+import { appIcon } from './icon'
+
+/**
+ * bg.base in each theme, as the window's own fill: oklch(0.191 0.008 265) and
+ * oklch(0.966 0.006 80). This is what shows in the moment between a resize and
+ * the renderer repainting it, so a dark slab behind a light app is visible even
+ * though the window is not shown until ready-to-show.
+ */
+export const WINDOW_BACKGROUND = { dark: '#121418', light: '#f6f3ef' } as const
+
+/** What the window should be filled with right now, per nativeTheme. */
+export const currentBackground = (): string =>
+  nativeTheme.shouldUseDarkColors ? WINDOW_BACKGROUND.dark : WINDOW_BACKGROUND.light
 
 /**
  * Design system, "Window chrome": the app is frameless on every platform.
@@ -17,8 +30,13 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 640,
     show: false,
     frame: false,
-    // oklch(0.191 0.008 265) — bg.base, so the first paint matches the app
-    backgroundColor: '#121418',
+    // Windows and Linux take the app's own mark rather than Electron's default.
+    icon: appIcon(),
+    /* Follows the OS here rather than the stored preference, which lives in the
+       renderer's localStorage and cannot be read from this process. An explicit
+       override corrects it over IPC on the renderer's first effect, before the
+       window is shown. */
+    backgroundColor: currentBackground(),
     ...(process.platform === 'darwin'
       ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 16, y: 14 } }
       : {}),

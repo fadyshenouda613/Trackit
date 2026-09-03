@@ -1,5 +1,7 @@
 import type { JSX } from 'react'
+import { money } from './money'
 import { Meter, toneVar, type Tone } from './Meter'
+import { TableSkeleton } from './TableSkeleton'
 
 type ProjectRow = {
   name: string
@@ -122,76 +124,93 @@ const rows: ProjectRow[] = [
   }
 ]
 
-export function ProjectsTable(): JSX.Element {
+type ProjectsTableProps = {
+  /** From Settings; the line every rate in this table is judged against. */
+  rateFloor: number
+  /** Rows not in yet. The heading above them is known either way. */
+  loading?: boolean
+}
+
+export function ProjectsTable({ rateFloor, loading = false }: ProjectsTableProps): JSX.Element {
   return (
     <section className="section">
+      {/*
+       * The head stays while the rows load. What this table is, how many rows
+       * it will have and the floor they are judged against are all known
+       * before a single one of them arrives, and blanking them out would be
+       * pretending to know less than the app does.
+       */}
       <div className="section__head">
         <h2 className="section__title">Active projects</h2>
         <span className="section__count">{rows.length}</span>
         <div className="spacer" />
-        <span className="section__note">Rate floor $100.00/hr</span>
+        <span className="section__note num">Rate floor {money(rateFloor)}/hr</span>
       </div>
 
-      <div className="panel projects">
-        <div className="projects__header t-overline">
-          <span>Project</span>
-          <span>Client</span>
-          <span className="align-right">Price</span>
-          <span>Checklist</span>
-          <span className="align-right">Hours</span>
-          <span>Budget</span>
-          <span className="align-right">Effective rate</span>
-        </div>
-
-        {rows.map((row) => (
-          <div className="projects__row" key={row.name}>
-            <div className={row.running ? 'projects__name' : 'projects__name projects__name--indented'}>
-              {row.running && (
-                <div
-                  className="dot pulse"
-                  style={{ background: 'var(--accent)' }}
-                  aria-label="Timer running"
-                />
-              )}
-              <span className="projects__label truncate">{row.name}</span>
-            </div>
-
-            <span className="projects__client truncate">{row.client}</span>
-            <span className="align-right">{row.price}</span>
-
-            <div className="projects__checklist">
-              <span className="projects__checklist-count">{row.checklist}</span>
-              <Meter value={row.checklistPct} label={`Checklist ${row.checklist}`} />
-            </div>
-
-            <span className="projects__hours align-right">{row.hours}</span>
-
-            <div className="projects__budget">
-              <Meter
-                value={row.budgetPct}
-                tone={row.budgetTone}
-                label={`Budget used ${row.budgetLabel}`}
-              />
-              <span
-                className="projects__budget-pct"
-                style={{ color: toneVar[row.budgetLabelTone] }}
-              >
-                {row.budgetLabel}
-              </span>
-            </div>
-
-            <div className="projects__rate">
-              <span className="projects__rate-value" style={{ color: toneVar[row.rateTone] }}>
-                {row.rate}
-                <span className="projects__rate-unit">/hr</span>
-              </span>
-              <span className="projects__rate-note" style={{ color: toneVar[row.noteTone] }}>
-                {row.note}
-              </span>
-            </div>
+      {loading ? (
+        <TableSkeleton block="projects" />
+      ) : (
+        <div className="panel projects">
+          <div className="projects__header t-overline">
+            <span>Project</span>
+            <span>Client</span>
+            <span className="align-right">Price</span>
+            <span>Checklist</span>
+            <span className="align-right">Hours</span>
+            <span>Budget</span>
+            <span className="align-right">Effective rate</span>
           </div>
-        ))}
-      </div>
+
+          {rows.map((row) => (
+            <div className="projects__row" key={row.name}>
+              <div className={row.running ? 'projects__name' : 'projects__name projects__name--indented'}>
+                {row.running && (
+                  <div
+                    className="dot pulse"
+                    style={{ background: 'var(--accent)' }}
+                    aria-label="Timer running"
+                  />
+                )}
+                <span className="projects__label truncate">{row.name}</span>
+              </div>
+
+              <span className="projects__client truncate">{row.client}</span>
+              <span className="align-right">{row.price}</span>
+
+              <div className="projects__checklist">
+                <span className="projects__checklist-count">{row.checklist}</span>
+                <Meter value={row.checklistPct} label={`Checklist ${row.checklist}`} />
+              </div>
+
+              <span className="projects__hours align-right">{row.hours}</span>
+
+              <div className="projects__budget">
+                <Meter
+                  value={row.budgetPct}
+                  tone={row.budgetTone}
+                  label={`Budget used ${row.budgetLabel}`}
+                />
+                <span
+                  className="projects__budget-pct"
+                  style={{ color: toneVar[row.budgetLabelTone] }}
+                >
+                  {row.budgetLabel}
+                </span>
+              </div>
+
+              <div className="projects__rate">
+                <span className="projects__rate-value" style={{ color: toneVar[row.rateTone] }}>
+                  {row.rate}
+                  <span className="projects__rate-unit">/hr</span>
+                </span>
+                <span className="projects__rate-note" style={{ color: toneVar[row.noteTone] }}>
+                  {row.note}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   )
 }

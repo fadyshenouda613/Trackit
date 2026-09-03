@@ -1,6 +1,10 @@
-import type { JSX } from 'react'
+import { useRef, useState, type JSX } from 'react'
 import { Icon, type IconName } from './Icon'
-import { SyncStatus, type SyncState } from './SyncStatus'
+import { Logo } from './Logo'
+import { SyncPopover } from './SyncPopover'
+import { SyncStatus } from './SyncStatus'
+import { snapshots, type SyncState } from './sync-data'
+import { useNow } from './use-now'
 
 export type NavKey = 'dashboard' | 'clients' | 'projects' | 'time' | 'invoices' | 'settings'
 
@@ -40,6 +44,7 @@ type SidebarProps = {
   /** Drives the marker on Time; the Clients frames run no timer. */
   timerRunning?: boolean
   syncState?: SyncState
+  onSyncNow?: () => void
   onNavigate?: (key: NavKey) => void
 }
 
@@ -50,15 +55,21 @@ export function Sidebar({
   overdueInvoices = 0,
   timerRunning = false,
   syncState = 'saved',
+  onSyncNow,
   onNavigate
 }: SidebarProps): JSX.Element {
   const empty = variant === 'empty'
+  const [syncOpen, setSyncOpen] = useState(false)
+  const syncButton = useRef<HTMLButtonElement>(null)
+  /* Only mounted here, because this is the only place a relative time shows. */
+  const now = useNow()
+  const snapshot = snapshots[syncState]
 
   return (
     <aside className="sidebar">
       <div className="sidebar__brand">
-        <div className="sidebar__mark" />
-        <span className="sidebar__name">Ledgerline</span>
+        <Logo size={18} />
+        <span className="sidebar__name">Trackit</span>
       </div>
 
       {!empty && (
@@ -114,10 +125,35 @@ export function Sidebar({
       <div className="spacer" />
 
       <div className="sidebar__footer">
+        {/* A new account has synced nothing and has nothing waiting, so the
+            footer states where the work is and offers no detail behind it. */}
         {empty ? (
-          <SyncStatus state="saved" label="Saved on this Mac" time={null} />
+          <SyncStatus
+            snapshot={snapshots.saved}
+            label="Saved on this Mac"
+            time={null}
+          />
         ) : (
-          <SyncStatus state={syncState} />
+          <SyncStatus
+            snapshot={snapshot}
+            now={now}
+            buttonRef={syncButton}
+            open={syncOpen}
+            onToggle={() => setSyncOpen((value) => !value)}
+          />
+        )}
+
+        {syncOpen && !empty && (
+          <SyncPopover
+            snapshot={snapshot}
+            now={now}
+            onClose={() => setSyncOpen(false)}
+            returnFocus={() => syncButton.current?.focus()}
+            onSyncNow={() => {
+              setSyncOpen(false)
+              onSyncNow?.()
+            }}
+          />
         )}
       </div>
     </aside>

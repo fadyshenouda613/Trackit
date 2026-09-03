@@ -64,14 +64,16 @@ export type Invoice = {
 }
 
 /*
- * Who the invoice is from. Settings has no screen yet, so this is the one place
- * the business states itself; when Settings arrives it should read from there.
+ * Who the invoice is from. Settings seeds its business profile from here, so the
+ * screen and the document start out agreeing. Editing it there does not yet
+ * reach the printed sheet: both invoice renderers import this constant at module
+ * scope, and threading live settings through them is its own change.
  */
 export const business = {
-  name: 'Ledgerline Studio',
+  name: 'Trackit Studio',
   person: 'Alex Marchetti',
   lines: ['2130 Fillmore Street, Studio 4', 'San Francisco, CA 94115'],
-  email: 'billing@ledgerline.studio',
+  email: 'billing@trackit.studio',
   taxId: 'EIN 84-3927104'
 }
 

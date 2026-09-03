@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type JSX } from 'react'
+import { ReorderConflictNotice } from './ConflictNotice'
 import { Icon } from './Icon'
 import { Meter } from './Meter'
 import { withMove, type DragState } from './reorder'
@@ -35,8 +36,14 @@ const initialItems: ChecklistItem[] = [
   { id: 'handover', label: 'Handover call and file package', done: false, addedLater: true }
 ]
 
-export function ProjectChecklist(): JSX.Element {
+type ProjectChecklistProps = {
+  /** Whether this list came back from a sync ordered two different ways. */
+  conflict?: boolean
+}
+
+export function ProjectChecklist({ conflict = false }: ProjectChecklistProps): JSX.Element {
   const [items, setItems] = useState(initialItems)
+  const [conflictShown, setConflictShown] = useState(true)
   const [drag, setDrag] = useState<DragState | null>(DEMO_DRAG)
   const [grabbed, setGrabbed] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
@@ -88,6 +95,11 @@ export function ProjectChecklist(): JSX.Element {
 
   return (
     <div className="checklist">
+      {/* Above the summary, because the count and the order are what changed. */}
+      {conflict && conflictShown && (
+        <ReorderConflictNotice onDismiss={() => setConflictShown(false)} />
+      )}
+
       <div className="checklist__summary">
         <div className="checklist__summary-line">
           <span className="checklist__summary-count">

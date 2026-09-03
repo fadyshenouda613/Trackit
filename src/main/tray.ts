@@ -95,16 +95,16 @@ export function createTray(deps: TrayDeps): { refresh: () => void; destroy: () =
           click: deps.onToggle
         },
         { type: 'separator' },
-        { label: 'Open Ledgerline', click: deps.onOpen },
-        { label: 'Quit Ledgerline', click: () => app.quit() }
+        { label: 'Open Trackit', click: deps.onOpen },
+        { label: 'Quit Trackit', click: () => app.quit() }
       ])
     )
 
     tray.setImage(state.running ? running : idle)
     tray.setToolTip(
       state.running
-        ? `Ledgerline — ${state.project}, ${formatElapsed(state.elapsedSeconds)}`
-        : 'Ledgerline — no timer running'
+        ? `Trackit — ${state.project}, ${formatElapsed(state.elapsedSeconds)}`
+        : 'Trackit — no timer running'
     )
 
     // Only macOS has room for a running clock beside the icon.
@@ -117,7 +117,7 @@ export function createTray(deps: TrayDeps): { refresh: () => void; destroy: () =
   if (process.platform !== 'darwin') tray.on('click', () => tray.popUpContextMenu())
 
   if (!globalShortcut.register(SHORTCUT, deps.onToggle)) {
-    console.warn(`Ledgerline: ${SHORTCUT} is already taken; the tray hint will not fire.`)
+    console.warn(`Trackit: ${SHORTCUT} is already taken; the tray hint will not fire.`)
   }
 
   build()
