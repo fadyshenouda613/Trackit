@@ -27,3 +27,13 @@ export const updateChecklistItemInputSchema = entity.update
 export type ChecklistItem = z.infer<typeof checklistItemSchema>
 export type CreateChecklistItemInput = z.infer<typeof createChecklistItemInputSchema>
 export type UpdateChecklistItemInput = z.infer<typeof updateChecklistItemInputSchema>
+
+/**
+ * What a caller supplies to add an item. `addedAfterKickoff` is not theirs to
+ * say: the store reads the project's state at the moment of creation and sets
+ * it, which is the only way the figure stays honest.
+ */
+export const newChecklistItemInputSchema = createChecklistItemInputSchema.omit({
+  addedAfterKickoff: true
+})
+export type NewChecklistItemInput = z.infer<typeof newChecklistItemInputSchema>

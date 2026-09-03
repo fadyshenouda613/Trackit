@@ -55,3 +55,12 @@ export const updateProjectInputSchema = entity.update
 export type Project = z.infer<typeof projectSchema>
 export type CreateProjectInput = z.infer<typeof createProjectInputSchema>
 export type UpdateProjectInput = z.infer<typeof updateProjectInputSchema>
+
+/**
+ * The moves a person can make: draft → active, active → delivered, and
+ * anything → cancelled. `invoiced` and `paid` are not on the list because
+ * they follow from the invoice — sending one, settling one — and `archived`
+ * because nothing moves a project there yet.
+ */
+export const projectTransitionSchema = z.enum(['active', 'delivered', 'cancelled'])
+export type ProjectTransition = z.infer<typeof projectTransitionSchema>
