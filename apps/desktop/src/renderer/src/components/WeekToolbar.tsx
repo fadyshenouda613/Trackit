@@ -1,6 +1,7 @@
 import type { JSX } from 'react'
 import { Icon } from './Icon'
-import { formatDelta, formatDuration, weekRangeLabel } from './time-data'
+import { formatDuration } from '@trackit/shared'
+import { formatDelta, weekRangeLabel } from './time-data'
 
 type WeekToolbarProps = {
   offset: number

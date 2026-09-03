@@ -1,5 +1,6 @@
 import { clientRows } from './ClientsTable'
-import { TODAY, addDays, shortDate } from './time-data'
+import { addDays, shortDate } from '@trackit/shared'
+import { TODAY } from './time-data'
 
 /*
  * The model behind the Create invoice screen.

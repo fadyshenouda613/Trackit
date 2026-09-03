@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import { TitleBarControls } from './TitleBarControls'
-import { formatDuration } from './time-data'
+import { budgetConsumption, formatBudget, formatDuration } from '@trackit/shared'
 
 type TimerBarProps = {
   client: string
@@ -13,10 +13,6 @@ type TimerBarProps = {
   elapsed: string
   onStop?: () => void
 }
-
-/** "32h" reads as a budget; "32h 00m" reads as a measurement. */
-const budgetLabel = (minutes: number): string =>
-  minutes % 60 === 0 ? `${minutes / 60}h` : formatDuration(minutes)
 
 /**
  * "Spans the full window above everything and only exists while a timer runs."
@@ -37,8 +33,9 @@ export function TimerBar({
   elapsed,
   onStop
 }: TimerBarProps): JSX.Element {
-  const over = loggedMinutes > budgetMinutes
-  const percent = Math.min(100, Math.round((loggedMinutes / budgetMinutes) * 100))
+  const budget = budgetConsumption(loggedMinutes, budgetMinutes)
+  const over = budget.over
+  const percent = Math.min(100, budget.percent ?? 0)
 
   return (
     <div className={over ? 'timer-bar timer-bar--over drag' : 'timer-bar drag'}>
@@ -61,9 +58,9 @@ export function TimerBar({
           <div className="timer-bar__meter-fill" style={{ width: `${percent}%` }} />
         </div>
         <span className="timer-bar__meta num">
-          {formatDuration(loggedMinutes)} of {budgetLabel(budgetMinutes)}
+          {formatDuration(loggedMinutes)} of {formatBudget(budgetMinutes)}
           {over
-            ? ` · ${formatDuration(loggedMinutes - budgetMinutes)} over`
+            ? ` · ${formatDuration(budget.overMinutes)} over`
             : ` · ${percent}% of budget`}
         </span>
       </div>

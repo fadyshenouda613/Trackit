@@ -2,7 +2,7 @@ import type { JSX } from 'react'
 import { EmptyState } from './EmptyState'
 import { Icon } from './Icon'
 import { deliveredLabel, type BillableProject, type BillingClient } from './invoice-data'
-import { money } from './money'
+import { formatMoney } from '@trackit/shared'
 
 type BillableProjectsProps = {
   client: BillingClient
@@ -104,7 +104,7 @@ export function BillableProjects({
                   <span className="align-right billable__date num">
                     {deliveredLabel(project)}
                   </span>
-                  <span className="align-right billable__price num">{money(project.price, symbol)}</span>
+                  <span className="align-right billable__price num">{formatMoney(project.price, symbol)}</span>
                   <span />
                 </div>
               )
@@ -128,7 +128,7 @@ export function BillableProjects({
                   <span className="truncate">{project.name}</span>
                 </span>
                 <span className="align-right billable__date num">{deliveredLabel(project)}</span>
-                <span className="align-right billable__price num">{money(project.price, symbol)}</span>
+                <span className="align-right billable__price num">{formatMoney(project.price, symbol)}</span>
                 <span />
               </button>
             )

@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import { EmptyState } from './EmptyState'
-import { money } from './money'
+import { formatMoney } from '@trackit/shared'
 import { Pill } from './Pill'
 import { StatusPill } from './StatusPill'
 import { toneVar } from './tone'
@@ -102,7 +102,7 @@ export function InvoicesTable({ rows, onOpen }: InvoicesTableProps): JSX.Element
             )}
 
             <span className={quiet ? 'align-right invoices__quiet' : 'align-right'}>
-              {money(totalOf(invoice))}
+              {formatMoney(totalOf(invoice))}
             </span>
 
             <span
@@ -110,7 +110,7 @@ export function InvoicesTable({ rows, onOpen }: InvoicesTableProps): JSX.Element
                 received > 0 ? 'align-right invoices__received' : 'align-right invoices__quiet'
               }
             >
-              {received > 0 ? money(received) : '—'}
+              {received > 0 ? formatMoney(received) : '—'}
             </span>
 
             <span>
@@ -136,11 +136,11 @@ export function InvoicesTable({ rows, onOpen }: InvoicesTableProps): JSX.Element
           </span>
         </div>
 
-        <span className="align-right invoices__totals-value">{money(totals.billed)}</span>
-        <span className="align-right invoices__totals-value">{money(totals.received)}</span>
+        <span className="align-right invoices__totals-value">{formatMoney(totals.billed)}</span>
+        <span className="align-right invoices__totals-value">{formatMoney(totals.received)}</span>
 
         <div className="invoices__totals-figure">
-          <span className="invoices__totals-value">{money(totals.outstanding)}</span>
+          <span className="invoices__totals-value">{formatMoney(totals.outstanding)}</span>
           <span className="invoices__totals-caption">
             On {totals.openCount} unpaid
             {totals.overdueCount > 0 ? ` · ${totals.overdueCount} overdue` : ''}

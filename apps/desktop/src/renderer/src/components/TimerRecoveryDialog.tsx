@@ -1,5 +1,5 @@
 import { useState, type JSX } from 'react'
-import { formatClock, formatDuration, parseClock } from './time-data'
+import { clockSpanMinutes, formatClock, formatDuration, parseClock } from '@trackit/shared'
 
 type TimerRecoveryDialogProps = {
   onResolve: () => void
@@ -29,7 +29,7 @@ export function TimerRecoveryDialog({ onResolve }: TimerRecoveryDialogProps): JS
   const [trimText, setTrimText] = useState('6:00 PM')
 
   const parsed = parseClock(trimText)
-  const trimmed = parsed === null ? null : (parsed - STARTED + 1440) % 1440
+  const trimmed = parsed === null ? null : clockSpanMinutes(STARTED, parsed)
   const trimValid = trimmed !== null && trimmed > 0 && trimmed <= RAN
 
   const trimNote = (): string => {

@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import { Logo } from './Logo'
-import { money } from './money'
+import { formatMoney } from '@trackit/shared'
 import { bank, paymentTerms, printedInvoice } from './printed-invoice-data'
 import {
   billTo,
@@ -107,14 +107,14 @@ export function PrintedInvoice({ invoice = printedInvoice }: PrintedInvoiceProps
                 {entry.lines.map((line) => (
                   <div className="paper__line" key={line.id}>
                     <span>{line.label}</span>
-                    <span className="paper__amount num">{money(line.amount)}</span>
+                    <span className="paper__amount num">{formatMoney(line.amount)}</span>
                   </div>
                 ))}
 
                 {grouped && (
                   <div className="paper__group-total">
                     <span>{entry.project} subtotal</span>
-                    <span className="paper__amount num">{money(groupTotal)}</span>
+                    <span className="paper__amount num">{formatMoney(groupTotal)}</span>
                   </div>
                 )}
               </section>
@@ -125,7 +125,7 @@ export function PrintedInvoice({ invoice = printedInvoice }: PrintedInvoiceProps
         <div className="paper__totals">
           <div className="paper__totals-row">
             <span>Subtotal</span>
-            <span className="paper__amount num">{money(subtotal)}</span>
+            <span className="paper__amount num">{formatMoney(subtotal)}</span>
           </div>
 
           {/* A row reading 0% is a question with no answer, so it only appears
@@ -133,13 +133,13 @@ export function PrintedInvoice({ invoice = printedInvoice }: PrintedInvoiceProps
           {invoice.taxRate > 0 && (
             <div className="paper__totals-row">
               <span>Sales tax {invoice.taxRate}%</span>
-              <span className="paper__amount num">{money(taxOf(invoice))}</span>
+              <span className="paper__amount num">{formatMoney(taxOf(invoice))}</span>
             </div>
           )}
 
           <div className="paper__total">
             <span className="paper__total-label">Total due</span>
-            <span className="paper__amount num">{money(totalOf(invoice))}</span>
+            <span className="paper__amount num">{formatMoney(totalOf(invoice))}</span>
           </div>
         </div>
 

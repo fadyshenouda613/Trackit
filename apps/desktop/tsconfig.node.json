@@ -1,5 +1,6 @@
 {
   "include": ["electron.vite.config.ts", "src/main/**/*", "src/preload/**/*", "../../packages/shared/src/**/*"],
+  "exclude": ["../../packages/shared/src/**/*.test.ts"],
   "compilerOptions": {
     "composite": true,
     "target": "ES2022",

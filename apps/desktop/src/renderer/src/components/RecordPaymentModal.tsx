@@ -1,8 +1,8 @@
 import { useEffect, useState, type JSX } from 'react'
 import { Icon } from './Icon'
-import { money, parseMoney } from './money'
+import { formatMoney, parseMoney, shortDate } from '@trackit/shared'
 import { toneVar } from './tone'
-import { TODAY, shortDate } from './time-data'
+import { TODAY } from './time-data'
 import {
   balanceOf,
   paidOf,
@@ -41,9 +41,7 @@ export function RecordPaymentModal({
   const outstanding = balanceOf(invoice)
   const alreadyPaid = paidOf(invoice)
 
-  const [amount, setAmount] = useState(
-    outstanding.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  )
+  const [amount, setAmount] = useState(formatMoney(outstanding, ''))
   const [date, setDate] = useState(shortDate(TODAY))
   const [method, setMethod] = useState<PaymentMethod>('Bank transfer')
   const [note, setNote] = useState('')
@@ -64,8 +62,8 @@ export function RecordPaymentModal({
   const tone = !valid ? 'neutral' : over ? 'negative' : remaining === 0 ? 'positive' : 'secondary'
 
   const figure = (): string => {
-    if (!valid) return money(outstanding)
-    return over ? money(Math.abs(remaining)) : money(remaining)
+    if (!valid) return formatMoney(outstanding)
+    return over ? formatMoney(Math.abs(remaining)) : formatMoney(remaining)
   }
 
   const caption = (): string => {
@@ -120,7 +118,7 @@ export function RecordPaymentModal({
               />
             </div>
             <span className="field-row__hint">
-              Opens at the full {money(outstanding)} outstanding. Change it for a part payment.
+              Opens at the full {formatMoney(outstanding)} outstanding. Change it for a part payment.
             </span>
           </div>
 
@@ -174,8 +172,8 @@ export function RecordPaymentModal({
                 {over ? 'Overpayment' : 'Balance after this payment'}
               </span>
               <span className="implied__basis">
-                {money(totalOf(invoice))} invoiced
-                {alreadyPaid > 0 ? ` · ${money(alreadyPaid)} already received` : ''}
+                {formatMoney(totalOf(invoice))} invoiced
+                {alreadyPaid > 0 ? ` · ${formatMoney(alreadyPaid)} already received` : ''}
               </span>
             </div>
 

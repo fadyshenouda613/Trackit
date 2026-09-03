@@ -1,5 +1,5 @@
 import { useState, type JSX } from 'react'
-import { money } from './money'
+import { formatMoney } from '@trackit/shared'
 import { toneVar } from './tone'
 import { StatusPill } from './StatusPill'
 import {
@@ -50,11 +50,11 @@ export function InvoiceActions({
   const aside = (): string => {
     if (status === 'void') return 'Voided. It counts towards nothing.'
     if (status === 'draft') return 'Not issued. No money is expected yet.'
-    if (settled) return `Settled in full against ${money(totalOf(invoice))} invoiced.`
+    if (settled) return `Settled in full against ${formatMoney(totalOf(invoice))} invoiced.`
     if (late !== null) {
       return `${late} days past the ${dateLabel(dueOf(invoice))} due date.`
     }
-    if (received > 0) return `${money(received)} received of ${money(totalOf(invoice))}.`
+    if (received > 0) return `${formatMoney(received)} received of ${formatMoney(totalOf(invoice))}.`
     return `Due ${dateLabel(dueOf(invoice))}.`
   }
 
@@ -75,7 +75,7 @@ export function InvoiceActions({
             className="inv-state__value"
             style={settled ? { color: 'var(--positive)' } : undefined}
           >
-            {status === 'void' ? '—' : money(settled ? 0 : balance)}
+            {status === 'void' ? '—' : formatMoney(settled ? 0 : balance)}
           </span>
         </div>
 

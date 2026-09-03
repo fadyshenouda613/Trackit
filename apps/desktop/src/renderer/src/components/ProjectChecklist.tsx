@@ -2,7 +2,8 @@ import { useMemo, useRef, useState, type JSX } from 'react'
 import { ReorderConflictNotice } from './ConflictNotice'
 import { Icon } from './Icon'
 import { Meter } from './Meter'
-import { withMove, type DragState } from './reorder'
+import { checklistProgress, withMove } from '@trackit/shared'
+import type { DragState } from './reorder'
 
 export type ChecklistItem = {
   id: string
@@ -49,9 +50,7 @@ export function ProjectChecklist({ conflict = false }: ProjectChecklistProps): J
   const [draft, setDraft] = useState('')
   const addRef = useRef<HTMLInputElement>(null)
 
-  const done = items.filter((item) => item.done).length
-  const total = items.length
-  const percent = total === 0 ? 0 : Math.round((done / total) * 100)
+  const { done, total, percent } = checklistProgress(items)
   const later = items.filter((item) => item.addedLater).length
 
   // The lifted row renders in the slot it would drop into, so the list shows

@@ -1,6 +1,6 @@
 import type { JSX } from 'react'
 import { EmptyState } from './EmptyState'
-import { money } from './money'
+import { formatMoney } from '@trackit/shared'
 import {
   balanceOf,
   dateLabel,
@@ -35,7 +35,7 @@ export function InvoicePayments({ invoice }: InvoicePaymentsProps): JSX.Element 
         <span className="section__count">{invoice.payments.length}</span>
         {received > 0 && (
           <span className="section__note">
-            {money(received)} of {money(totalOf(invoice))}
+            {formatMoney(received)} of {formatMoney(totalOf(invoice))}
           </span>
         )}
       </div>
@@ -71,7 +71,7 @@ export function InvoicePayments({ invoice }: InvoicePaymentsProps): JSX.Element 
             {invoice.payments.map((payment) => (
               <div className="payments__row" key={payment.id}>
                 <span className="payments__date num">{dateLabel(payment.date)}</span>
-                <span className="align-right payments__amount">{money(payment.amount)}</span>
+                <span className="align-right payments__amount">{formatMoney(payment.amount)}</span>
                 <span className="payments__method">{payment.method}</span>
                 <span className="payments__note truncate">{payment.note ?? '—'}</span>
               </div>
@@ -87,14 +87,14 @@ export function InvoicePayments({ invoice }: InvoicePaymentsProps): JSX.Element 
             className="align-right payments__balance-value"
             style={settled ? { color: 'var(--positive)' } : undefined}
           >
-            {money(status === 'void' ? 0 : balance)}
+            {formatMoney(status === 'void' ? 0 : balance)}
           </span>
           <span className="payments__balance-basis">
             {settled
               ? `Settled ${dateLabel(invoice.payments[invoice.payments.length - 1].date)}`
               : status === 'void'
                 ? 'Voided — nothing is owed'
-                : `${money(totalOf(invoice))} invoiced less ${money(received)} received`}
+                : `${formatMoney(totalOf(invoice))} invoiced less ${formatMoney(received)} received`}
           </span>
         </div>
       </div>

@@ -10,8 +10,10 @@
  * the running app mutates and a reload resets.
  */
 
+import { nextInvoiceNumber as numberUnder, type CurrencyCode } from '@trackit/shared'
 import { NEXT_NUMBER } from './invoice-data'
 import { business } from './invoices-data'
+import { TODAY } from './time-data'
 
 export type Settings = {
   /* Business profile — what the invoice says about you. */
@@ -38,23 +40,10 @@ export type Settings = {
   accountEmail: string
 }
 
-/* ---- Currencies -----------------------------------------------------------
- * Settings keeps its own list rather than sharing the ones inlined in the two
- * client/project dialogs: those pick the currency of one record, this picks the
- * default the pickers start on, and the two lists are free to diverge. */
-
-export type CurrencyCode = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD'
-
-export const currencies: { code: CurrencyCode; symbol: string; label: string }[] = [
-  { code: 'USD', symbol: '$', label: 'US Dollar' },
-  { code: 'EUR', symbol: '€', label: 'Euro' },
-  { code: 'GBP', symbol: '£', label: 'Pound Sterling' },
-  { code: 'CAD', symbol: '$', label: 'Canadian Dollar' },
-  { code: 'AUD', symbol: '$', label: 'Australian Dollar' }
-]
-
-export const symbolOf = (code: CurrencyCode): string =>
-  currencies.find((entry) => entry.code === code)?.symbol ?? '$'
+/* The currency list and its symbols are `currencies` in @trackit/shared: the
+   same list the schemas' CurrencyCode is drawn from. The two client/project
+   dialogs still inline their own options, which pick the currency of one
+   record rather than the default the pickers start on. */
 
 /**
  * The default every screen starts from. The business profile is seeded from the
@@ -87,27 +76,14 @@ export const defaultSettings: Settings = {
 /** The sequence the preview counts from — the number the next invoice takes. */
 export const NEXT_SEQUENCE = Number(NEXT_NUMBER.replace(/\D/g, '')) || 150
 
-const YEAR = 2026
-const MONTH = 8 // August, matching TODAY in time-data
-
 /**
- * Resolves a numbering scheme to the number the next invoice would carry.
- *
- * A run of zeros is the counter and sets its own padding, so `INV-0000` and
- * `INV-000000` both work and differ only in width. Returns null when there is
- * no counter at all: two invoices sharing a number is worse than a scheme the
- * preview refuses to guess at, so the field says so rather than inventing one.
+ * Resolves a numbering scheme to the number the next invoice would carry, as
+ * of the app's fixed day. The scheme grammar and its edge cases live with the
+ * generator in @trackit/shared; returns null when the scheme has no counter,
+ * and the field says so rather than inventing one.
  */
-export function nextInvoiceNumber(scheme: string, sequence = NEXT_SEQUENCE): string | null {
-  const zeros = scheme.match(/0+/)
-  if (!zeros) return null
-
-  return scheme
-    .replace(/\{YYYY\}/g, String(YEAR))
-    .replace(/\{YY\}/g, String(YEAR).slice(2))
-    .replace(/\{MM\}/g, String(MONTH).padStart(2, '0'))
-    .replace(/0+/, String(sequence).padStart(zeros[0].length, '0'))
-}
+export const nextInvoiceNumber = (scheme: string, sequence = NEXT_SEQUENCE): string | null =>
+  numberUnder(scheme, sequence, TODAY)
 
 /* ---- Shortcuts ------------------------------------------------------------ */
 

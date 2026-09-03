@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { Icon } from './Icon'
 import type { InvoiceLine } from './invoice-data'
-import { money, parseMoney } from './money'
-import { withMove, type DragState } from './reorder'
+import { formatMoney, parseMoney, withMove } from '@trackit/shared'
+import type { DragState } from './reorder'
 
 type InvoiceLinesProps = {
   lines: InvoiceLine[]
@@ -35,10 +35,10 @@ function AmountCell({
   onCommit: (amount: number) => void
   onFocused: () => void
 }): JSX.Element {
-  const [text, setText] = useState(() => money(value, symbol))
+  const [text, setText] = useState(() => formatMoney(value, symbol))
   const input = useRef<HTMLInputElement>(null)
 
-  useEffect(() => setText(money(value, symbol)), [value, symbol])
+  useEffect(() => setText(formatMoney(value, symbol)), [value, symbol])
 
   useEffect(() => {
     if (!focus) return
@@ -49,7 +49,7 @@ function AmountCell({
 
   const commit = (): void => {
     const parsed = parseMoney(text)
-    if (parsed === null) setText(money(value, symbol))
+    if (parsed === null) setText(formatMoney(value, symbol))
     else onCommit(parsed)
   }
 
@@ -65,7 +65,7 @@ function AmountCell({
       onKeyDown={(event) => {
         if (event.key === 'Enter') event.currentTarget.blur()
         if (event.key === 'Escape') {
-          setText(money(value, symbol))
+          setText(formatMoney(value, symbol))
           event.currentTarget.blur()
         }
       }}

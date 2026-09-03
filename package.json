@@ -12,6 +12,11 @@
     "dev": "npm run dev --workspace @trackit/desktop",
     "build": "npm run build --workspace @trackit/desktop",
     "start": "npm run start --workspace @trackit/desktop",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.0"
   }
 }

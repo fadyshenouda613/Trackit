@@ -37,7 +37,7 @@ import { TimerRecoveryDialog } from './components/TimerRecoveryDialog'
 import { TimeScreen } from './components/TimeScreen'
 import { TopBar } from './components/TopBar'
 import { TODAY } from './components/time-data'
-import { parseMoney } from './components/money'
+import { parseMoney } from '@trackit/shared'
 import {
   clearSession,
   hasSeenWelcome,

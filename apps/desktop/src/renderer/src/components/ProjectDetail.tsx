@@ -6,13 +6,31 @@ import { Meter } from './Meter'
 import { Pill } from './Pill'
 import { ProjectChecklist } from './ProjectChecklist'
 import { StatusPill } from './StatusPill'
-import { money } from './money'
+import {
+  budgetConsumption,
+  budgetJudgement,
+  effectiveRateCents,
+  formatBudget,
+  formatCents,
+  formatDuration,
+  formatMoney,
+  hoursToMinutes,
+  toCents
+} from '@trackit/shared'
 import { toneVar } from './tone'
 import type { Status } from './status'
 
-/* $6,500.00 against the 28h 15m logged below. Named rather than typed twice,
-   because the caption beside it does arithmetic against the rate floor. */
-const EFFECTIVE_RATE = 230.09
+/* The three figures the header does arithmetic on: $6,500.00 against the
+   28h 15m logged below, judged against a 32h budget. Everything the metrics
+   row shows is derived from these, so no caption can disagree with the number
+   beside it. */
+const PRICE_CENTS = 650000
+const LOGGED_MINUTES = 28 * 60 + 15
+const BUDGET_MINUTES = hoursToMinutes(32)
+const EFFECTIVE_RATE_CENTS = effectiveRateCents(PRICE_CENTS, LOGGED_MINUTES) ?? 0
+const budget = budgetConsumption(LOGGED_MINUTES, BUDGET_MINUTES)
+const budgetPercent = budget.percent ?? 0
+const budgetTone = budgetJudgement(budgetPercent)
 
 /** The single step that moves a project forward. Paid and cancelled are ends. */
 const advance: Partial<Record<Status, { label: string; to: Status; entry: string }>> = {
@@ -155,6 +173,7 @@ export function ProjectDetail({
 
   const next = advance[status]
   const invoiced = status === 'invoiced' || status === 'paid'
+  const floorCents = toCents(rateFloor)
 
   const onAdvance = (): void => {
     if (!next) return
@@ -217,7 +236,7 @@ export function ProjectDetail({
       <section className="panel project__metrics" aria-label="Project figures">
         <div className="project__metric">
           <span className="t-overline project__metric-label">Price</span>
-          <span className="project__metric-value num">$6,500.00</span>
+          <span className="project__metric-value num">{formatCents(PRICE_CENTS)}</span>
           <span className="project__metric-note">Agreed 12 Aug · one invoice at delivery</span>
         </div>
 
@@ -232,7 +251,7 @@ export function ProjectDetail({
 
         <div className="project__metric">
           <span className="t-overline project__metric-label">Hours</span>
-          <span className="project__metric-value num">28h 15m</span>
+          <span className="project__metric-value num">{formatDuration(LOGGED_MINUTES)}</span>
           <span className="project__metric-note">Across 7 sessions since 12 Aug</span>
         </div>
 
@@ -240,25 +259,34 @@ export function ProjectDetail({
           <span className="t-overline project__metric-label">Effective rate</span>
           <span
             className="project__rate num"
-            style={{ color: toneVar[EFFECTIVE_RATE >= rateFloor ? 'positive' : 'negative'] }}
+            style={{ color: toneVar[EFFECTIVE_RATE_CENTS >= floorCents ? 'positive' : 'negative'] }}
           >
-            {money(EFFECTIVE_RATE)}
+            {formatCents(EFFECTIVE_RATE_CENTS)}
             <span className="project__rate-unit">/hr</span>
           </span>
           <span className="project__metric-note">
-            {EFFECTIVE_RATE >= rateFloor
-              ? `Earning ${money(EFFECTIVE_RATE - rateFloor)}/hr over your ${money(rateFloor)} floor`
-              : `Running ${money(rateFloor - EFFECTIVE_RATE)}/hr under your ${money(rateFloor)} floor`}
+            {EFFECTIVE_RATE_CENTS >= floorCents
+              ? `Earning ${formatCents(EFFECTIVE_RATE_CENTS - floorCents)}/hr over your ${formatMoney(rateFloor)} floor`
+              : `Running ${formatCents(floorCents - EFFECTIVE_RATE_CENTS)}/hr under your ${formatMoney(rateFloor)} floor`}
           </span>
         </div>
 
         <div className="project__metric">
           <span className="t-overline project__metric-label">Budget</span>
-          <span className="project__metric-value num" style={{ color: toneVar.warning }}>
-            88%
+          <span className="project__metric-value num" style={{ color: toneVar[budgetTone] }}>
+            {budgetPercent}%
           </span>
-          <Meter value={88} tone="warning" size="lg" label="Budget used 88%" />
-          <span className="project__metric-note">3h 45m left of a 32h budget</span>
+          <Meter
+            value={budgetPercent}
+            tone={budgetTone}
+            size="lg"
+            label={`Budget used ${budgetPercent}%`}
+          />
+          <span className="project__metric-note">
+            {budget.over
+              ? `${formatDuration(budget.overMinutes)} over a ${formatBudget(BUDGET_MINUTES)} budget`
+              : `${formatDuration(budget.remainingMinutes)} left of a ${formatBudget(BUDGET_MINUTES)} budget`}
+          </span>
         </div>
       </section>
 

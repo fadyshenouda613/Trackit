@@ -5,7 +5,13 @@
  * nothing recomputes. The weekly log does: retyping an end time has to move the
  * row's duration, its day total, the week total and the comparison against last
  * week all at once. So times are held as minutes and formatted at the edge.
+ *
+ * The arithmetic itself — durations, clock times, calendar days — lives in
+ * @trackit/shared so the server can do the same sums. What is here is the
+ * seed and the week.
  */
+
+import { addDays, clockSpanMinutes, formatDuration, pad2, shortDate } from '@trackit/shared'
 
 /** Minutes since midnight. `endMin` below `startMin` means it ran past midnight. */
 export type TimeEntry = {
@@ -85,17 +91,7 @@ const MONTHS = [
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-const pad2 = (value: number): string => String(value).padStart(2, '0')
-
 const asDate = (iso: string): Date => new Date(`${iso}T00:00:00Z`)
-
-const asIso = (date: Date): string => date.toISOString().slice(0, 10)
-
-export const addDays = (iso: string, days: number): string => {
-  const date = asDate(iso)
-  date.setUTCDate(date.getUTCDate() + days)
-  return asIso(date)
-}
 
 /** Weeks run Monday to Sunday. */
 const mondayOf = (iso: string): string => {
@@ -140,68 +136,13 @@ export function weekRangeLabel(start: string): string {
   return `${from.getUTCDate()} ${month(from)} – ${to.getUTCDate()} ${month(to)} ${year}`
 }
 
-/**
- * "26 Aug 2026" — the form every date on an invoice takes.
- *
- * The day is padded. On its own "2 Jul" would be the friendlier reading, but
- * these dates stack into columns of tabular figures on the Invoices list, and
- * an unpadded day puts a ragged left edge down a column the eye is scanning
- * for one that fell before another.
- */
-export function shortDate(iso: string): string {
-  const date = asDate(iso)
-  return `${pad2(date.getUTCDate())} ${MONTHS[date.getUTCMonth()].slice(0, 3)} ${date.getUTCFullYear()}`
-}
-
 /* ---- Durations ----------------------------------------------------------- */
 
 export const durationOf = (entry: TimeEntry): number =>
-  (entry.endMin - entry.startMin + 1440) % 1440
+  clockSpanMinutes(entry.startMin, entry.endMin)
 
 export const totalOf = (entries: TimeEntry[]): number =>
   entries.reduce((sum, entry) => sum + durationOf(entry), 0)
-
-/** An em dash rather than "0h 00m": a row with no times yet has no duration. */
-export function formatDuration(minutes: number): string {
-  if (minutes <= 0) return '—'
-  const hours = Math.floor(minutes / 60)
-  const rest = minutes % 60
-  return hours === 0 ? `${rest}m` : `${hours}h ${pad2(rest)}m`
-}
-
-export function formatClock(minutes: number): string {
-  const hours24 = Math.floor(minutes / 60) % 24
-  const suffix = hours24 < 12 ? 'AM' : 'PM'
-  return `${hours24 % 12 || 12}:${pad2(minutes % 60)} ${suffix}`
-}
-
-/**
- * Forgiving about how a time is typed — "9:15am", "0915", "9 15 PM", "14:00"
- * all land. Returns null when it cannot tell, and the field reverts rather than
- * silently logging a time nobody meant.
- */
-export function parseClock(text: string): number | null {
-  const match = text
-    .trim()
-    .toLowerCase()
-    .match(/^(\d{1,2})[:.\s]?(\d{2})?\s*(a|p)?\.?m?\.?$/)
-  if (!match) return null
-
-  let hours = Number(match[1])
-  const minutes = match[2] ? Number(match[2]) : 0
-  const meridiem = match[3]
-
-  if (minutes > 59) return null
-  if (meridiem) {
-    if (hours < 1 || hours > 12) return null
-    if (meridiem === 'p' && hours !== 12) hours += 12
-    if (meridiem === 'a' && hours === 12) hours = 0
-  } else if (hours > 23) {
-    return null
-  }
-
-  return hours * 60 + minutes
-}
 
 /** The header's comparison. Direction is carried by the caret, never by colour. */
 export function formatDelta(minutes: number, previous: number): string {
@@ -268,13 +209,6 @@ export function weekFor(offset: number): Week {
     entries: seed.entries.map((item) => ({ ...item }))
   }
 }
-
-/**
- * Whole days from `from` to `to`, negative when `to` is earlier. The invoice
- * register measures overdue in days and had no way to ask.
- */
-export const daysBetween = (from: string, to: string): number =>
-  Math.round((asDate(to).getTime() - asDate(from).getTime()) / 86400000)
 
 /* ---- Wall-clock recency ---------------------------------------------------
  * Everything above is ledger time: ISO dates measured against TODAY, which is

@@ -1,8 +1,9 @@
 import type { JSX } from 'react'
 import { Icon } from './Icon'
 import { SettingsRow, SettingsSection } from './SettingsRow'
-import { currencies, nextInvoiceNumber, type Settings } from './settings-data'
-import { addDays, shortDate, TODAY } from './time-data'
+import { addDays, currencies, shortDate } from '@trackit/shared'
+import { nextInvoiceNumber, type Settings } from './settings-data'
+import { TODAY } from './time-data'
 
 type SettingsInvoicingProps = {
   settings: Settings
