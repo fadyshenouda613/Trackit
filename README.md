@@ -171,7 +171,7 @@ does not exist yet.
 
 Trackit ships both themes as first-class designs — not a filter over one
 palette. Every colour is an `oklch()` token in
-[`src/renderer/src/styles/tokens.css`](src/renderer/src/styles/tokens.css); no
+[`apps/desktop/src/renderer/src/styles/tokens.css`](apps/desktop/src/renderer/src/styles/tokens.css); no
 component file contains a raw colour. The light theme redefines the tokens, and
 inverts the ones that have to go the other way (hover, for instance, steps
 *down* in light and *up* in dark).
@@ -190,7 +190,7 @@ Choose Light, Dark or System in **Settings → Appearance**:
 
 Three details make the switch feel native rather than bolted on:
 
-1. **No flash of the wrong theme.** `src/renderer/public/theme-boot.js` is a
+1. **No flash of the wrong theme.** `apps/desktop/src/renderer/public/theme-boot.js` is a
    classic (non-module, non-deferred) script in `<head>` that stamps
    `data-theme` from `localStorage` before the first paint.
 2. **The OS is followed live.** "System" is a standing instruction, not a third
@@ -214,7 +214,7 @@ while a timer runs, hollow while it does not — so the menu bar answers the
 question without being opened. Its menu carries the current project, a live
 elapsed clock, and Start/Stop. On macOS the elapsed time also sits beside the
 icon. Both the tray glyph and the app icon are rasterized in code
-(`src/main/tray.ts`, `src/main/icon.ts`) rather than shipped as build assets, so
+(`apps/desktop/src/main/tray.ts`, `apps/desktop/src/main/icon.ts`) rather than shipped as build assets, so
 they cannot drift out of sync with `Logo.tsx`.
 
 **Global shortcut.** <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Shift</kbd> +
@@ -224,7 +224,7 @@ the app logs a warning rather than showing a hint that does nothing.
 **Security.** `contextIsolation: true`, `nodeIntegration: false`, a strict CSP
 in `index.html`, and a preload bridge that exposes exactly six window methods
 and the platform string — nothing else (see
-[`src/shared/api.ts`](src/shared/api.ts)). External links open in the real
+[`packages/shared/src/api.ts`](packages/shared/src/api.ts)). External links open in the real
 browser, never in an app window.
 
 ---
@@ -235,12 +235,15 @@ browser, never in an app window.
 v24.13.0).
 
 ```bash
-npm install      # install dependencies
+npm install      # installs every workspace
 npm run dev      # electron-vite dev — launches the app with HMR
 ```
 
+The root scripts delegate to the desktop workspace, so everything below runs
+from the repository root.
+
 `npm run dev` also serves the renderer at <http://localhost:5173>. Opening that
-URL in a browser works: `src/renderer/src/bridge.ts` supplies a no-op stand-in
+URL in a browser works: `apps/desktop/src/renderer/src/bridge.ts` supplies a no-op stand-in
 for the preload bridge, so everything but the native window controls behaves
 normally. (That is how the screenshots above were taken.)
 
@@ -251,9 +254,9 @@ Sign in with any email address and `admin` / `admin`.
 | `npm run dev` | Dev server + Electron, with hot reload |
 | `npm run build` | Build main, preload and renderer into `out/` |
 | `npm start` | `electron-vite preview` — run the built app |
-| `npm run typecheck` | Type-check both projects (node + web) |
-| `npm run typecheck:node` | Main and preload only |
-| `npm run typecheck:web` | Renderer only |
+| `npm run typecheck` | Type-check every workspace |
+| `npm run typecheck:node -w @trackit/desktop` | Main and preload only |
+| `npm run typecheck:web -w @trackit/desktop` | Renderer only |
 
 There is no packaging step (electron-builder or similar) configured yet.
 
@@ -275,43 +278,63 @@ corner of the window and you get eight axes:
 | Toast | PDF, Payment, Delivered, Timer *(fires rather than selects)* |
 | Theme | Dark, Light, System |
 
-It lives in [`src/renderer/src/dev/StatePanel.tsx`](src/renderer/src/dev/StatePanel.tsx)
+It lives in [`apps/desktop/src/renderer/src/dev/StatePanel.tsx`](apps/desktop/src/renderer/src/dev/StatePanel.tsx)
 and is the fastest way to see the whole app.
 
 ---
 
 ## Project structure
 
+The repository is an npm workspace: the desktop app and the (future) server
+share code through `packages/shared`.
+
 ```
-src/
-├── main/                  Electron main process
-│   ├── index.ts             App lifecycle, tray timer state
-│   ├── window.ts            Frameless BrowserWindow, per-theme background fill
-│   ├── ipc.ts               Window controls + nativeTheme sync
-│   ├── tray.ts              Tray icon, menu, global shortcut
-│   └── icon.ts              App icon, rasterized from Logo.tsx's geometry
-├── preload/index.ts       contextBridge → window.ledger
-├── shared/api.ts          The contract between the two, in one file
-└── renderer/
-    ├── index.html           CSP + pre-paint theme boot
-    ├── public/theme-boot.js Stamps data-theme before the first paint
+apps/
+├── desktop/                       @trackit/desktop — the Electron app
+│   ├── electron.vite.config.ts
+│   ├── tsconfig.node.json           main + preload
+│   ├── tsconfig.web.json            renderer
+│   └── src/
+│       ├── main/                    Electron main process
+│       │   ├── index.ts               App lifecycle, tray timer state
+│       │   ├── window.ts              Frameless BrowserWindow, per-theme background fill
+│       │   ├── ipc.ts                 Window controls + nativeTheme sync
+│       │   ├── tray.ts                Tray icon, menu, global shortcut
+│       │   └── icon.ts                App icon, rasterized from Logo.tsx's geometry
+│       ├── preload/index.ts         contextBridge → window.ledger
+│       └── renderer/
+│           ├── index.html             CSP + pre-paint theme boot
+│           ├── public/theme-boot.js   Stamps data-theme before the first paint
+│           └── src/
+│               ├── App.tsx            Screen routing and the state that crosses screens
+│               ├── bridge.ts          The preload bridge, with a browser stand-in
+│               ├── components/        62 components + 14 data/helper modules
+│               ├── dev/StatePanel.tsx
+│               └── styles/
+│                   ├── tokens.css     Ledgerline design system — the token layer
+│                   └── app.css        Everything drawn from those tokens
+└── server/                        @trackit/server — scaffold only (Express + PostgreSQL later)
+packages/
+└── shared/                        @trackit/shared — what desktop and server agree on
     └── src/
-        ├── App.tsx          Screen routing and the state that crosses screens
-        ├── bridge.ts        The preload bridge, with a browser stand-in
-        ├── components/      62 components + 14 data/helper modules
-        ├── dev/StatePanel.tsx
-        └── styles/
-            ├── tokens.css   Ledgerline design system — the token layer
-            └── app.css      Everything drawn from those tokens
+        ├── api.ts                   The preload bridge contract
+        └── schemas/                 Every entity, once, as a Zod schema
 ```
 
-**Stack:** Electron 44, React 19, TypeScript 5.9, Vite 7 via electron-vite 5.
-No UI framework, no CSS-in-JS, no state library — plain CSS against a token
-layer, and React state lifted only as far as it needs to go.
+**Stack:** Electron 44, React 19, TypeScript 5.9, Vite 7 via electron-vite 5,
+Zod 4 for schemas, npm workspaces. No UI framework, no CSS-in-JS, no state
+library — plain CSS against a token layer, and React state lifted only as far
+as it needs to go.
 
-**Type-checking is split** the way the processes are: `tsconfig.node.json`
-covers main and preload, `tsconfig.web.json` covers the renderer, so neither
-can accidentally import the other's globals.
+**Type-checking is split** the way the processes are: in `apps/desktop`,
+`tsconfig.node.json` covers main and preload and `tsconfig.web.json` covers
+the renderer, so neither can accidentally import the other's globals.
+`packages/shared` and `apps/server` each have their own; `npm run typecheck`
+at the root runs all of them.
+
+`@trackit/shared` ships TypeScript source rather than a build, so the desktop
+app bundles it into main and preload (see the `externalizeDepsPlugin` note in
+`electron.vite.config.ts`) instead of leaving it as a runtime `require()`.
 
 ---
 

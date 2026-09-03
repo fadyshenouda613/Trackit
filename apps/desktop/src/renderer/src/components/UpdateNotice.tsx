@@ -21,7 +21,7 @@ type UpdateNoticeProps = {
  * someone has worked up the nerve to press it.
  *
  * Nothing is wired: there is no electron-updater in this app and no update IPC.
- * When there is, it belongs on LedgerApi in src/shared/api.ts, with a matching
+ * When there is, it belongs on LedgerApi in packages/shared/src/api.ts, with a matching
  * no-op in the detached stub in bridge.ts, like every other main-process call.
  */
 export function UpdateNotice({ version, onDismiss }: UpdateNoticeProps): JSX.Element {

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { LedgerApi } from '../shared/api'
+import type { LedgerApi } from '@trackit/shared/api'
 
 const api: LedgerApi = {
   platform: process.platform,

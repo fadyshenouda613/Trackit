@@ -1,0 +1,18 @@
+{
+  "name": "@trackit/server",
+  "version": "0.1.0",
+  "description": "Trackit server - scaffold only; Express + PostgreSQL to come",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@trackit/shared": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.9.0"
+  }
+}

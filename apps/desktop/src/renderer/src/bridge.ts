@@ -1,4 +1,4 @@
-import type { LedgerApi } from '../../shared/api'
+import type { LedgerApi } from '@trackit/shared/api'
 
 /**
  * The preload bridge, with a no-op stand-in for when the renderer is opened

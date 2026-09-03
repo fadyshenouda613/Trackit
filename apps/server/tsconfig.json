@@ -1,20 +1,19 @@
 {
-  "include": ["src/renderer/src/**/*", "../../packages/shared/src/**/*"],
+  "include": ["src/**/*"],
   "compilerOptions": {
     "composite": true,
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
+    "lib": ["ES2023"],
+    "types": ["node"],
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
-    "baseUrl": ".",
-    "paths": { "@renderer/*": ["src/renderer/src/*"] }
+    "noEmit": true
   }
 }
