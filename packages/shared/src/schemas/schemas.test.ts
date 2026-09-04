@@ -20,9 +20,11 @@ import {
   paymentMethodLabels,
   paymentMethodSchema,
   paymentSchema,
+  pendingCountsSchema,
   projectSchema,
   projectStatusSchema,
   settingsSchema,
+  startTimerInputSchema,
   timeEntrySchema,
   timestampSchema,
   updateClientInputSchema,
@@ -371,5 +373,23 @@ describe('settings', () => {
   it('update is a partial without the store columns', () => {
     expect(updateSettingsInputSchema.parse({ rateFloorCents: 12000 })).toEqual({ rateFloorCents: 12000 })
     expect(Object.keys(updateSettingsInputSchema.shape)).not.toContain('updatedAt')
+  })
+})
+
+describe('startTimerInputSchema', () => {
+  it('needs only a project: the note and deliverable default', () => {
+    const parsed = startTimerInputSchema.parse({
+      id: '9c1b1c1e-2a3b-4c4d-8e5f-6a7b8c9d0e1f',
+      projectId: '1c1b1c1e-2a3b-4c4d-8e5f-6a7b8c9d0e1f'
+    })
+    expect(parsed.checklistItemId).toBeNull()
+    expect(parsed.note).toBe('')
+  })
+})
+
+describe('pendingCountsSchema', () => {
+  it('accepts a partial record of the five kinds', () => {
+    expect(pendingCountsSchema.parse({ time: 4, invoices: 2 })).toEqual({ time: 4, invoices: 2 })
+    expect(pendingCountsSchema.safeParse({ tasks: 1 }).success).toBe(false)
   })
 })

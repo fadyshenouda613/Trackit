@@ -37,3 +37,16 @@ export const updateTimeEntryInputSchema = entity.update
 export type TimeEntry = z.infer<typeof timeEntrySchema>
 export type CreateTimeEntryInput = z.infer<typeof createTimeEntryInputSchema>
 export type UpdateTimeEntryInput = z.infer<typeof updateTimeEntryInputSchema>
+
+/**
+ * What starting the clock takes: the project, and optionally the deliverable
+ * the bar will name. The store supplies `startedAt`, `endedAt: null` and
+ * `source: 'timer'`, so the renderer cannot start a clock in the past.
+ */
+export const startTimerInputSchema = z.object({
+  id: idSchema,
+  projectId: idSchema,
+  checklistItemId: idSchema.nullable().default(null),
+  note: z.string().default('')
+})
+export type StartTimerInput = z.infer<typeof startTimerInputSchema>
