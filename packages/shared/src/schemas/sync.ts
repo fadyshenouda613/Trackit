@@ -8,14 +8,5 @@ export const pendingKindSchema = z.enum(['time', 'projects', 'invoices', 'paymen
 export type PendingKind = z.infer<typeof pendingKindSchema>
 
 /** A bucket with nothing pending is left out rather than sent as zero. */
-export const pendingCountsSchema = z
-  .object({
-    time: z.number().int().nonnegative(),
-    projects: z.number().int().nonnegative(),
-    invoices: z.number().int().nonnegative(),
-    payments: z.number().int().nonnegative(),
-    settings: z.number().int().nonnegative()
-  })
-  .partial()
-  .strict()
+export const pendingCountsSchema = z.partialRecord(pendingKindSchema, z.number().int().nonnegative())
 export type PendingCounts = z.infer<typeof pendingCountsSchema>
