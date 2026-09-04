@@ -17,10 +17,12 @@ import type {
   Note,
   NoteListFilters,
   Payment,
+  PendingCounts,
   Project,
   ProjectListFilters,
   ProjectTransition,
   Settings,
+  StartTimerInput,
   TimeEntry,
   TimeEntryListFilters,
   UpdateChecklistItemInput,
@@ -112,6 +114,12 @@ export type DataApi = {
     list: (filters?: TimeEntryListFilters) => Promise<Result<TimeEntry[]>>
     /** The entry with no end yet, which is the running timer, or null. */
     running: () => Promise<Result<TimeEntry | null>>
+    /** Starts the clock on a project, now. Refused (invalid_state) while one runs. */
+    start: (input: StartTimerInput) => Promise<Result<TimeEntry>>
+    /** Ends the running entry now. Refused (invalid_state) when none runs. */
+    stop: () => Promise<Result<TimeEntry>>
+    /** A clock that was already running when this process launched, or null. */
+    orphan: () => Promise<Result<TimeEntry | null>>
   }
   invoices: {
     create: (input: NewInvoiceInput) => Promise<Result<Invoice>>
@@ -137,6 +145,29 @@ export type DataApi = {
     get: () => Promise<Result<Settings>>
     update: (patch: UpdateSettingsInput) => Promise<Result<Settings>>
   }
+  sync: {
+    /** Local writes the server has not seen, per bucket. */
+    pendingCounts: () => Promise<Result<PendingCounts>>
+  }
+}
+
+export type TimerScenario = 'running' | 'over' | 'orphaned'
+
+/**
+ * The States panel's levers. Registered only in development (`!app.isPackaged`);
+ * in a packaged build every call answers `{ ok: false, error: { code: 'not_found' } }`.
+ */
+export type DevApi = {
+  /** Empties the database in place. */
+  reset: () => Promise<Result<null>>
+  /** Loads the fixtures into an empty database (resets first when asked). */
+  seed: (options?: { reset?: boolean }) => Promise<Result<Record<string, number>>>
+  /**
+   * Stages a timer state the app cannot reach on its own: running on the
+   * sample project, running on a project already over budget, or a clock
+   * that has been running since yesterday afternoon and predates this launch.
+   */
+  timerScenario: (scenario: TimerScenario) => Promise<Result<TimeEntry>>
 }
 
 /** The contract the preload bridge exposes to the renderer. */
@@ -157,4 +188,12 @@ export type LedgerApi = {
     setTheme: (theme: 'dark' | 'light' | 'system') => void
   }
   data: DataApi
+  timer: {
+    /**
+     * Fires after the tray or the shortcut starts or stops the clock, so the
+     * renderer refetches. Returns an unsubscribe function.
+     */
+    onChanged: (listener: () => void) => () => void
+  }
+  dev: DevApi
 }

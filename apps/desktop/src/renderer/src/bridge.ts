@@ -1,4 +1,4 @@
-import type { DataApi, LedgerApi, Result } from '@trackit/shared/api'
+import type { DataApi, DevApi, LedgerApi, Result } from '@trackit/shared/api'
 
 /**
  * The preload bridge, with a no-op stand-in for when the renderer is opened
@@ -31,7 +31,11 @@ const detached: LedgerApi = {
     onMaximizedChanged: () => () => undefined,
     setTheme: () => undefined
   },
-  data: detachedData
+  data: detachedData,
+  timer: {
+    onChanged: () => () => undefined
+  },
+  dev: detachedGroup as DevApi
 }
 
 export const ledger: LedgerApi =
