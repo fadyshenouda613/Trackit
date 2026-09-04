@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   clockSpanMinutes,
+  elapsedSeconds,
   entryMinutes,
   formatBudget,
   formatClock,
   formatDuration,
+  formatElapsed,
   hoursToMinutes,
   parseClock,
   totalMinutes
@@ -103,5 +105,37 @@ describe('totalMinutes', () => {
     ]
     expect(totalMinutes(entries, '2026-08-28T14:00:00.000Z')).toBe(255)
     expect(totalMinutes([])).toBe(0)
+  })
+})
+
+describe('elapsedSeconds', () => {
+  const started = '2026-09-04T16:10:00.000Z'
+  const at = (iso: string): number => Date.parse(iso)
+
+  it('is the whole seconds between the start and now', () => {
+    expect(elapsedSeconds(started, at('2026-09-04T17:34:36.500Z'))).toBe(5076)
+  })
+
+  it('follows a forward clock jump: the laptop lid was shut for 14 hours', () => {
+    const beforeSleep = elapsedSeconds(started, at('2026-09-04T18:00:00.000Z'))
+    const afterSleep = elapsedSeconds(started, at('2026-09-05T08:00:00.000Z'))
+    expect(beforeSleep).toBe(6600)
+    expect(afterSleep).toBe(6600 + 14 * 3600)
+  })
+
+  it('never goes negative when the clock is set back past the start', () => {
+    expect(elapsedSeconds(started, at('2026-09-04T16:00:00.000Z'))).toBe(0)
+  })
+
+  it('is zero for a start it cannot parse', () => {
+    expect(elapsedSeconds('yesterday', at('2026-09-04T17:00:00.000Z'))).toBe(0)
+  })
+})
+
+describe('formatElapsed', () => {
+  it('pads to HH:MM:SS', () => {
+    expect(formatElapsed(0)).toBe('00:00:00')
+    expect(formatElapsed(5076)).toBe('01:24:36')
+    expect(formatElapsed(14 * 3600 + 22 * 60 + 5)).toBe('14:22:05')
   })
 })

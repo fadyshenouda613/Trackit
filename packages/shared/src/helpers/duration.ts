@@ -87,3 +87,19 @@ export function parseClock(text: string): number | null {
 
   return hours * 60 + minutes
 }
+
+/**
+ * Whole seconds a timer has run, from its stored start to a caller-supplied
+ * "now". Computed, never accumulated: a machine that sleeps for the night
+ * wakes up with the right answer, and one whose clock is set back reads zero
+ * rather than a negative number.
+ */
+export function elapsedSeconds(startedAt: string, nowMs: number): number {
+  const start = Date.parse(startedAt)
+  if (!Number.isFinite(start)) return 0
+  return Math.max(0, Math.floor((nowMs - start) / 1000))
+}
+
+/** "01:24:36" — the timer bar's and the tray's clock. */
+export const formatElapsed = (seconds: number): string =>
+  `${pad2(Math.floor(seconds / 3600))}:${pad2(Math.floor(seconds / 60) % 60)}:${pad2(seconds % 60)}`
