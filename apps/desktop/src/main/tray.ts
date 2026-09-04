@@ -1,4 +1,5 @@
 import { app, globalShortcut, Menu, nativeImage, Tray, type NativeImage } from 'electron'
+import { formatElapsed } from '@trackit/shared/helpers'
 
 /** What the tray needs to know about the timer, and nothing else. */
 export type TrayTimerState =
@@ -13,11 +14,6 @@ type TrayDeps = {
 }
 
 const SHORTCUT = 'CommandOrControl+Shift+S'
-
-const pad2 = (value: number): string => String(value).padStart(2, '0')
-
-const formatElapsed = (seconds: number): string =>
-  `${pad2(Math.floor(seconds / 3600))}:${pad2(Math.floor(seconds / 60) % 60)}:${pad2(seconds % 60)}`
 
 /*
  * The tray glyph is the app's own recording dot: filled while a timer runs,
