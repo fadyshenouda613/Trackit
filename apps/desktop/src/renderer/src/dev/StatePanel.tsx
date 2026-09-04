@@ -248,7 +248,8 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
               { value: 'pdf', label: 'PDF' },
               { value: 'payment', label: 'Payment' },
               { value: 'delivered', label: 'Delivered' },
-              { value: 'timer', label: 'Timer' }
+              { value: 'timer', label: 'Timer' },
+              { value: 'error', label: 'Error' }
             ] as { value: ToastKind; label: string }[]
           ).map((option) => (
             <button

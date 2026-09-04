@@ -1,3 +1,4 @@
+import { QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useMemo, useState, type JSX } from 'react'
 import { ledger } from './bridge'
 import { AllProjectsTable } from './components/AllProjectsTable'
@@ -27,6 +28,7 @@ import { ToastStack, useToasts } from './components/Toast'
 import { UpdateNotice } from './components/UpdateNotice'
 import {
   deliveredToast,
+  errorToast,
   paymentToast,
   pdfToast,
   timerToast,
@@ -61,6 +63,7 @@ import {
   type Screen,
   type TimerState
 } from './dev/StatePanel'
+import { createQueryClient } from './data/query-client'
 
 /* The two the dev panel opens straight to: the richest partial, and the void. */
 const SAMPLE_INVOICE = 'INV-0145'
@@ -80,6 +83,18 @@ const storedSession = readSession()
 const storedTheme = readTheme()
 
 export function App(): JSX.Element {
+  const toastQueue = useToasts()
+  const [queryClient] = useState(() =>
+    createQueryClient((error) => toastQueue.push(errorToast(error.message)))
+  )
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Shell toastQueue={toastQueue} />
+    </QueryClientProvider>
+  )
+}
+
+function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JSX.Element {
   const [screen, setScreen] = useState<Screen>('dashboard')
   const [modal, setModal] = useState<Modal>(null)
   /* Create invoice is reached from three places now, so it remembers which one
@@ -91,7 +106,7 @@ export function App(): JSX.Element {
   const [notice, setNotice] = useState<NoticeState>('none')
   const [data, setData] = useState<DataState>('ready')
   const [theme, setTheme] = useState<Theme>(storedTheme)
-  const { toasts, push: pushToast, dismiss: dismissToast } = useToasts()
+  const { toasts, push: pushToast, dismiss: dismissToast } = toastQueue
 
   /*
    * Being signed in is the one thing this app remembers across launches, because
@@ -309,6 +324,8 @@ export function App(): JSX.Element {
         if (kind === 'payment') pushToast(paymentToast(2400, 'INV-0145'))
         if (kind === 'delivered') pushToast(deliveredToast('Brand refresh'))
         if (kind === 'timer') pushToast(timerToast(84, 'Brand refresh'))
+        if (kind === 'error')
+          pushToast(errorToast('A timer is already running; stop it before starting another'))
       }}
       theme={theme}
       onTheme={setTheme}

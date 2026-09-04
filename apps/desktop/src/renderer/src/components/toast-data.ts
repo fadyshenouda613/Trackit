@@ -17,7 +17,7 @@ import type { Tone } from './tone'
  * checking.
  */
 
-export type ToastKind = 'pdf' | 'payment' | 'delivered' | 'timer'
+export type ToastKind = 'pdf' | 'payment' | 'delivered' | 'timer' | 'error'
 
 export type Toast = {
   id: number
@@ -62,3 +62,10 @@ export const deliveredToast = (project: string): Toast =>
  */
 export const timerToast = (minutes: number, project: string): Toast =>
   make('timer', 'neutral', `${formatDuration(minutes)} logged to ${project}`, 'Undo')
+
+/**
+ * The one negative toast. A write the store refused is news you were not
+ * looking at — the form has already closed — so it is said here, in the
+ * store's own words, with no action: there is nothing to undo.
+ */
+export const errorToast = (message: string): Toast => make('error', 'negative', message)
