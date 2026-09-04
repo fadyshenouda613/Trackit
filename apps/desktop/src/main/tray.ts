@@ -80,16 +80,23 @@ export function createTray(deps: TrayDeps): { refresh: () => void; destroy: () =
         ]
       : [{ label: 'No timer running', enabled: false }]
 
+    const toggleItem: Electron.MenuItemConstructorOptions[] =
+      !state.running && state.lastProject === ''
+        ? []
+        : [
+            {
+              label: state.running ? 'Stop timer' : `Start ${state.lastProject}`,
+              accelerator: SHORTCUT,
+              registerAccelerator: false,
+              click: deps.onToggle
+            }
+          ]
+
     tray.setContextMenu(
       Menu.buildFromTemplate([
         ...header,
         { type: 'separator' },
-        {
-          label: state.running ? 'Stop timer' : `Start ${state.lastProject}`,
-          accelerator: SHORTCUT,
-          registerAccelerator: false,
-          click: deps.onToggle
-        },
+        ...toggleItem,
         { type: 'separator' },
         { label: 'Open Trackit', click: deps.onOpen },
         { label: 'Quit Trackit', click: () => app.quit() }

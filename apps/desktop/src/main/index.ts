@@ -3,11 +3,12 @@ import { join } from 'node:path'
 import { app, BrowserWindow } from 'electron'
 import { registerDataIpc } from './data-ipc'
 import { openDatabase } from './db'
+import { nowIso } from './db/clock'
 import { registerWindowIpc } from './ipc'
-import { createTray, type TrayTimerState } from './tray'
+import { closeOpenEntries, runningTimeEntry } from './repositories'
+import { toggleTimer, trayState } from './timer'
+import { createTray } from './tray'
 import { createMainWindow } from './window'
-
-const CLIENT = 'Northwind Studio'
 
 /**
  * The database lives beside the rest of this app's per-user state. `userData`
@@ -18,19 +19,6 @@ function databasePath(): string {
   const directory = app.getPath('userData')
   mkdirSync(directory, { recursive: true })
   return join(directory, 'trackit.db')
-}
-
-/*
- * There is no store behind the timer yet, so the tray runs off a stub that
- * starts where the renderer's own default does — Brand refresh, 01:24:36 in.
- * It ticks for real: the elapsed line is the only thing in that menu worth
- * rebuilding once a second, and a frozen clock would read as a bug.
- */
-let timer: TrayTimerState = {
-  running: true,
-  project: 'Brand refresh',
-  client: CLIENT,
-  elapsedSeconds: 5076
 }
 
 app.whenReady().then(async () => {
@@ -51,8 +39,21 @@ app.whenReady().then(async () => {
 
   const db = openDatabase(databasePath(), { log: (message) => console.log(`[db] ${message}`) })
 
+  const bootedAt = nowIso()
+
+  /* Everything that changes the clock ends here: the tray redraws and every
+     window is told to refetch. */
+  const broadcastTimer = (): void => {
+    tray.refresh()
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.send('timer:changed')
+  }
+
   registerWindowIpc()
-  registerDataIpc(db)
+  registerDataIpc(db, { bootedAt, onTimerChanged: () => broadcastTimer() })
+  if (!app.isPackaged) {
+    const { registerDevIpc } = await import('./dev-ipc')
+    registerDevIpc(db, { onTimerChanged: () => broadcastTimer() })
+  }
 
   const window = createMainWindow()
 
@@ -62,12 +63,10 @@ app.whenReady().then(async () => {
   window.on('unmaximize', emitMaximized)
 
   const tray = createTray({
-    getState: () => timer,
+    getState: () => trayState(db, Date.now()),
     onToggle: () => {
-      timer = timer.running
-        ? { running: false, lastProject: timer.project }
-        : { running: true, project: timer.lastProject, client: CLIENT, elapsedSeconds: 0 }
-      tray.refresh()
+      toggleTimer(db)
+      broadcastTimer()
     },
     onOpen: () => {
       const existing = BrowserWindow.getAllWindows()[0] ?? createMainWindow()
@@ -77,14 +76,19 @@ app.whenReady().then(async () => {
     }
   })
 
+  /*
+   * Once a second while a clock runs, so the elapsed line in the menu is
+   * live. Nothing is counted here — refresh reads the row and the clock.
+   */
   const tick = setInterval(() => {
-    if (!timer.running) return
-    timer = { ...timer, elapsedSeconds: timer.elapsedSeconds + 1 }
-    tray.refresh()
+    if (runningTimeEntry(db)) tray.refresh()
   }, 1000)
 
   app.on('before-quit', () => {
     clearInterval(tick)
+    /* A clean quit never leaves a clock running; anything found running at
+       the next launch therefore survived a crash and is offered for recovery. */
+    closeOpenEntries(db)
     tray.destroy()
     db.close()
   })
