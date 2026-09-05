@@ -11,10 +11,17 @@ import { ledger } from '../bridge'
 import { keys } from './keys'
 import { call } from './result'
 
-export const useTimeEntries = (filters?: TimeEntryListFilters) =>
+/**
+ * Every live entry, or the ones a filter selects. `null` means there is nothing
+ * to ask about yet — the shell has a project to total only while a timer runs —
+ * and then nothing is asked; `undefined` is the whole log, which the Time screen
+ * wants.
+ */
+export const useTimeEntries = (filters?: TimeEntryListFilters | null) =>
   useQuery({
-    queryKey: keys.time.list(filters),
-    queryFn: () => call(() => ledger.data.time.list(filters))
+    queryKey: keys.time.list(filters ?? undefined),
+    queryFn: () => call(() => ledger.data.time.list(filters ?? undefined)),
+    enabled: filters !== null
   })
 
 export const useRunningTimer = () =>

@@ -39,7 +39,13 @@ import { TimerRecoveryDialog } from './components/TimerRecoveryDialog'
 import { TimeScreen } from './components/TimeScreen'
 import { TopBar } from './components/TopBar'
 import { useNow } from './components/use-now'
-import { hoursToMinutes, overdueDays, totalMinutes, type Id } from '@trackit/shared'
+import {
+  elapsedSeconds,
+  hoursToMinutes,
+  overdueDays,
+  totalMinutes,
+  type Id
+} from '@trackit/shared'
 import {
   clearSession,
   hasSeenWelcome,
@@ -264,8 +270,10 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   const runningDeliverable = useChecklist(running?.projectId ?? null).data?.find(
     (item) => item.id === running?.checklistItemId
   )
+  /* Null, not undefined: with no timer running there is no project to total,
+     and undefined would ask for the whole log once a second. */
   const runningProjectEntries =
-    useTimeEntries(running ? { projectId: running.projectId } : undefined).data ?? []
+    useTimeEntries(running ? { projectId: running.projectId } : null).data ?? []
 
   /* Measured to this second, so the meter moves with the clock above it. */
   const loggedMinutes = totalMinutes(runningProjectEntries, new Date(nowMs).toISOString())
@@ -455,16 +463,9 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
       }}
       theme={theme}
       onTheme={setTheme}
-      /*
-       * The levers that write to the store need the bridge. They also need a
-       * development build — main registers them only when the app is not
-       * packaged — but the renderer has no honest way to ask: `import.meta.env`
-       * is untyped here (tsconfig.web.json carries no vite/client types) and
-       * the protocol only tells dev-server from file. So this is the bridge
-       * alone; in a packaged build the calls answer not_found and the error
-       * toast says so. A bridge-side `isDev` would settle it.
-       */
-      devAvailable={isDesktop}
+      /* The levers that write to the store need the bridge and a development
+         build — main registers them only when the app is not packaged. */
+      devAvailable={isDesktop && import.meta.env.DEV}
     />
   )
 
@@ -529,9 +530,10 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           nowMs={nowMs}
           onStop={() => {
             /* The bar takes the elapsed clock with it when it goes, so this is
-               the only place the hours just logged are ever stated — and the
-               figure has to be read before the row closes. */
-            const minutes = totalMinutes(runningProjectEntries, new Date(nowMs).toISOString())
+               the only place the hours just logged are ever stated. What was
+               just logged is this run, not the project's lifetime — and it has
+               to be read before the row closes. */
+            const minutes = Math.floor(elapsedSeconds(running.startedAt, nowMs) / 60)
             const name = runningProject.name
             stopTimer.mutate(undefined, {
               onSuccess: () => pushToast(timerToast(minutes, name))
@@ -835,11 +837,19 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           )}
           nowMs={nowMs}
           onResolve={(choice) => {
-            if (choice.kind === 'keep') stopTimer.mutate()
+            /* The dialog goes on the click rather than on the refetch, so the
+               frame between them is not a dialog answering itself. A write that
+               is refused brings it back — the timer still has to become
+               something, and the error toast says what went wrong. */
+            const reopen = { onError: () => setRecoveryDismissed(false) }
+            if (choice.kind === 'keep') stopTimer.mutate(undefined, reopen)
             if (choice.kind === 'trim') {
-              updateTimeEntry.mutate({ id: orphan.id, patch: { endedAt: choice.endedAt } })
+              updateTimeEntry.mutate(
+                { id: orphan.id, patch: { endedAt: choice.endedAt } },
+                reopen
+              )
             }
-            if (choice.kind === 'discard') deleteTimeEntry.mutate(orphan.id)
+            if (choice.kind === 'discard') deleteTimeEntry.mutate(orphan.id, reopen)
             setRecoveryDismissed(true)
           }}
         />
