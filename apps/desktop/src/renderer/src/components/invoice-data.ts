@@ -1,13 +1,14 @@
-import { clientRows } from './ClientsTable'
 import { addDays, shortDate } from '@trackit/shared'
 import { TODAY } from './time-data'
 
 /*
  * The model behind the Create invoice screen.
  *
- * Client names and contacts come from `clientRows` so the selector can never
- * drift from the Clients screen. Billing terms and the delivered work hang off
- * them here, because no other screen has needed them yet.
+ * Client names and contacts were pre-database fixture ids shared with the
+ * Clients screen; now that ClientsTable reads from the store, this keeps its
+ * own copy of the same names until Task 18 moves this screen onto the store
+ * too. Billing terms and the delivered work hang off them here, because no
+ * other screen has needed them yet.
  *
  * The delivered work below reconciles with the Dashboard, which already states
  * the unbilled position as "$14,650.00 · 3 delivered projects": Trade show
@@ -48,8 +49,19 @@ export type InvoiceLine = {
   projectId?: string
 }
 
+const clientContacts: { id: string; name: string; company: string }[] = [
+  { id: 'sable', name: 'Tom Sable', company: 'Sable Studio' },
+  { id: 'northwind', name: 'Priya Raghunathan', company: 'Northwind Studio' },
+  { id: 'kestrel', name: 'Ana Kestrel', company: 'Kestrel Press' },
+  { id: 'ortega', name: 'Elena Ortega', company: 'Ortega & Co' },
+  { id: 'halcyon', name: 'Devi Halcyon', company: 'Halcyon Labs' },
+  { id: 'marlow', name: 'Marcus Lidell', company: 'Marlow Foods' },
+  { id: 'brandt', name: 'Jonas Brandt', company: 'Brandt & Vale' },
+  { id: 'meridian', name: 'Clare Nkemelu', company: 'Meridian Coffee' }
+]
+
 const contactFor = (id: string): { company: string; contact: string } => {
-  const row = clientRows.find((client) => client.id === id)
+  const row = clientContacts.find((client) => client.id === id)
   return { company: row?.company ?? '', contact: row?.name ?? '' }
 }
 

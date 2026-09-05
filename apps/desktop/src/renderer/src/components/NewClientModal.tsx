@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
+import type { CreateClientInput, CurrencyCode, Id } from '@trackit/shared'
+import { currencies } from '@trackit/shared'
+import { useCreateClient } from '../data/use-clients'
 import { Icon } from './Icon'
+import { TERMS } from './terms'
 
 type NewClientModalProps = {
   onClose: () => void
+  onCreated?: (id: Id) => void
 }
 
 type Fields = {
@@ -10,42 +15,74 @@ type Fields = {
   company: string
   email: string
   address: string
-  currency: string
-  terms: string
+  currency: CurrencyCode
+  termDays: number
   notes: string
 }
 
 const initial: Fields = {
-  // Pre-filled in the artboard, which is what gives this field the active border.
-  name: 'Marguerite Oyelaran',
+  name: '',
   company: '',
   email: '',
   address: '',
-  currency: 'USD ($) — US Dollar',
-  terms: 'Net 14',
+  currency: 'USD',
+  termDays: 14,
   notes: ''
 }
 
+export function toCreateClientInput(f: Fields): CreateClientInput {
+  return {
+    id: crypto.randomUUID(),
+    name: f.name.trim(),
+    company: f.company.trim(),
+    email: f.email.trim(),
+    phone: '',
+    address: f.address,
+    currency: f.currency,
+    paymentTermsDays: f.termDays,
+    notes: f.notes
+  }
+}
+
 /**
- * "One column, seven fields, no steps." The form is live so it can be filled in
- * and tabbed through, but there is no data layer yet: Create and Cancel both
- * just close.
+ * "One column, seven fields, no steps." The form opens empty; Create writes
+ * through `useCreateClient` and hands the new id back so the app can select it.
  */
-export function NewClientModal({ onClose }: NewClientModalProps): JSX.Element {
+export function NewClientModal({ onClose, onCreated }: NewClientModalProps): JSX.Element {
   const [fields, setFields] = useState<Fields>(initial)
   const dialogRef = useRef<HTMLDivElement>(null)
+  const create = useCreateClient()
+
+  const invalidEmail = fields.email.trim() !== '' && !fields.email.includes('@')
+  const canCreate = fields.name.trim() !== '' && !invalidEmail && !create.isPending
+
+  const submit = (): void => {
+    if (!canCreate) return
+    create.mutate(toCreateClientInput(fields), {
+      onSuccess: (client) => {
+        onCreated?.(client.id)
+        onClose()
+      }
+    })
+  }
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose()
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        event.preventDefault()
+        submit()
+      }
     }
     document.addEventListener('keydown', onKeyDown)
     dialogRef.current?.querySelector<HTMLInputElement>('input')?.focus()
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  }, [onClose, submit])
 
-  const set = (key: keyof Fields) => (value: string) =>
-    setFields((current) => ({ ...current, [key]: value }))
+  const set =
+    <K extends keyof Fields>(key: K) =>
+    (value: Fields[K]) =>
+      setFields((current) => ({ ...current, [key]: value }))
 
   /* line.strong marks an active field; empty ones keep the default divider. */
   const fieldClass = (value: string): string => (value ? 'field field--filled' : 'field')
@@ -125,11 +162,13 @@ export function NewClientModal({ onClose }: NewClientModalProps): JSX.Element {
                 id="nc-currency"
                 className="field"
                 value={fields.currency}
-                onChange={(event) => set('currency')(event.target.value)}
+                onChange={(event) => set('currency')(event.target.value as CurrencyCode)}
               >
-                <option>USD ($) — US Dollar</option>
-                <option>EUR (€) — Euro</option>
-                <option>GBP (£) — Pound Sterling</option>
+                {currencies.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} ({c.symbol}) — {c.label}
+                  </option>
+                ))}
               </select>
               <Icon name="caret" size={12} className="select-wrap__caret" />
             </div>
@@ -141,13 +180,14 @@ export function NewClientModal({ onClose }: NewClientModalProps): JSX.Element {
               <select
                 id="nc-terms"
                 className="field"
-                value={fields.terms}
-                onChange={(event) => set('terms')(event.target.value)}
+                value={fields.termDays}
+                onChange={(event) => set('termDays')(Number(event.target.value))}
               >
-                <option>Net 14</option>
-                <option>Net 7</option>
-                <option>Net 30</option>
-                <option>Due on receipt</option>
+                {TERMS.map((term) => (
+                  <option key={term.days} value={term.days}>
+                    {term.label}
+                  </option>
+                ))}
               </select>
               <Icon name="caret" size={12} className="select-wrap__caret" />
             </div>
@@ -172,7 +212,12 @@ export function NewClientModal({ onClose }: NewClientModalProps): JSX.Element {
           <button type="button" className="button" onClick={onClose}>
             Cancel
           </button>
-          <button type="button" className="button button--primary dialog__create" onClick={onClose}>
+          <button
+            type="button"
+            className="button button--primary dialog__create"
+            disabled={!canCreate}
+            onClick={submit}
+          >
             Create client
             <span className="empty__kbd">⌘↩</span>
           </button>

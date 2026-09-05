@@ -124,6 +124,10 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   const [selectedClientId, setSelectedClientId] = useState<Id | null>(null)
   const [selectedProjectId, setSelectedProjectId] = useState<Id | null>(null)
   const [openInvoiceId, setOpenInvoiceId] = useState<Id | null>(null)
+  /* The client "New project" is opened for, so the dialog can be told once it
+     accepts an initial client (Task 15) — it does not yet, so only the setter
+     is used for now. */
+  const [, setNewProjectClientId] = useState<Id | null>(null)
   /* Create invoice is reached from three places now, so it remembers which one
      and names it in the breadcrumb rather than always claiming to come from the
      dashboard. */
@@ -641,7 +645,10 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
                   <button
                     type="button"
                     className="button button--primary no-drag"
-                    onClick={() => setModal('project')}
+                    onClick={() => {
+                      setNewProjectClientId(selectedClientId)
+                      setModal('project')
+                    }}
                   >
                     New project
                   </button>
@@ -742,15 +749,14 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
             <>
               <ListToolbar />
               <div className="main__content">
-                {/* Interim: the fixture rows carry fixture ids, so opening one
-                    cannot name a stored client. Until Task 14 the detail opens
-                    on the sample project's client. */}
                 <ClientsTable
-                  selectedId="northwind"
-                  onOpen={() => {
-                    setSelectedClientId(sampleProject?.clientId ?? clientList[0]?.id ?? null)
+                  selectedId={selectedClientId ?? undefined}
+                  onOpen={(id) => {
+                    setSelectedClientId(id)
                     setScreen('client')
                   }}
+                  onNewClient={() => setModal('client')}
+                  loading={forceLoading}
                 />
               </div>
             </>
@@ -788,9 +794,20 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
             </div>
           )}
 
-          {screen === 'client' && (
+          {screen === 'client' && selectedClientId && (
             <div className="main__content">
-              <ClientDetail />
+              <ClientDetail
+                clientId={selectedClientId}
+                onOpenProject={(id) => {
+                  setSelectedProjectId(id)
+                  setScreen('project')
+                }}
+                onOpenInvoice={(id) => {
+                  setOpenInvoiceId(id)
+                  setScreen('invoice')
+                }}
+                loading={forceLoading}
+              />
             </div>
           )}
 
@@ -808,7 +825,12 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
         </main>
       </div>
 
-      {modal === 'client' && <NewClientModal onClose={() => setModal(null)} />}
+      {modal === 'client' && (
+        <NewClientModal
+          onClose={() => setModal(null)}
+          onCreated={(id) => setSelectedClientId(id)}
+        />
+      )}
       {modal === 'project' && (
         <NewProjectModal onClose={() => setModal(null)} rateFloorCents={rateFloorCents} />
       )}
