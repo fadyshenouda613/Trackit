@@ -15,10 +15,13 @@ import { ledger } from '../bridge'
 import { keys } from './keys'
 import { call } from './result'
 
-export const useChecklist = (projectId: Id) =>
+/** Null when there is no project to ask about — the shell has one only while a
+ *  timer runs — and then nothing is asked, the way useClient and useProject do it. */
+export const useChecklist = (projectId: Id | null) =>
   useQuery({
-    queryKey: keys.checklist.list(projectId),
-    queryFn: () => call(() => ledger.data.checklist.list(projectId))
+    queryKey: keys.checklist.list(projectId ?? ''),
+    queryFn: () => call(() => ledger.data.checklist.list(projectId ?? '')),
+    enabled: projectId !== null
   })
 
 /** A checklist change moves its own project's list and that project's progress

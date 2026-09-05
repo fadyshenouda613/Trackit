@@ -974,6 +974,15 @@
   color: var(--text-primary);
 }
 
+/* A lever that only a development build has. It stays visible, so the panel
+   still says what states exist, and the title says why it cannot be pulled. */
+.state-panel__option:disabled,
+.state-panel__option:disabled:hover {
+  color: var(--text-tertiary);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ---- Nav items are buttons ----------------------------------------------- */
 
 .nav-item {

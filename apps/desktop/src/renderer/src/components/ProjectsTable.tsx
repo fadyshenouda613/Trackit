@@ -1,5 +1,5 @@
 import type { JSX } from 'react'
-import { formatMoney } from '@trackit/shared'
+import { formatCents } from '@trackit/shared'
 import { Meter, toneVar, type Tone } from './Meter'
 import { TableSkeleton } from './TableSkeleton'
 
@@ -125,13 +125,13 @@ const rows: ProjectRow[] = [
 ]
 
 type ProjectsTableProps = {
-  /** From Settings; the line every rate in this table is judged against. */
-  rateFloor: number
+  /** From Settings, in cents; the line every rate in this table is judged against. */
+  rateFloorCents: number
   /** Rows not in yet. The heading above them is known either way. */
   loading?: boolean
 }
 
-export function ProjectsTable({ rateFloor, loading = false }: ProjectsTableProps): JSX.Element {
+export function ProjectsTable({ rateFloorCents, loading = false }: ProjectsTableProps): JSX.Element {
   return (
     <section className="section">
       {/*
@@ -144,7 +144,7 @@ export function ProjectsTable({ rateFloor, loading = false }: ProjectsTableProps
         <h2 className="section__title">Active projects</h2>
         <span className="section__count">{rows.length}</span>
         <div className="spacer" />
-        <span className="section__note num">Rate floor {formatMoney(rateFloor)}/hr</span>
+        <span className="section__note num">Rate floor {formatCents(rateFloorCents)}/hr</span>
       </div>
 
       {loading ? (

@@ -1,3 +1,4 @@
+import type { PendingKind } from '@trackit/shared'
 import type { Tone } from './tone'
 
 /**
@@ -37,8 +38,12 @@ export type SyncFailure = 'offline' | 'signedOut' | 'server' | 'tooOld'
  * What is waiting. Broken down by kind because "7 changes" is a number and
  * "4 time entries and 2 invoices" is an answer — it says what you would lose,
  * which is the only reason anyone opens this panel.
+ *
+ * The five buckets are the store's, not this file's: `pendingCountsSchema` in
+ * @trackit/shared is what the bridge counts and what the footer is handed, so
+ * the kinds are re-exported from there rather than restated here.
  */
-export type PendingKind = 'time' | 'projects' | 'invoices' | 'payments' | 'settings'
+export type { PendingKind }
 
 export type SyncEventKind = 'synced' | 'failed' | 'conflict'
 

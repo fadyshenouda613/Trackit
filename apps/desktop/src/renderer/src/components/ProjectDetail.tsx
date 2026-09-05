@@ -13,9 +13,7 @@ import {
   formatBudget,
   formatCents,
   formatDuration,
-  formatMoney,
-  hoursToMinutes,
-  toCents
+  hoursToMinutes
 } from '@trackit/shared'
 import { toneVar } from './tone'
 import type { Status } from './status'
@@ -141,8 +139,8 @@ type HistoryEntry = { label: string; date: string }
 type ProjectDetailProps = {
   /** Delivered is the one step that opens a screen rather than just moving on. */
   onCreateInvoice?: () => void
-  /** The rate every project is judged against, from Settings. */
-  rateFloor: number
+  /** The rate every project is judged against, from Settings, in cents. */
+  rateFloorCents: number
   /** Fires once the project reaches delivered, so the shell can say so. */
   onDelivered?: (project: string) => void
   /** Whether this project came back from a sync disagreeing with itself. */
@@ -158,7 +156,7 @@ type ProjectDetailProps = {
  */
 export function ProjectDetail({
   onCreateInvoice,
-  rateFloor,
+  rateFloorCents,
   onDelivered,
   conflict = false,
   reorderConflict = false
@@ -173,7 +171,7 @@ export function ProjectDetail({
 
   const next = advance[status]
   const invoiced = status === 'invoiced' || status === 'paid'
-  const floorCents = toCents(rateFloor)
+  const floorCents = rateFloorCents
 
   const onAdvance = (): void => {
     if (!next) return
@@ -266,8 +264,8 @@ export function ProjectDetail({
           </span>
           <span className="project__metric-note">
             {EFFECTIVE_RATE_CENTS >= floorCents
-              ? `Earning ${formatCents(EFFECTIVE_RATE_CENTS - floorCents)}/hr over your ${formatMoney(rateFloor)} floor`
-              : `Running ${formatCents(floorCents - EFFECTIVE_RATE_CENTS)}/hr under your ${formatMoney(rateFloor)} floor`}
+              ? `Earning ${formatCents(EFFECTIVE_RATE_CENTS - floorCents)}/hr over your ${formatCents(floorCents)} floor`
+              : `Running ${formatCents(floorCents - EFFECTIVE_RATE_CENTS)}/hr under your ${formatCents(floorCents)} floor`}
           </span>
         </div>
 

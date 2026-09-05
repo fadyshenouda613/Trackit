@@ -1,4 +1,5 @@
 import { useRef, useState, type JSX } from 'react'
+import type { PendingCounts } from '@trackit/shared'
 import { Icon, type IconName } from './Icon'
 import { Logo } from './Logo'
 import { SyncPopover } from './SyncPopover'
@@ -30,11 +31,14 @@ const emptyDisabled: NavKey[] = ['projects', 'time', 'invoices']
 type SidebarProps = {
   variant?: 'populated' | 'empty'
   active?: NavKey
-  /**
-   * Counts differ per artboard — the Dashboard shows 7 clients, the Clients
-   * screen shows 8 — so each screen passes its own rather than sharing one.
-   */
+  /** The figures beside the nav entries, counted by the caller from the store. */
   counts?: Partial<Record<NavKey, string>>
+  /**
+   * What this machine has changed and the server has not seen. Real, unlike
+   * the rest of the snapshot: there is no sync service yet, so the state and
+   * its log are still fixtures and only the breakdown is counted.
+   */
+  pending?: PendingCounts
   /**
    * The badge on Invoices, which is the number of overdue ones. Counted by the
    * caller from the register rather than typed here, so paying the last late
@@ -52,6 +56,7 @@ export function Sidebar({
   variant = 'populated',
   active = 'dashboard',
   counts = {},
+  pending,
   overdueInvoices = 0,
   timerRunning = false,
   syncState = 'saved',
@@ -63,7 +68,7 @@ export function Sidebar({
   const syncButton = useRef<HTMLButtonElement>(null)
   /* Only mounted here, because this is the only place a relative time shows. */
   const now = useNow()
-  const snapshot = snapshots[syncState]
+  const snapshot = { ...snapshots[syncState], pending: pending ?? snapshots[syncState].pending }
 
   return (
     <aside className="sidebar">

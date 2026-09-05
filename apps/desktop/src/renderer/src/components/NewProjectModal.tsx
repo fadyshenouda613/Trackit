@@ -5,8 +5,8 @@ import { Pill } from './Pill'
 
 type NewProjectModalProps = {
   onClose: () => void
-  /** Passed through to the implied-rate preview, which judges against it. */
-  rateFloor: number
+  /** In cents. Passed through to the implied-rate preview, which judges against it. */
+  rateFloorCents: number
 }
 
 type Fields = {
@@ -35,7 +35,7 @@ const initial: Fields = {
  * "Fixed fee for the whole project · implied rate previews live." The price and
  * hours fields feed the preview card; nothing is saved on submit.
  */
-export function NewProjectModal({ onClose, rateFloor }: NewProjectModalProps): JSX.Element {
+export function NewProjectModal({ onClose, rateFloorCents }: NewProjectModalProps): JSX.Element {
   const [fields, setFields] = useState<Fields>(initial)
   const dialogRef = useRef<HTMLDivElement>(null)
 
@@ -173,7 +173,13 @@ export function NewProjectModal({ onClose, rateFloor }: NewProjectModalProps): J
             </div>
           </div>
 
-          <ImpliedRate price={fields.price} hours={fields.budgetHours} rateFloor={rateFloor} />
+          {/* ImpliedRate still takes the floor in major units; Part E moves it
+              to cents with the rest of this dialog. */}
+          <ImpliedRate
+            price={fields.price}
+            hours={fields.budgetHours}
+            rateFloor={rateFloorCents / 100}
+          />
 
           <div className="field-row__split">
             <div className="field-row">
