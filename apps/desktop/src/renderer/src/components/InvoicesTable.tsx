@@ -16,7 +16,7 @@ import {
   summarise,
   totalOf,
   type Invoice
-} from './invoices-data'
+} from './invoices-fixture'
 
 type InvoicesTableProps = {
   rows: Invoice[]

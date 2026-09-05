@@ -89,6 +89,29 @@ const specs = {
       { width: 44, align: 'right' },
       { width: 58, pill: true }
     ]
+  },
+  clients: {
+    rows: 8,
+    columns: [
+      { width: 74 },
+      { width: 60 },
+      { width: 40, align: 'right' },
+      { width: 56, align: 'right' },
+      { width: 52, align: 'right' },
+      { width: 20 }
+    ]
+  },
+  'time-log': {
+    rows: 8,
+    columns: [
+      { width: 70 },
+      { width: 56 },
+      { width: 80 },
+      { width: 44, align: 'right' },
+      { width: 44, align: 'right' },
+      { width: 40, align: 'right' },
+      { width: 16 }
+    ]
   }
 } satisfies Record<string, Spec>
 

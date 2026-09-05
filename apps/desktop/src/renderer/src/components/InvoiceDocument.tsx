@@ -11,7 +11,7 @@ import {
   taxOf,
   totalOf,
   type Invoice
-} from './invoices-data'
+} from './invoices-fixture'
 
 type InvoiceDocumentProps = {
   invoice: Invoice

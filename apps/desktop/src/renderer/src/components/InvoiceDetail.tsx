@@ -2,7 +2,7 @@ import type { JSX } from 'react'
 import { InvoiceActions } from './InvoiceActions'
 import { InvoiceDocument } from './InvoiceDocument'
 import { InvoicePayments } from './InvoicePayments'
-import type { Invoice } from './invoices-data'
+import type { Invoice } from './invoices-fixture'
 
 type InvoiceDetailProps = {
   invoice: Invoice

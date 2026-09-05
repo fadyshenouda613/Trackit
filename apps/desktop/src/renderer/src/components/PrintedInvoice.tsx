@@ -12,7 +12,7 @@ import {
   taxOf,
   totalOf,
   type Invoice
-} from './invoices-data'
+} from './invoices-fixture'
 
 type PrintedInvoiceProps = {
   /** Any register invoice prints; the specimen is what the artboard shows. */

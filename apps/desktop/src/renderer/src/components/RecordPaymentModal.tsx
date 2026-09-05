@@ -11,7 +11,7 @@ import {
   type Invoice,
   type Payment,
   type PaymentMethod
-} from './invoices-data'
+} from './invoices-fixture'
 
 type RecordPaymentModalProps = {
   invoice: Invoice

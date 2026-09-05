@@ -54,7 +54,7 @@ import {
   writeSession
 } from './components/auth-session'
 import { defaultSettings, type Settings } from './components/settings-data'
-import { invoices as seedInvoices, summarise } from './components/invoices-data'
+import { invoices as seedInvoices, summarise } from './components/invoices-fixture'
 import {
   StatePanel,
   type AuthView,

@@ -1,5 +1,5 @@
 import { TODAY } from './time-data'
-import type { Invoice } from './invoices-data'
+import type { Invoice } from './invoices-fixture'
 
 /*
  * The specimen the printed artboard is designed against.

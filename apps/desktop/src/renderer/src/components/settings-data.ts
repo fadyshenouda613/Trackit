@@ -12,7 +12,7 @@
 
 import { nextInvoiceNumber as numberUnder, type CurrencyCode } from '@trackit/shared'
 import { NEXT_NUMBER } from './invoice-data'
-import { business } from './invoices-data'
+import { business } from './invoices-fixture'
 import { TODAY } from './time-data'
 
 export type Settings = {

@@ -12,7 +12,7 @@ import {
   statusOf,
   totalOf,
   type Invoice
-} from './invoices-data'
+} from './invoices-fixture'
 
 type InvoiceActionsProps = {
   invoice: Invoice

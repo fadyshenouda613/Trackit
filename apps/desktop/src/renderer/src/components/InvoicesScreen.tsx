@@ -12,7 +12,7 @@ import {
   summarise,
   totalOf,
   type Invoice
-} from './invoices-data'
+} from './invoices-fixture'
 
 /* The five an invoice can be, in the order it passes through them. */
 const statusOptions = [
