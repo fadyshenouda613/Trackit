@@ -1,4 +1,4 @@
-import { useMemo, useState, type JSX } from 'react'
+import { useMemo, useRef, useState, type JSX } from 'react'
 import { symbolOf, type Id } from '@trackit/shared'
 import { Avatar } from './Avatar'
 import {
@@ -50,6 +50,13 @@ export function ClientDetail({
 
   const [composing, setComposing] = useState(false)
   const [draft, setDraft] = useState('')
+  /* Escape unmounts the textarea while it still has focus, and the native
+     blur that follows can reach React's delegated listener as the stale
+     onBlur={submitNote} closure from the render that is being torn down —
+     the one that captured the cancelled text. A ref survives across renders
+     by identity, so setting it synchronously in the Escape handler is visible
+     to that stale closure too, whichever `submitNote` it holds. */
+  const cancelledRef = useRef(false)
 
   if (client.data === undefined) {
     return (
@@ -101,6 +108,10 @@ export function ClientDetail({
   const notesPending = loading || notes.isPending
 
   const submitNote = (): void => {
+    if (cancelledRef.current) {
+      cancelledRef.current = false
+      return
+    }
     const body = draft.trim()
     if (body) {
       createNote.mutate({ id: crypto.randomUUID(), clientId, projectId: null, body, pinned: false })
@@ -286,6 +297,7 @@ export function ClientDetail({
                         event.currentTarget.blur()
                       }
                       if (event.key === 'Escape') {
+                        cancelledRef.current = true
                         setDraft('')
                         setComposing(false)
                       }
