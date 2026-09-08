@@ -1,20 +1,18 @@
 import type { JSX } from 'react'
 import {
   formatCents,
-  formatMoney,
   impliedRateCents,
   parseMoney,
   parseMoneyToCents,
-  rateVsFloorPercent,
-  toCents
+  rateVsFloorPercent
 } from '@trackit/shared'
 import { toneVar } from './tone'
 
 type ImpliedRateProps = {
   price: string
   hours: string
-  /** The rate floor the app judges every project against, from Settings. */
-  rateFloor: number
+  /** The rate floor the app judges every project against, from Settings, in cents. */
+  rateFloorCents: number
 }
 
 /**
@@ -22,7 +20,7 @@ type ImpliedRateProps = {
  * judged against the rate floor. The artboard is captioned "implied rate
  * previews live", so this recalculates as the two fields are typed.
  */
-export function ImpliedRate({ price, hours, rateFloor }: ImpliedRateProps): JSX.Element {
+export function ImpliedRate({ price, hours, rateFloorCents }: ImpliedRateProps): JSX.Element {
   const priceCents = parseMoneyToCents(price)
   const hoursValue = parseMoney(hours)
   const rate =
@@ -30,9 +28,8 @@ export function ImpliedRate({ price, hours, rateFloor }: ImpliedRateProps): JSX.
       ? impliedRateCents(priceCents, hoursValue)
       : null
 
-  const floorCents = toCents(rateFloor)
-  const percent = rate === null ? null : rateVsFloorPercent(rate, floorCents)
-  const tone = rate === null ? 'neutral' : rate >= floorCents ? 'positive' : 'negative'
+  const percent = rate === null ? null : rateVsFloorPercent(rate, rateFloorCents)
+  const tone = rate === null ? 'neutral' : rate >= rateFloorCents ? 'positive' : 'negative'
 
   return (
     <div className="implied">
@@ -54,8 +51,8 @@ export function ImpliedRate({ price, hours, rateFloor }: ImpliedRateProps): JSX.
         </span>
         <span className="implied__note">
           {percent === null
-            ? `Floor ${formatMoney(rateFloor)}`
-            : `${percent >= 0 ? '+' : '−'}${Math.abs(percent)}% vs ${formatMoney(rateFloor)} floor`}
+            ? `Floor ${formatCents(rateFloorCents)}`
+            : `${percent >= 0 ? '+' : '−'}${Math.abs(percent)}% vs ${formatCents(rateFloorCents)} floor`}
         </span>
       </div>
     </div>

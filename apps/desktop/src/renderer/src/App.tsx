@@ -44,7 +44,8 @@ import {
   hoursToMinutes,
   overdueDays,
   totalMinutes,
-  type Id
+  type Id,
+  type ProjectListFilters
 } from '@trackit/shared'
 import {
   clearSession,
@@ -124,10 +125,12 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   const [selectedClientId, setSelectedClientId] = useState<Id | null>(null)
   const [selectedProjectId, setSelectedProjectId] = useState<Id | null>(null)
   const [openInvoiceId, setOpenInvoiceId] = useState<Id | null>(null)
-  /* The client "New project" is opened for, so the dialog can be told once it
-     accepts an initial client (Task 15) — it does not yet, so only the setter
-     is used for now. */
-  const [, setNewProjectClientId] = useState<Id | null>(null)
+  /* The client "New project" is opened for, so the dialog can pre-select it. */
+  const [newProjectClientId, setNewProjectClientId] = useState<Id | null>(null)
+  /* The Status/Client/sort state for the Projects screen's toolbar and table —
+     lifted here so the TopBar's unfiltered totals and the filtered table both
+     read from the one store query each of them needs. */
+  const [projectFilters, setProjectFilters] = useState<ProjectListFilters>({})
   /* Create invoice is reached from three places now, so it remembers which one
      and names it in the breadcrumb rather than always claiming to come from the
      dashboard. */
@@ -407,6 +410,7 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           setScreen('clients')
           setModal('client')
         } else if (next === 'newProject') {
+          setNewProjectClientId(null)
           setScreen('projects')
           setModal('project')
         } else if (next === 'recovery') {
@@ -740,7 +744,13 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
               <MetricCards />
               {/* The table owns this one, because it owns the heading above
                   the rows and that heading is known while they load. */}
-              <ProjectsTable rateFloorCents={rateFloorCents} loading={forceLoading} />
+              <ProjectsTable
+                loading={forceLoading}
+                onOpen={(id) => {
+                  setSelectedProjectId(id)
+                  setScreen('project')
+                }}
+              />
               <AttentionList />
             </div>
           )}
@@ -764,12 +774,23 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
 
           {screen === 'projects' && (
             <>
-              <ProjectsToolbar />
+              <ProjectsToolbar
+                filters={projectFilters}
+                onFilters={setProjectFilters}
+                clients={clientList}
+              />
               <div className="main__content">
                 {forceLoading ? (
                   <TableSkeleton block="all-projects" />
                 ) : (
-                  <AllProjectsTable onOpen={() => setScreen('project')} />
+                  <AllProjectsTable
+                    filters={projectFilters}
+                    onOpen={(id) => {
+                      setSelectedProjectId(id)
+                      setScreen('project')
+                    }}
+                    onNewProject={() => setModal('project')}
+                  />
                 )}
               </div>
             </>
@@ -832,7 +853,13 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
         />
       )}
       {modal === 'project' && (
-        <NewProjectModal onClose={() => setModal(null)} rateFloorCents={rateFloorCents} />
+        <NewProjectModal
+          onClose={() => {
+            setModal(null)
+            setNewProjectClientId(null)
+          }}
+          initialClientId={newProjectClientId ?? undefined}
+        />
       )}
       {modal === 'payment' && (
         /* Interim, as above: the dialog states the consequence and closes,

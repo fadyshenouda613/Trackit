@@ -1,43 +1,91 @@
 import { useEffect, useRef, useState, type JSX } from 'react'
+import type { CreateProjectInput, CurrencyCode, Id } from '@trackit/shared'
+import { currencies, parseMoney, parseMoneyToCents, shortDate } from '@trackit/shared'
+import { atLocal, parseShortDate, todayIso } from './local-dates'
+import { useClients } from '../data/use-clients'
+import { useCreateProject } from '../data/use-projects'
+import { useSettings } from '../data/use-settings'
 import { Icon } from './Icon'
 import { ImpliedRate } from './ImpliedRate'
 import { Pill } from './Pill'
 
 type NewProjectModalProps = {
   onClose: () => void
-  /** In cents. Passed through to the implied-rate preview, which judges against it. */
-  rateFloorCents: number
+  initialClientId?: Id
+  onCreated?: (id: Id) => void
 }
 
 type Fields = {
-  client: string
+  clientId: Id | ''
   name: string
   description: string
   price: string
-  currency: string
+  currency: CurrencyCode
   budgetHours: string
   start: string
   due: string
 }
 
-const initial: Fields = {
-  client: 'Marlow Foods — Marcus Lidell',
-  name: 'Seasonal packaging refresh',
-  description: '',
-  price: '12,000.00',
-  currency: 'USD ($)',
-  budgetHours: '80',
-  start: '08 Sep 2026',
-  due: '30 Oct 2026'
+export function toCreateProjectInput(f: Fields): CreateProjectInput | null {
+  const priceCents = parseMoneyToCents(f.price)
+  const hours = parseMoney(f.budgetHours)
+  const start = f.start.trim() ? parseShortDate(f.start) : null
+  const due = f.due.trim() ? parseShortDate(f.due) : null
+  if (!f.clientId || !f.name.trim() || priceCents === null || priceCents < 0) return null
+  if ((f.start.trim() && !start) || (f.due.trim() && !due)) return null
+  return {
+    id: crypto.randomUUID(),
+    clientId: f.clientId,
+    name: f.name.trim(),
+    description: f.description,
+    priceCents,
+    currency: f.currency,
+    budgetedHours: hours ?? 0,
+    status: 'draft',
+    kickoffAt: start ? atLocal(start, 0) : null,
+    dueAt: due ? atLocal(due, 0) : null,
+    deliveredAt: null
+  }
 }
 
 /**
  * "Fixed fee for the whole project · implied rate previews live." The price and
- * hours fields feed the preview card; nothing is saved on submit.
+ * hours fields feed the preview card; Create writes through `useCreateProject`
+ * and hands the new id back.
  */
-export function NewProjectModal({ onClose, rateFloorCents }: NewProjectModalProps): JSX.Element {
-  const [fields, setFields] = useState<Fields>(initial)
+export function NewProjectModal({
+  onClose,
+  initialClientId,
+  onCreated
+}: NewProjectModalProps): JSX.Element {
+  const clients = useClients()
+  const settings = useSettings()
+  const create = useCreateProject()
+  const clientList = clients.data ?? []
+
+  const [fields, setFields] = useState<Fields>(() => ({
+    clientId: initialClientId ?? '',
+    name: '',
+    description: '',
+    price: '',
+    currency: settings.data?.currency ?? 'USD',
+    budgetHours: '',
+    start: shortDate(todayIso()),
+    due: ''
+  }))
   const dialogRef = useRef<HTMLDivElement>(null)
+
+  const input = toCreateProjectInput(fields)
+
+  const submit = (): void => {
+    if (!input || create.isPending) return
+    create.mutate(input, {
+      onSuccess: (project) => {
+        onCreated?.(project.id)
+        onClose()
+      }
+    })
+  }
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -47,8 +95,10 @@ export function NewProjectModal({ onClose, rateFloorCents }: NewProjectModalProp
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
-  const set = (key: keyof Fields) => (value: string) =>
-    setFields((current) => ({ ...current, [key]: value }))
+  const set =
+    <K extends keyof Fields>(key: K) =>
+    (value: Fields[K]) =>
+      setFields((current) => ({ ...current, [key]: value }))
 
   const fieldClass = (value: string): string => (value ? 'field field--filled' : 'field')
 
@@ -79,13 +129,21 @@ export function NewProjectModal({ onClose, rateFloorCents }: NewProjectModalProp
             <div className="select-wrap">
               <select
                 id="np-client"
-                className="field field--filled"
-                value={fields.client}
-                onChange={(event) => set('client')(event.target.value)}
+                className={fields.clientId ? 'field field--filled' : 'field'}
+                value={fields.clientId}
+                onChange={(event) => {
+                  const clientId = event.target.value as Id
+                  set('clientId')(clientId)
+                  const chosen = clientList.find((c) => c.id === clientId)
+                  if (chosen) set('currency')(chosen.currency)
+                }}
               >
-                <option>Marlow Foods — Marcus Lidell</option>
-                <option>Northwind Studio — Priya Raghunathan</option>
-                <option>Sable Studio — Tom Sable</option>
+                {!fields.clientId && <option value="">Choose a client…</option>}
+                {clientList.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.company} — {c.name}
+                  </option>
+                ))}
               </select>
               <Icon name="caret" size={12} className="select-wrap__caret" />
             </div>
@@ -139,11 +197,13 @@ export function NewProjectModal({ onClose, rateFloorCents }: NewProjectModalProp
                   aria-label="Currency"
                   className="field"
                   value={fields.currency}
-                  onChange={(event) => set('currency')(event.target.value)}
+                  onChange={(event) => set('currency')(event.target.value as CurrencyCode)}
                 >
-                  <option>USD ($)</option>
-                  <option>EUR (€)</option>
-                  <option>GBP (£)</option>
+                  {currencies.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code} ({c.symbol})
+                    </option>
+                  ))}
                 </select>
                 <Icon name="caret" size={12} className="select-wrap__caret" />
               </div>
@@ -173,12 +233,10 @@ export function NewProjectModal({ onClose, rateFloorCents }: NewProjectModalProp
             </div>
           </div>
 
-          {/* ImpliedRate still takes the floor in major units; Part E moves it
-              to cents with the rest of this dialog. */}
           <ImpliedRate
             price={fields.price}
             hours={fields.budgetHours}
-            rateFloor={rateFloorCents / 100}
+            rateFloorCents={settings.data?.rateFloorCents ?? 0}
           />
 
           <div className="field-row__split">
@@ -211,7 +269,12 @@ export function NewProjectModal({ onClose, rateFloorCents }: NewProjectModalProp
           <button type="button" className="button" onClick={onClose}>
             Cancel
           </button>
-          <button type="button" className="button button--primary dialog__create" onClick={onClose}>
+          <button
+            type="button"
+            className="button button--primary dialog__create"
+            disabled={!input || create.isPending}
+            onClick={submit}
+          >
             Create project
             <span className="empty__kbd">⌘↩</span>
           </button>

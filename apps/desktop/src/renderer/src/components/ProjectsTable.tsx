@@ -1,137 +1,57 @@
-import type { JSX } from 'react'
+import { useMemo, type JSX } from 'react'
+import type { Id } from '@trackit/shared'
 import { formatCents } from '@trackit/shared'
-import { Meter, toneVar, type Tone } from './Meter'
+import { Meter, toneVar } from './Meter'
+import { dashboardRow, projectFigures } from './project-rows'
+import { EmptyState } from './EmptyState'
 import { TableSkeleton } from './TableSkeleton'
-
-type ProjectRow = {
-  name: string
-  client: string
-  price: string
-  checklist: string
-  checklistPct: number
-  hours: string
-  /** Budget bar fill and its percentage label are toned separately: an
-   *  under-budget project reads positive on the bar but neutral in the label. */
-  budgetPct: number
-  budgetLabel: string
-  budgetTone: Tone
-  budgetLabelTone: Tone
-  rate: string
-  rateTone: Tone
-  note: string
-  noteTone: Tone
-  /** The one project the running timer belongs to. */
-  running?: boolean
-}
-
-const rows: ProjectRow[] = [
-  {
-    name: 'Brand refresh',
-    client: 'Northwind',
-    price: '$6,500.00',
-    checklist: '8/14',
-    checklistPct: 57,
-    hours: '28h 15m',
-    budgetPct: 88,
-    budgetLabel: '88%',
-    budgetTone: 'warning',
-    budgetLabelTone: 'warning',
-    rate: '$230.09',
-    rateTone: 'positive',
-    note: '+130% vs floor',
-    noteTone: 'neutral',
-    running: true
-  },
-  {
-    name: 'Site build',
-    client: 'Sable Studio',
-    price: '$9,000.00',
-    checklist: '11/12',
-    checklistPct: 92,
-    hours: '112h 40m',
-    budgetPct: 100,
-    budgetLabel: '141%',
-    budgetTone: 'negative',
-    budgetLabelTone: 'negative',
-    rate: '$79.88',
-    rateTone: 'negative',
-    note: '−20% below floor',
-    noteTone: 'negative'
-  },
-  {
-    name: 'Report design',
-    client: 'Ortega & Co',
-    price: '$450.00',
-    checklist: '3/6',
-    checklistPct: 50,
-    hours: '9h 05m',
-    budgetPct: 100,
-    budgetLabel: '151%',
-    budgetTone: 'negative',
-    budgetLabelTone: 'negative',
-    rate: '$49.54',
-    rateTone: 'negative',
-    note: '−50% below floor',
-    noteTone: 'negative'
-  },
-  {
-    name: 'Packaging system',
-    client: 'Marlow Foods',
-    price: '$12,000.00',
-    checklist: '4/16',
-    checklistPct: 25,
-    hours: '41h 30m',
-    budgetPct: 38,
-    budgetLabel: '38%',
-    budgetTone: 'positive',
-    budgetLabelTone: 'neutral',
-    rate: '$289.16',
-    rateTone: 'positive',
-    note: 'early · 12 items open',
-    noteTone: 'neutral'
-  },
-  {
-    name: 'Editorial templates',
-    client: 'Kestrel Press',
-    price: '$3,200.00',
-    checklist: '9/10',
-    checklistPct: 90,
-    hours: '27h 50m',
-    budgetPct: 93,
-    budgetLabel: '93%',
-    budgetTone: 'warning',
-    budgetLabelTone: 'warning',
-    rate: '$114.97',
-    rateTone: 'warning',
-    note: '+15% · marginal',
-    noteTone: 'warning'
-  },
-  {
-    name: 'Onboarding emails',
-    client: 'Halcyon',
-    price: '$1,800.00',
-    checklist: '5/8',
-    checklistPct: 63,
-    hours: '16h 20m',
-    budgetPct: 82,
-    budgetLabel: '82%',
-    budgetTone: 'warning',
-    budgetLabelTone: 'warning',
-    rate: '$110.20',
-    rateTone: 'warning',
-    note: '+10% · marginal',
-    noteTone: 'warning'
-  }
-]
+import { useChecklists } from '../data/use-checklist'
+import { useClients } from '../data/use-clients'
+import { useProjects } from '../data/use-projects'
+import { useSettings } from '../data/use-settings'
+import { useRunningTimer, useTimeEntries } from '../data/use-time'
 
 type ProjectsTableProps = {
-  /** From Settings, in cents; the line every rate in this table is judged against. */
-  rateFloorCents: number
+  onOpen?: (id: Id) => void
   /** Rows not in yet. The heading above them is known either way. */
   loading?: boolean
 }
 
-export function ProjectsTable({ rateFloorCents, loading = false }: ProjectsTableProps): JSX.Element {
+export function ProjectsTable({ onOpen, loading = false }: ProjectsTableProps): JSX.Element {
+  const projects = useProjects({ status: 'active' })
+  const clients = useClients()
+  const entries = useTimeEntries()
+  const settings = useSettings()
+  const running = useRunningTimer()
+
+  const projectList = projects.data ?? []
+  const projectIds = useMemo(() => projectList.map((p) => p.id), [projectList])
+  const checklists = useChecklists(projectIds)
+
+  const anyPending =
+    projects.isPending ||
+    clients.isPending ||
+    entries.isPending ||
+    settings.isPending ||
+    running.isPending ||
+    checklists.isPending
+
+  const rateFloorCents = settings.data?.rateFloorCents ?? 0
+
+  const rows = anyPending
+    ? []
+    : projectList
+        .map((p) =>
+          projectFigures(
+            p,
+            clients.data ?? [],
+            entries.data ?? [],
+            (checklists.data ?? {})[p.id] ?? [],
+            new Date().toISOString()
+          )
+        )
+        .map((f) => dashboardRow(f, rateFloorCents, running.data?.projectId ?? null))
+
   return (
     <section className="section">
       {/*
@@ -147,7 +67,7 @@ export function ProjectsTable({ rateFloorCents, loading = false }: ProjectsTable
         <span className="section__note num">Rate floor {formatCents(rateFloorCents)}/hr</span>
       </div>
 
-      {loading ? (
+      {loading || anyPending ? (
         <TableSkeleton block="projects" />
       ) : (
         <div className="panel projects">
@@ -161,54 +81,74 @@ export function ProjectsTable({ rateFloorCents, loading = false }: ProjectsTable
             <span className="align-right">Effective rate</span>
           </div>
 
-          {rows.map((row) => (
-            <div className="projects__row" key={row.name}>
-              <div className={row.running ? 'projects__name' : 'projects__name projects__name--indented'}>
-                {row.running && (
-                  <div
-                    className="dot pulse"
-                    style={{ background: 'var(--accent)' }}
-                    aria-label="Timer running"
+          {rows.length === 0 ? (
+            <EmptyState
+              variant="panel"
+              title="No active projects"
+              body="Mark a draft active and its hours, budget and rate show up here."
+            />
+          ) : (
+            rows.map((row) => (
+              <div
+                className="projects__row"
+                key={row.id}
+                role={onOpen ? 'button' : undefined}
+                tabIndex={onOpen ? 0 : undefined}
+                onClick={() => onOpen?.(row.id)}
+                onKeyDown={(event) => {
+                  if (onOpen && (event.key === 'Enter' || event.key === ' ')) {
+                    event.preventDefault()
+                    onOpen(row.id)
+                  }
+                }}
+              >
+                <div className={row.running ? 'projects__name' : 'projects__name projects__name--indented'}>
+                  {row.running && (
+                    <div
+                      className="dot pulse"
+                      style={{ background: 'var(--accent)' }}
+                      aria-label="Timer running"
+                    />
+                  )}
+                  <span className="projects__label truncate">{row.name}</span>
+                </div>
+
+                <span className="projects__client truncate">{row.client}</span>
+                <span className="align-right">{row.price}</span>
+
+                <div className="projects__checklist">
+                  <span className="projects__checklist-count">{row.checklist}</span>
+                  <Meter value={row.checklistPct} label={`Checklist ${row.checklist}`} />
+                </div>
+
+                <span className="projects__hours align-right">{row.hours}</span>
+
+                <div className="projects__budget">
+                  <Meter
+                    value={row.budgetPct}
+                    tone={row.budgetTone}
+                    label={`Budget used ${row.budgetLabel}`}
                   />
-                )}
-                <span className="projects__label truncate">{row.name}</span>
+                  <span
+                    className="projects__budget-pct"
+                    style={{ color: toneVar[row.budgetLabelTone] }}
+                  >
+                    {row.budgetLabel}
+                  </span>
+                </div>
+
+                <div className="projects__rate">
+                  <span className="projects__rate-value" style={{ color: toneVar[row.rateTone] }}>
+                    {row.rate}
+                    <span className="projects__rate-unit">/hr</span>
+                  </span>
+                  <span className="projects__rate-note" style={{ color: toneVar[row.noteTone] }}>
+                    {row.note}
+                  </span>
+                </div>
               </div>
-
-              <span className="projects__client truncate">{row.client}</span>
-              <span className="align-right">{row.price}</span>
-
-              <div className="projects__checklist">
-                <span className="projects__checklist-count">{row.checklist}</span>
-                <Meter value={row.checklistPct} label={`Checklist ${row.checklist}`} />
-              </div>
-
-              <span className="projects__hours align-right">{row.hours}</span>
-
-              <div className="projects__budget">
-                <Meter
-                  value={row.budgetPct}
-                  tone={row.budgetTone}
-                  label={`Budget used ${row.budgetLabel}`}
-                />
-                <span
-                  className="projects__budget-pct"
-                  style={{ color: toneVar[row.budgetLabelTone] }}
-                >
-                  {row.budgetLabel}
-                </span>
-              </div>
-
-              <div className="projects__rate">
-                <span className="projects__rate-value" style={{ color: toneVar[row.rateTone] }}>
-                  {row.rate}
-                  <span className="projects__rate-unit">/hr</span>
-                </span>
-                <span className="projects__rate-note" style={{ color: toneVar[row.noteTone] }}>
-                  {row.note}
-                </span>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       )}
     </section>
