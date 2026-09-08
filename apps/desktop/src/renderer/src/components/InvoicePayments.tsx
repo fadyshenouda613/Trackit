@@ -1,17 +1,19 @@
 import type { JSX } from 'react'
 import { EmptyState } from './EmptyState'
-import { formatMoney } from '@trackit/shared'
 import {
-  balanceOf,
-  dateLabel,
-  paidOf,
-  statusOf,
-  totalOf,
-  type Invoice
-} from './invoices-fixture'
+  balanceCents,
+  formatCents,
+  paidCents,
+  paymentMethodLabels,
+  type Invoice,
+  type Payment
+} from '@trackit/shared'
+import { dateLabel } from './local-dates'
+import { symbolFor } from './invoices-data'
 
 type InvoicePaymentsProps = {
   invoice: Invoice
+  payments: Payment[]
 }
 
 /**
@@ -22,26 +24,27 @@ type InvoicePaymentsProps = {
  * statement has. So the payments are a list, and the list closes with the one
  * figure the freelancer is really after: what is still owed.
  */
-export function InvoicePayments({ invoice }: InvoicePaymentsProps): JSX.Element {
-  const status = statusOf(invoice)
-  const balance = balanceOf(invoice)
-  const received = paidOf(invoice)
-  const settled = balance <= 0 && invoice.payments.length > 0
+export function InvoicePayments({ invoice, payments }: InvoicePaymentsProps): JSX.Element {
+  const status = invoice.status
+  const symbol = symbolFor(invoice)
+  const received = paidCents(payments)
+  const balance = balanceCents(invoice.totalCents, received)
+  const settled = balance <= 0 && payments.length > 0
 
   return (
     <section className="section payments-section">
       <div className="section__head">
         <h3 className="section__title">Payments</h3>
-        <span className="section__count">{invoice.payments.length}</span>
+        <span className="section__count">{payments.length}</span>
         {received > 0 && (
           <span className="section__note">
-            {formatMoney(received)} of {formatMoney(totalOf(invoice))}
+            {formatCents(received, symbol)} of {formatCents(invoice.totalCents, symbol)}
           </span>
         )}
       </div>
 
       <div className="panel payments">
-        {invoice.payments.length === 0 ? (
+        {payments.length === 0 ? (
           <EmptyState
             variant="panel"
             title={
@@ -68,11 +71,13 @@ export function InvoicePayments({ invoice }: InvoicePaymentsProps): JSX.Element 
               <span>Note</span>
             </div>
 
-            {invoice.payments.map((payment) => (
+            {payments.map((payment) => (
               <div className="payments__row" key={payment.id}>
-                <span className="payments__date num">{dateLabel(payment.date)}</span>
-                <span className="align-right payments__amount">{formatMoney(payment.amount)}</span>
-                <span className="payments__method">{payment.method}</span>
+                <span className="payments__date num">{dateLabel(payment.paidAt)}</span>
+                <span className="align-right payments__amount">
+                  {formatCents(payment.amountCents, symbol)}
+                </span>
+                <span className="payments__method">{paymentMethodLabels[payment.method]}</span>
                 <span className="payments__note truncate">{payment.note ?? '—'}</span>
               </div>
             ))}
@@ -87,14 +92,14 @@ export function InvoicePayments({ invoice }: InvoicePaymentsProps): JSX.Element 
             className="align-right payments__balance-value"
             style={settled ? { color: 'var(--positive)' } : undefined}
           >
-            {formatMoney(status === 'void' ? 0 : balance)}
+            {formatCents(status === 'void' ? 0 : balance, symbol)}
           </span>
           <span className="payments__balance-basis">
             {settled
-              ? `Settled ${dateLabel(invoice.payments[invoice.payments.length - 1].date)}`
+              ? `Settled ${dateLabel(payments[payments.length - 1].paidAt)}`
               : status === 'void'
                 ? 'Voided — nothing is owed'
-                : `${formatMoney(totalOf(invoice))} invoiced less ${formatMoney(received)} received`}
+                : `${formatCents(invoice.totalCents, symbol)} invoiced less ${formatCents(received, symbol)} received`}
           </span>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { useEffect, useMemo, useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import { isDesktop, ledger } from './bridge'
 import { AllProjectsTable } from './components/AllProjectsTable'
 import { AttentionList } from './components/AttentionList'
@@ -42,7 +42,6 @@ import { useNow } from './components/use-now'
 import {
   elapsedSeconds,
   hoursToMinutes,
-  overdueDays,
   totalMinutes,
   type Id,
   type ProjectListFilters
@@ -55,7 +54,7 @@ import {
   writeSession
 } from './components/auth-session'
 import { defaultSettings, type Settings } from './components/settings-data'
-import { invoices as seedInvoices, summarise } from './components/invoices-fixture'
+import { useInvoiceFigures } from './components/use-invoice-figures'
 import {
   StatePanel,
   type AuthView,
@@ -67,7 +66,8 @@ import { createQueryClient } from './data/query-client'
 import { useChecklist } from './data/use-checklist'
 import { useClient, useClients } from './data/use-clients'
 import { useDevReset, useDevSeed, useDevTimerScenario } from './data/use-dev'
-import { useInvoices } from './data/use-invoices'
+import { useInvoice, useInvoices } from './data/use-invoices'
+import { usePayments } from './data/use-payments'
 import { useProject, useProjects } from './data/use-projects'
 import { useUpdateSettings } from './data/use-settings'
 import { usePendingCounts } from './data/use-sync'
@@ -167,18 +167,11 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   )
 
   /*
-   * Interim, both of these, and both go in Part E.
-   *
-   * The register is the fixture the three invoice screens still render. It is
-   * read-only now — the store is the register, and Task 18 moves those screens
-   * onto it — so mark sent, void and record payment change nothing here.
-   *
-   * The settings form is the same story: the Settings screen holds its figures
-   * as typed text and has no writer on the store yet (Task 19). The rate floor
-   * every other screen is judged against no longer comes from here; it comes
-   * from the settings row.
+   * Interim, and it goes in Task 19: the Settings screen holds its figures as
+   * typed text and has no writer on the store yet. The rate floor every other
+   * screen is judged against does not come from here; it comes from the
+   * settings row.
    */
-  const register = seedInvoices
   const [settingsForm, setSettingsForm] = useState<Settings>(
     storedSession ? { ...defaultSettings, accountEmail: storedSession.email } : defaultSettings
   )
@@ -231,6 +224,17 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   useEffect(() => {
     if (screen === 'project' && selectedProjectId === null) setScreen('projects')
   }, [screen, selectedProjectId])
+
+  /* The same for the invoice detail: it is about one record. */
+  useEffect(() => {
+    if (screen === 'invoice' && openInvoiceId === null) setScreen('invoices')
+  }, [screen, openInvoiceId])
+
+  /* The client a Create invoice was raised for belongs to that visit to the
+     screen and nothing else, so it goes when the screen does. */
+  useEffect(() => {
+    if (screen !== 'newInvoice' && newInvoiceClientId !== null) setNewInvoiceClientId(null)
+  }, [screen, newInvoiceClientId])
 
   /*
    * What the shell itself needs from the store. Everything below is derived
@@ -312,21 +316,15 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
 
   const selectedClient = useClient(selectedClientId).data ?? null
   const selectedProject = useProject(selectedProjectId).data ?? null
-  const openInvoice = invoiceList.find((entry) => entry.id === openInvoiceId) ?? null
+  /* The record the payment dialog is opened over. The detail screen reads it
+     for itself; the shell needs it because the dialog is the shell's. */
+  const openInvoice = useInvoice(openInvoiceId).data ?? null
+  const openInvoicePayments = usePayments(openInvoiceId).data ?? []
 
   const activeProjects = projectList.filter((project) => project.status === 'active').length
-  /* The badge is the overdue count, counted rather than typed: a void, a draft
-     and a settled invoice are never overdue, whatever their due date says. */
-  const overdueInvoices = invoiceList.filter(
-    (entry) =>
-      (entry.status === 'sent' || entry.status === 'partial') &&
-      overdueDays(entry.dueAt, new Date(nowMs).toISOString()) !== null
-  ).length
-
-  /* Interim: the figures above the fixture invoice list, and the fixture row
-     the three invoice screens render. Task 18. */
-  const figures = useMemo(() => summarise(register), [register])
-  const invoice = register.find((entry) => entry.number === openInvoice?.number) ?? register[0]
+  /* One composition for the sidebar badge and the Invoices bar: a void, a
+     draft and a settled invoice are never overdue, whatever their date says. */
+  const { summary } = useInvoiceFigures(invoiceList)
 
   const patchSettings = (change: Partial<Settings>): void =>
     setSettingsForm((current) => ({ ...current, ...change }))
@@ -385,10 +383,8 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
     setScreen('newInvoice')
   }
 
-  /* Interim: the fixture list still opens rows by number, so this finds the
-     stored invoice that carries it. Task 18 hands the id straight over. */
-  const openDetail = (number: string): void => {
-    setOpenInvoiceId(invoiceList.find((entry) => entry.number === number)?.id ?? null)
+  const openDetail = (id: Id): void => {
+    setOpenInvoiceId(id)
     setScreen('invoice')
   }
 
@@ -474,7 +470,7 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
       onData={(next) => setForceLoading(next === 'loading')}
       onToast={(kind: ToastKind) => {
         if (kind === 'pdf') pushToast(pdfToast('INV-0148'))
-        if (kind === 'payment') pushToast(paymentToast(2400, 'INV-0145'))
+        if (kind === 'payment') pushToast(paymentToast(240000, 'INV-0145'))
         if (kind === 'delivered') pushToast(deliveredToast('Brand refresh'))
         if (kind === 'timer') pushToast(timerToast(84, 'Brand refresh'))
         if (kind === 'error')
@@ -528,9 +524,25 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
    * because it is the way back.
    */
   if (screen === 'printed') {
+    /* Whichever invoice is open, or the first on file — the sheet is reached
+       from the panel as often as from a record. Resolved against the register
+       rather than trusted, so an id left over from a wiped database falls back
+       to what is actually there. */
+    const printId =
+      (invoiceList.some((entry) => entry.id === openInvoiceId)
+        ? openInvoiceId
+        : invoiceList[0]?.id) ?? null
     return (
       <>
-        <PrintedInvoice />
+        {printId === null ? (
+          <EmptyState
+            title="Nothing to print"
+            body="Raise an invoice first."
+            action={{ label: 'Back to invoices', onClick: () => setScreen('invoices') }}
+          />
+        ) : (
+          <PrintedInvoice invoiceId={printId} />
+        )}
         {statePanel}
       </>
     )
@@ -581,7 +593,7 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
              were fixtures of their own frames. */
           counts={{ clients: String(clientList.length), projects: String(activeProjects) }}
           pending={pendingCounts.data ?? {}}
-          overdueInvoices={overdueInvoices}
+          overdueInvoices={summary.overdueCount}
           timerRunning={running !== null}
           syncState={syncState}
           onSyncNow={onSyncNow}
@@ -614,12 +626,11 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
             <InvoiceScreen
               isTopmost={!showTimerBar}
               back={backFrom(invoiceFrom)}
-              /* Interim: the screen still resolves its client out of the
-                 fixture register, so the real id recorded when the project
-                 raised this invoice cannot be handed over until Task 18 —
-                 only whether there is one. */
-              initialClientId={newInvoiceClientId ? 'northwind' : undefined}
+              /* Set when a project raised this invoice: whoever is paying for
+                 that project is the one fact the entry point carries. */
+              initialClientId={newInvoiceClientId ?? undefined}
               onOpenProjects={() => setScreen('projects')}
+              onSaved={openDetail}
             />
           ) : screen === 'invoice' ? (
             /* The document names the record, so the bar only offers a way back. */
@@ -630,7 +641,7 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           ) : screen === 'invoices' ? (
             <TopBar
               title="Invoices"
-              meta={register.length + ' total · ' + figures.openCount + ' unpaid'}
+              meta={`${invoiceList.length} total · ${summary.openCount} unpaid`}
               isTopmost={!showTimerBar}
               actions={
                 <button
@@ -811,20 +822,21 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           )}
 
           {screen === 'invoices' && (
-            <InvoicesScreen register={register} onOpen={openDetail} loading={forceLoading} />
+            <InvoicesScreen
+              onOpen={openDetail}
+              onNewInvoice={onCreateInvoice}
+              loading={forceLoading}
+            />
           )}
 
-          {screen === 'invoice' && (
+          {screen === 'invoice' && openInvoiceId && (
             <div className="main__content">
-              {/* Interim: the fixture document, and two actions that cannot
-                  write anywhere yet — the register they used to edit is now
-                  read-only. Task 18 puts both on invoices.send / invoices.void. */}
               <InvoiceDetail
-                invoice={invoice}
+                invoiceId={openInvoiceId}
                 onOpen={openDetail}
-                onMarkSent={() => undefined}
                 onRecordPayment={() => setModal('payment')}
-                onVoid={() => undefined}
+                onBack={() => setScreen('invoices')}
+                loading={forceLoading}
               />
             </div>
           )}
@@ -890,13 +902,15 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           initialClientId={newProjectClientId ?? undefined}
         />
       )}
-      {modal === 'payment' && (
-        /* Interim, as above: the dialog states the consequence and closes,
-           and records nothing until Task 18 gives it payments.create. */
+      {modal === 'payment' && openInvoice && (
         <RecordPaymentModal
-          invoice={invoice}
+          invoice={openInvoice}
+          payments={openInvoicePayments}
           onClose={() => setModal(null)}
-          onRecord={() => setModal(null)}
+          onRecorded={(payment) => {
+            pushToast(paymentToast(payment.amountCents, openInvoice.number))
+            setModal(null)
+          }}
         />
       )}
 

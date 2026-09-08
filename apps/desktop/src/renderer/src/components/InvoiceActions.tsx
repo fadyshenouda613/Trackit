@@ -1,21 +1,15 @@
 import { useState, type JSX } from 'react'
-import { formatMoney } from '@trackit/shared'
+import { balanceCents, formatCents, type Invoice } from '@trackit/shared'
 import { toneVar } from './tone'
 import { StatusPill } from './StatusPill'
-import {
-  balanceOf,
-  dateLabel,
-  dueOf,
-  overdueDaysOf,
-  overdueToneOf,
-  paidOf,
-  statusOf,
-  totalOf,
-  type Invoice
-} from './invoices-fixture'
+import { dateLabel } from './local-dates'
+import { overdueDaysOf, overdueToneOf, symbolFor } from './invoices-data'
 
 type InvoiceActionsProps = {
   invoice: Invoice
+  /** Cents received, summed by the detail from the invoice's payments. */
+  paid: number
+  today: string
   onMarkSent: () => void
   onRecordPayment: () => void
   onVoid: () => void
@@ -34,14 +28,16 @@ type InvoiceActionsProps = {
  */
 export function InvoiceActions({
   invoice,
+  paid,
+  today,
   onMarkSent,
   onRecordPayment,
   onVoid
 }: InvoiceActionsProps): JSX.Element {
-  const status = statusOf(invoice)
-  const balance = balanceOf(invoice)
-  const received = paidOf(invoice)
-  const late = overdueDaysOf(invoice)
+  const status = invoice.status
+  const symbol = symbolFor(invoice)
+  const balance = balanceCents(invoice.totalCents, paid)
+  const late = overdueDaysOf(invoice, today)
   const [confirming, setConfirming] = useState(false)
 
   const settled = status === 'paid'
@@ -50,12 +46,14 @@ export function InvoiceActions({
   const aside = (): string => {
     if (status === 'void') return 'Voided. It counts towards nothing.'
     if (status === 'draft') return 'Not issued. No money is expected yet.'
-    if (settled) return `Settled in full against ${formatMoney(totalOf(invoice))} invoiced.`
+    if (settled) return `Settled in full against ${formatCents(invoice.totalCents, symbol)} invoiced.`
     if (late !== null) {
-      return `${late} days past the ${dateLabel(dueOf(invoice))} due date.`
+      return `${late} days past the ${dateLabel(invoice.dueAt)} due date.`
     }
-    if (received > 0) return `${formatMoney(received)} received of ${formatMoney(totalOf(invoice))}.`
-    return `Due ${dateLabel(dueOf(invoice))}.`
+    if (paid > 0) {
+      return `${formatCents(paid, symbol)} received of ${formatCents(invoice.totalCents, symbol)}.`
+    }
+    return `Due ${dateLabel(invoice.dueAt)}.`
   }
 
   return (
@@ -75,7 +73,7 @@ export function InvoiceActions({
             className="inv-state__value"
             style={settled ? { color: 'var(--positive)' } : undefined}
           >
-            {status === 'void' ? '—' : formatMoney(settled ? 0 : balance)}
+            {status === 'void' ? '—' : formatCents(settled ? 0 : balance, symbol)}
           </span>
         </div>
 

@@ -1,5 +1,5 @@
-import { balanceCents, daysBetween, formatCents, overdueDays, overdueJudgement, paidCents, subtotalCents, symbolOf, bySortOrder } from '@trackit/shared'
-import type { Client, Id, Invoice, InvoiceLine, InvoiceStatus, Project } from '@trackit/shared'
+import { SORT_ORDER_STEP, balanceCents, daysBetween, formatCents, overdueDays, overdueJudgement, paidCents, subtotalCents, symbolOf, bySortOrder } from '@trackit/shared'
+import type { Client, CurrencyCode, Id, Invoice, InvoiceLine, InvoiceStatus, NewInvoiceInput, Project } from '@trackit/shared'
 import { dateLabel, localDateOf } from './local-dates'
 import type { PaymentsByInvoice } from './client-rows'
 
@@ -69,3 +69,70 @@ export type LineDraft = { id: Id; label: string; amountCents: number; projectId:
 export const lineFromProject = (p: Project): LineDraft => ({ id: crypto.randomUUID(), label: p.name, amountCents: p.priceCents, projectId: p.id })
 export const newLine = (label: string): LineDraft => ({ id: crypto.randomUUID(), label, amountCents: 0, projectId: null })
 export const draftSubtotal = (lines: LineDraft[]): number => subtotalCents(lines)
+
+/**
+ * What the Create invoice screen offers a client: the delivered work that can
+ * still be billed, and — dimmed, never hidden — the delivered work that has
+ * already gone out. A row that disappears reads as something lost; a row that
+ * dims reads as something accounted for, and answers "didn't I already bill
+ * that?" without leaving the screen.
+ */
+export type BillableRow = { project: Project; delivered: string; invoicedOn: string | null }
+export type BillableView = { company: string; rows: BillableRow[]; billable: Project[]; openProjects: number }
+export function billableView(
+  client: Client,
+  projects: Project[],
+  billable: Project[],
+  invoiceOf: Record<Id, Invoice | null>
+): BillableView {
+  const billed = projects.filter(
+    (p) =>
+      p.status === 'invoiced' ||
+      p.status === 'paid' ||
+      (p.status === 'delivered' && !billable.some((b) => b.id === p.id))
+  )
+  const rows = [
+    ...billable.map((p) => ({ project: p, invoicedOn: null as string | null })),
+    ...billed.map((p) => ({ project: p, invoicedOn: invoiceOf[p.id]?.number ?? 'an invoice' }))
+  ]
+    .map((r) => ({ ...r, delivered: dateLabel(r.project.deliveredAt) }))
+    .sort((a, b) => (b.project.deliveredAt ?? '').localeCompare(a.project.deliveredAt ?? ''))
+  return {
+    company: client.company,
+    rows,
+    billable,
+    openProjects: projects.filter((p) => p.status === 'draft' || p.status === 'active').length
+  }
+}
+
+/**
+ * The draft as the store takes it. The label and amount travel with every
+ * line, project-ticked ones included: what the client is told they are paying
+ * for is the freelancer's words at this moment, not the project's name later.
+ */
+export function toNewInvoiceInput(a: {
+  clientId: Id
+  number: string
+  currency: CurrencyCode
+  taxRate: string
+  notes: string
+  lines: LineDraft[]
+}): NewInvoiceInput {
+  const rate = Number(a.taxRate.trim() || 0)
+  return {
+    id: crypto.randomUUID(),
+    clientId: a.clientId,
+    number: a.number.trim() || undefined,
+    currency: a.currency,
+    taxRate: Number.isFinite(rate) && rate >= 0 && rate <= 100 ? rate : 0,
+    notes: a.notes,
+    lines: a.lines.map((l, i) => ({
+      id: l.id,
+      projectId: l.projectId,
+      milestoneId: null,
+      label: l.label.trim(),
+      amountCents: l.amountCents,
+      sortOrder: (i + 1) * SORT_ORDER_STEP
+    }))
+  }
+}

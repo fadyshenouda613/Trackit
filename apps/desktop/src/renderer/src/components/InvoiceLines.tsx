@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { Icon } from './Icon'
-import type { InvoiceLine } from './invoice-data'
-import { formatMoney, parseMoney, withMove } from '@trackit/shared'
+import type { LineDraft } from './invoices-data'
+import { formatCents, parseMoneyToCents, withMove, type Id } from '@trackit/shared'
 import type { DragState } from './reorder'
 
 type InvoiceLinesProps = {
-  lines: InvoiceLine[]
-  onChange: (id: string, patch: Partial<InvoiceLine>) => void
-  onDelete: (id: string) => void
-  onReorder: (lines: InvoiceLine[]) => void
+  lines: LineDraft[]
+  onChange: (id: Id, patch: Partial<LineDraft>) => void
+  onDelete: (id: Id) => void
+  onReorder: (lines: LineDraft[]) => void
   /** Returns the new line id so the amount can take focus straight away. */
-  onAdd: (label: string) => string
+  onAdd: (label: string) => Id
   symbol: string
 }
 
@@ -27,18 +27,19 @@ function AmountCell({
   onCommit,
   onFocused
 }: {
+  /** Stored cents, the way the line holds it. */
   value: number
   label: string
   symbol: string
   /** Set on the line just added — a line with no price is not yet a line. */
   focus: boolean
-  onCommit: (amount: number) => void
+  onCommit: (amountCents: number) => void
   onFocused: () => void
 }): JSX.Element {
-  const [text, setText] = useState(() => formatMoney(value, symbol))
+  const [text, setText] = useState(() => formatCents(value, symbol))
   const input = useRef<HTMLInputElement>(null)
 
-  useEffect(() => setText(formatMoney(value, symbol)), [value, symbol])
+  useEffect(() => setText(formatCents(value, symbol)), [value, symbol])
 
   useEffect(() => {
     if (!focus) return
@@ -48,8 +49,8 @@ function AmountCell({
   }, [focus, onFocused])
 
   const commit = (): void => {
-    const parsed = parseMoney(text)
-    if (parsed === null) setText(formatMoney(value, symbol))
+    const parsed = parseMoneyToCents(text)
+    if (parsed === null) setText(formatCents(value, symbol))
     else onCommit(parsed)
   }
 
@@ -65,7 +66,7 @@ function AmountCell({
       onKeyDown={(event) => {
         if (event.key === 'Enter') event.currentTarget.blur()
         if (event.key === 'Escape') {
-          setText(formatMoney(value, symbol))
+          setText(formatCents(value, symbol))
           event.currentTarget.blur()
         }
       }}
@@ -177,11 +178,11 @@ export function InvoiceLines({
                 />
 
                 <AmountCell
-                  value={line.amount}
+                  value={line.amountCents}
                   label={`Amount for ${line.label}`}
                   focus={focusId === line.id}
                   symbol={symbol}
-                  onCommit={(amount) => onChange(line.id, { amount })}
+                  onCommit={(amountCents) => onChange(line.id, { amountCents })}
                   onFocused={clearFocus}
                 />
 

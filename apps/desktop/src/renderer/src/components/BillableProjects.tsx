@@ -1,16 +1,16 @@
 import type { JSX } from 'react'
 import { EmptyState } from './EmptyState'
 import { Icon } from './Icon'
-import { deliveredLabel, type BillableProject, type BillingClient } from './invoice-data'
-import { formatMoney } from '@trackit/shared'
+import type { BillableView } from './invoices-data'
+import { formatCents, type Id, type Project } from '@trackit/shared'
 
 type BillableProjectsProps = {
-  client: BillingClient
+  view: BillableView
   /** Project ids already on the invoice, read back off the lines. */
-  selected: string[]
+  selected: Id[]
   /** The client currency symbol — a total in dollars under a GBP client is wrong. */
   symbol: string
-  onToggle: (project: BillableProject) => void
+  onToggle: (project: Project) => void
   onOpenProjects: () => void
 }
 
@@ -24,23 +24,23 @@ type BillableProjectsProps = {
  * already bill that?", which is the question this screen exists to settle.
  */
 export function BillableProjects({
-  client,
+  view,
   selected,
   symbol,
   onToggle,
   onOpenProjects
 }: BillableProjectsProps): JSX.Element {
-  const billable = client.delivered.filter((project) => !project.invoicedOn)
-  const invoiced = client.delivered.length - billable.length
+  const billable = view.billable
+  const invoiced = view.rows.length - billable.length
 
   /*
    * Two different absences, and they need two different sentences. Nothing
    * delivered at all is a prompt to go and deliver something; everything
    * delivered already billed is a reassurance, and keeps its evidence on screen.
    */
-  const nothingDelivered = client.delivered.length === 0
+  const nothingDelivered = view.rows.length === 0
   const allInvoiced = !nothingDelivered && billable.length === 0
-  const last = client.delivered[0]
+  const last = view.rows[0]
 
   return (
     <section className="panel billable" aria-label="Delivered work">
@@ -58,31 +58,31 @@ export function BillableProjects({
           variant="panel"
           title={
             nothingDelivered
-              ? `Nothing to bill for ${client.company}`
-              : `Everything delivered for ${client.company} is already invoiced`
+              ? `Nothing to bill for ${view.company}`
+              : `Everything delivered for ${view.company} is already invoiced`
           }
           body={
             nothingDelivered ? (
               <>
                 An invoice is built from projects marked <strong>delivered</strong>.{' '}
-                {client.openProjects === 0
-                  ? `${client.company} has no projects on the go.`
-                  : `${client.company} has ${client.openProjects === 1 ? 'one project' : `${client.openProjects} projects`} on the go and ${client.openProjects === 1 ? 'it has not been' : 'none has been'} delivered yet.`}{' '}
+                {view.openProjects === 0
+                  ? `${view.company} has no projects on the go.`
+                  : `${view.company} has ${view.openProjects === 1 ? 'one project' : `${view.openProjects} projects`} on the go and ${view.openProjects === 1 ? 'it has not been' : 'none has been'} delivered yet.`}{' '}
                 Mark the work delivered and it will appear here.
               </>
             ) : (
               <>
-                The last one went out on {deliveredLabel(last)}. Deliver more work and it will
-                appear here.
+                The last one went out on {last.delivered}. Deliver more work and it will appear
+                here.
               </>
             )
           }
-          action={{ label: `Open ${client.company}’s projects`, onClick: onOpenProjects }}
+          action={{ label: `Open ${view.company}’s projects`, onClick: onOpenProjects }}
           aside="or add a line by hand below"
         />
       )}
 
-      {client.delivered.length > 0 && (
+      {view.rows.length > 0 && (
         <>
           <div className="billable__header t-overline">
             <span />
@@ -92,19 +92,21 @@ export function BillableProjects({
             <span />
           </div>
 
-          {client.delivered.map((project) => {
-            if (project.invoicedOn) {
+          {view.rows.map((row) => {
+            const project = row.project
+
+            if (row.invoicedOn) {
               return (
                 <div className="billable__row billable__row--dim" key={project.id}>
                   <span />
                   <span className="billable__name">
                     <span className="truncate">{project.name}</span>
-                    <span className="billable__flag">already invoiced · {project.invoicedOn}</span>
+                    <span className="billable__flag">already invoiced · {row.invoicedOn}</span>
                   </span>
-                  <span className="align-right billable__date num">
-                    {deliveredLabel(project)}
+                  <span className="align-right billable__date num">{row.delivered}</span>
+                  <span className="align-right billable__price num">
+                    {formatCents(project.priceCents, symbol)}
                   </span>
-                  <span className="align-right billable__price num">{formatMoney(project.price, symbol)}</span>
                   <span />
                 </div>
               )
@@ -127,8 +129,10 @@ export function BillableProjects({
                 <span className="billable__name">
                   <span className="truncate">{project.name}</span>
                 </span>
-                <span className="align-right billable__date num">{deliveredLabel(project)}</span>
-                <span className="align-right billable__price num">{formatMoney(project.price, symbol)}</span>
+                <span className="align-right billable__date num">{row.delivered}</span>
+                <span className="align-right billable__price num">
+                  {formatCents(project.priceCents, symbol)}
+                </span>
                 <span />
               </button>
             )

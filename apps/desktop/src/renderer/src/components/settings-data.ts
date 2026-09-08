@@ -11,7 +11,6 @@
  */
 
 import { nextInvoiceNumber as numberUnder, type CurrencyCode } from '@trackit/shared'
-import { NEXT_NUMBER } from './invoice-data'
 import { business } from './invoices-fixture'
 import { TODAY } from './time-data'
 
@@ -72,6 +71,15 @@ export const defaultSettings: Settings = {
 }
 
 /* ---- Invoice numbering ---------------------------------------------------- */
+
+/*
+ * Interim: the number the next invoice takes. It came from invoice-data.ts,
+ * which went with the Create invoice screen in Task 18 — that screen now asks
+ * the store, through nextInvoiceSequence over the numbers it holds. The
+ * Settings preview is the last caller and stays a constant until Task 19 puts
+ * this screen on the store too.
+ */
+const NEXT_NUMBER = 'INV-0150'
 
 /** The sequence the preview counts from — the number the next invoice takes. */
 export const NEXT_SEQUENCE = Number(NEXT_NUMBER.replace(/\D/g, '')) || 150

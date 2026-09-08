@@ -1,26 +1,19 @@
 import type { JSX } from 'react'
 import { EmptyState } from './EmptyState'
-import { formatMoney } from '@trackit/shared'
+import { formatCents, type Client, type Id, type Invoice } from '@trackit/shared'
 import { Pill } from './Pill'
 import { StatusPill } from './StatusPill'
 import { toneVar } from './tone'
-import {
-  clientOf,
-  dateLabel,
-  dueOf,
-  overdueDaysOf,
-  overdueLabel,
-  overdueToneOf,
-  paidOf,
-  statusOf,
-  summarise,
-  totalOf,
-  type Invoice
-} from './invoices-fixture'
+import { invoiceRow, overdueLabel, overdueToneOf, summarise } from './invoices-data'
+import type { PaymentsByInvoice } from './client-rows'
 
 type InvoicesTableProps = {
   rows: Invoice[]
-  onOpen: (number: string) => void
+  /** For the client column: the register stores an id, the table shows a company. */
+  clients: Client[]
+  payments: PaymentsByInvoice
+  today: string
+  onOpen: (id: Id) => void
 }
 
 /**
@@ -34,8 +27,14 @@ type InvoicesTableProps = {
  * the five states. Amber to a fortnight, red past it: a slow payer and a
  * collection are different problems and should not look the same.
  */
-export function InvoicesTable({ rows, onOpen }: InvoicesTableProps): JSX.Element {
-  const totals = summarise(rows)
+export function InvoicesTable({
+  rows,
+  clients,
+  payments,
+  today,
+  onOpen
+}: InvoicesTableProps): JSX.Element {
+  const totals = summarise(rows, payments, today)
 
   return (
     <div className="panel invoices">
@@ -58,63 +57,55 @@ export function InvoicesTable({ rows, onOpen }: InvoicesTableProps): JSX.Element
       )}
 
       {rows.map((invoice) => {
-        const status = statusOf(invoice)
-        const draft = status === 'draft'
-        const voided = status === 'void'
-        const quiet = draft || voided
-        const late = overdueDaysOf(invoice)
-        const received = paidOf(invoice)
-        const client = clientOf(invoice)
+        const row = invoiceRow(invoice, clients, payments, today)
+        const quiet = row.quiet
+        const late = row.late
 
         return (
           <div
-            key={invoice.number}
-            className={voided ? 'invoices__row invoices__row--dim' : 'invoices__row'}
+            key={row.id}
+            className={row.voided ? 'invoices__row invoices__row--dim' : 'invoices__row'}
             role="button"
             tabIndex={0}
-            onClick={() => onOpen(invoice.number)}
+            onClick={() => onOpen(row.id)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault()
-                onOpen(invoice.number)
+                onOpen(row.id)
               }
             }}
           >
-            <span className="invoices__number">{invoice.number}</span>
+            <span className="invoices__number">{row.number}</span>
 
-            <span className="invoices__client truncate">{client?.company ?? '—'}</span>
+            <span className="invoices__client truncate">{row.client}</span>
 
-            <span className={quiet ? 'invoices__quiet' : 'invoices__date'}>
-              {dateLabel(invoice.issued)}
-            </span>
+            <span className={quiet ? 'invoices__quiet' : 'invoices__date'}>{row.issued}</span>
 
             {late === null ? (
-              <span className={quiet ? 'invoices__quiet' : 'invoices__date'}>
-                {dateLabel(dueOf(invoice))}
-              </span>
+              <span className={quiet ? 'invoices__quiet' : 'invoices__date'}>{row.due}</span>
             ) : (
               <span className="invoices__due">
                 <span className="invoices__due-date" style={{ color: toneVar[overdueToneOf(late)] }}>
-                  {dateLabel(dueOf(invoice))}
+                  {row.due}
                 </span>
                 <Pill tone={overdueToneOf(late)}>{overdueLabel(late)}</Pill>
               </span>
             )}
 
             <span className={quiet ? 'align-right invoices__quiet' : 'align-right'}>
-              {formatMoney(totalOf(invoice))}
+              {row.total}
             </span>
 
             <span
               className={
-                received > 0 ? 'align-right invoices__received' : 'align-right invoices__quiet'
+                row.paid ? 'align-right invoices__received' : 'align-right invoices__quiet'
               }
             >
-              {received > 0 ? formatMoney(received) : '—'}
+              {row.paid ?? '—'}
             </span>
 
             <span>
-              <StatusPill status={status} />
+              <StatusPill status={row.status} />
             </span>
           </div>
         )
@@ -136,11 +127,11 @@ export function InvoicesTable({ rows, onOpen }: InvoicesTableProps): JSX.Element
           </span>
         </div>
 
-        <span className="align-right invoices__totals-value">{formatMoney(totals.billed)}</span>
-        <span className="align-right invoices__totals-value">{formatMoney(totals.received)}</span>
+        <span className="align-right invoices__totals-value">{formatCents(totals.billed)}</span>
+        <span className="align-right invoices__totals-value">{formatCents(totals.received)}</span>
 
         <div className="invoices__totals-figure">
-          <span className="invoices__totals-value">{formatMoney(totals.outstanding)}</span>
+          <span className="invoices__totals-value">{formatCents(totals.outstanding)}</span>
           <span className="invoices__totals-caption">
             On {totals.openCount} unpaid
             {totals.overdueCount > 0 ? ` · ${totals.overdueCount} overdue` : ''}

@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import type { Invoice, InvoiceLine, Payment, Project } from '@trackit/shared'
+import type { Client, Invoice, InvoiceLine, Payment, Project } from '@trackit/shared'
 import {
   averageDaysToPay,
+  billableView,
   draftSubtotal,
   groupLines,
   isOpen,
   lineFromProject,
   newLine,
   overdueDaysOf,
-  summarise
+  summarise,
+  toNewInvoiceInput
 } from './invoices-data'
 import type { PaymentsByInvoice } from './client-rows'
 
@@ -70,6 +72,20 @@ const project = (over: Partial<Project> = {}): Project => ({
   kickoffAt: '2026-01-01T00:00:00.000Z',
   dueAt: null,
   deliveredAt: null,
+  ...over
+})
+
+const client = (over: Partial<Client> = {}): Client => ({
+  ...BASE,
+  id: 'c1',
+  name: 'A Contact',
+  company: 'A Company',
+  email: '',
+  phone: '',
+  address: '',
+  currency: 'USD',
+  paymentTermsDays: 14,
+  notes: '',
   ...over
 })
 
@@ -170,5 +186,76 @@ describe('the create-invoice draft model', () => {
 
   it('draftSubtotal sums the draft lines', () => {
     expect(draftSubtotal([newLine('A'), { ...newLine('B'), amountCents: 500 }])).toBe(500)
+  })
+
+  it('toNewInvoiceInput numbers the lines and reads the tax rate off the field', () => {
+    const input = toNewInvoiceInput({
+      clientId: 'c1',
+      number: '  INV-0150  ',
+      currency: 'GBP',
+      taxRate: ' 8.5 ',
+      notes: 'Thanks',
+      lines: [
+        { id: 'l1', label: ' Panels ', amountCents: 340000, projectId: 'p1' },
+        { id: 'l2', label: 'By hand', amountCents: 900, projectId: null }
+      ]
+    })
+    expect(input.number).toBe('INV-0150')
+    expect(input.currency).toBe('GBP')
+    expect(input.taxRate).toBe(8.5)
+    expect(input.lines.map((l) => [l.label, l.sortOrder])).toEqual([
+      ['Panels', 1],
+      ['By hand', 2]
+    ])
+    expect(input.lines[0].milestoneId).toBeNull()
+  })
+
+  it('toNewInvoiceInput leaves the number out when the field is empty, and refuses an unreadable rate', () => {
+    const input = toNewInvoiceInput({
+      clientId: 'c1',
+      number: '   ',
+      currency: 'USD',
+      taxRate: 'abc',
+      notes: '',
+      lines: [newLine('A')]
+    })
+    expect(input.number).toBeUndefined()
+    expect(input.taxRate).toBe(0)
+  })
+})
+
+describe('billableView', () => {
+  const acme = client({ company: 'Acme' })
+  const delivered = (id: string, at: string, status: Project['status'] = 'delivered'): Project =>
+    project({ id, name: id, status, deliveredAt: at })
+
+  it('lists the tickable work and the already-billed work together, newest delivery first', () => {
+    const free = delivered('p1', '2026-08-26T12:00:00.000Z')
+    const billed = delivered('p2', '2026-08-27T12:00:00.000Z', 'invoiced')
+    const view = billableView(acme, [free, billed], [free], { p2: invoice({ number: 'INV-0131' }) })
+
+    expect(view.company).toBe('Acme')
+    expect(view.rows.map((r) => [r.project.id, r.invoicedOn])).toEqual([
+      ['p2', 'INV-0131'],
+      ['p1', null]
+    ])
+    expect(view.rows[0].delivered).toBe('27 Aug 2026')
+    expect(view.billable).toEqual([free])
+  })
+
+  it('names a billed project "an invoice" when the invoice behind it is not loaded', () => {
+    const billed = delivered('p2', '2026-08-01T12:00:00.000Z', 'paid')
+    expect(billableView(acme, [billed], [], {}).rows[0].invoicedOn).toBe('an invoice')
+  })
+
+  it('counts only the work still running as open projects', () => {
+    const view = billableView(
+      acme,
+      [project({ id: 'a', status: 'active' }), project({ id: 'd', status: 'draft' }), project({ id: 'c', status: 'cancelled' })],
+      [],
+      {}
+    )
+    expect(view.openProjects).toBe(2)
+    expect(view.rows).toEqual([])
   })
 })

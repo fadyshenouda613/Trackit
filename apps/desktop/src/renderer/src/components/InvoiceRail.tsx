@@ -1,5 +1,5 @@
 import type { JSX } from 'react'
-import { formatMoney } from '@trackit/shared'
+import { formatCents, invoiceTotals } from '@trackit/shared'
 
 type InvoiceRailProps = {
   number: string
@@ -10,8 +10,8 @@ type InvoiceRailProps = {
   terms: string | null
   taxRate: string
   onTaxRate: (value: string) => void
-  /** Null before a client is chosen: there is nothing yet to be a subtotal of. */
-  subtotal: number | null
+  /** Cents, or null before a client is chosen: nothing yet to be a subtotal of. */
+  subtotalCents: number | null
   notes: string
   onNotes: (value: string) => void
   symbol: string
@@ -34,15 +34,21 @@ export function InvoiceRail({
   terms,
   taxRate,
   onTaxRate,
-  subtotal,
+  subtotalCents,
   notes,
   onNotes,
   symbol
 }: InvoiceRailProps): JSX.Element {
   const rate = taxRate.trim() === '' ? null : Number(taxRate)
   const valid = rate !== null && Number.isFinite(rate) && rate >= 0
-  const tax = subtotal !== null && valid ? (subtotal * rate) / 100 : null
-  const total = subtotal === null ? null : subtotal + (tax ?? 0)
+  /* The same three figures the store will snapshot, so what the rail adds up
+     and what the invoice ends up carrying cannot differ by a rounded cent. */
+  const totals =
+    subtotalCents === null
+      ? null
+      : invoiceTotals([{ amountCents: subtotalCents }], valid ? (rate as number) : 0)
+  const tax = totals !== null && valid ? totals.taxCents : null
+  const total = totals === null ? null : totals.totalCents
 
   return (
     <aside className="rail invoice__rail" aria-label="Invoice details">
@@ -93,7 +99,7 @@ export function InvoiceRail({
         <div className="inv-totals__row">
           <span className="inv-totals__label">Subtotal</span>
           <span className="inv-totals__value num">
-            {subtotal === null ? '—' : formatMoney(subtotal, symbol)}
+            {subtotalCents === null ? '—' : formatCents(subtotalCents, symbol)}
           </span>
         </div>
 
@@ -112,13 +118,13 @@ export function InvoiceRail({
             />
             <span className="inv-rate__suffix">%</span>
           </div>
-          <span className="inv-totals__value num">{tax === null ? '—' : formatMoney(tax, symbol)}</span>
+          <span className="inv-totals__value num">{tax === null ? '—' : formatCents(tax, symbol)}</span>
         </div>
 
         <div className="inv-totals__total">
           <span className="inv-totals__total-label">Total</span>
           <span className="inv-totals__total-value num">
-            {total === null ? '—' : formatMoney(total, symbol)}
+            {total === null ? '—' : formatCents(total, symbol)}
           </span>
         </div>
       </section>
