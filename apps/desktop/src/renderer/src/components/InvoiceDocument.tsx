@@ -1,22 +1,20 @@
 import type { JSX } from 'react'
-import { formatMoney } from '@trackit/shared'
-import {
-  billTo,
-  business,
-  clientOf,
-  dateLabel,
-  dueOf,
-  statusOf,
-  subtotalOfInvoice,
-  taxOf,
-  totalOf,
-  type Invoice
-} from './invoices-data'
+import { formatCents, type Client, type Id, type Invoice, type Settings } from '@trackit/shared'
+import { dateLabel } from './local-dates'
+import { symbolFor, type LineGroup } from './invoices-data'
+import { termsLabel } from './terms'
 
 type InvoiceDocumentProps = {
   invoice: Invoice
-  /** Opens the invoice a voided one was reissued as. */
-  onOpen: (number: string) => void
+  /** The lines as the document sets them: one section per project billed. */
+  lines: LineGroup[]
+  client: Client | null
+  /** The business profile the sheet is sent from. */
+  settings: Settings
+  /** The invoice a voided one was reissued as, when there is one. */
+  replacedBy: { id: Id; number: string } | null
+  /** Opens that reissued invoice. */
+  onOpen: (id: Id) => void
 }
 
 /**
@@ -34,13 +32,19 @@ type InvoiceDocumentProps = {
  * so the group is a heading with its own subtotal — and when there is only one
  * project, that subtotal would just be the invoice total said twice, so it goes.
  */
-export function InvoiceDocument({ invoice, onOpen }: InvoiceDocumentProps): JSX.Element {
-  const client = clientOf(invoice)
-  const voided = invoice.voided
-  const subtotal = subtotalOfInvoice(invoice)
-  const tax = taxOf(invoice)
-  const grouped = invoice.groups.length > 1
-  const address = billTo[invoice.clientId] ?? []
+export function InvoiceDocument({
+  invoice,
+  lines,
+  client,
+  settings,
+  replacedBy,
+  onOpen
+}: InvoiceDocumentProps): JSX.Element {
+  const voided = invoice.status === 'void'
+  const symbol = symbolFor(invoice)
+  const grouped = lines.length > 1
+  const from = settings.address.split('\n').filter(Boolean)
+  const address = (client?.address ?? '').split('\n').filter(Boolean)
 
   return (
     <div className="doc-wrap">
@@ -48,17 +52,17 @@ export function InvoiceDocument({ invoice, onOpen }: InvoiceDocumentProps): JSX.
         <div className="doc-void" role="status">
           <span className="doc-void__mark t-overline">Void</span>
           <span className="doc-void__text">
-            Voided {dateLabel(voided.date)} — {voided.reason.toLowerCase()}.
-            {voided.replacedBy && (
+            Voided {dateLabel(invoice.voidedAt)} — {invoice.voidReason?.toLowerCase()}.
+            {replacedBy && (
               <>
                 {' '}
                 Reissued as{' '}
                 <button
                   type="button"
                   className="doc-void__link"
-                  onClick={() => onOpen(voided.replacedBy as string)}
+                  onClick={() => onOpen(replacedBy.id)}
                 >
-                  {voided.replacedBy}
+                  {replacedBy.number}
                 </button>
                 .
               </>
@@ -70,13 +74,16 @@ export function InvoiceDocument({ invoice, onOpen }: InvoiceDocumentProps): JSX.
       <article className={voided ? 'panel doc doc--void' : 'panel doc'}>
         <header className="doc__head">
           <div className="doc__from">
-            <span className="doc__from-name">{business.name}</span>
-            <span>{business.person}</span>
-            {business.lines.map((line) => (
+            <span className="doc__from-name">{settings.businessName || settings.person}</span>
+            <span>{settings.person}</span>
+            {from.map((line) => (
               <span key={line}>{line}</span>
             ))}
-            <span className="doc__from-aside">{business.email}</span>
-            <span className="doc__from-aside num">{business.taxId}</span>
+            <span className="doc__from-aside">{settings.email}</span>
+            {/* The slot the artboard gave a tax id, which no schema carries.
+                The phone is the other line a client might have to use, and an
+                empty one is no line at all. */}
+            {settings.phone && <span className="doc__from-aside num">{settings.phone}</span>}
           </div>
 
           <div className="doc__meta">
@@ -85,11 +92,11 @@ export function InvoiceDocument({ invoice, onOpen }: InvoiceDocumentProps): JSX.
 
             <dl className="doc__dates">
               <dt>Issued</dt>
-              <dd className="num">{dateLabel(invoice.issued)}</dd>
+              <dd className="num">{dateLabel(invoice.issuedAt)}</dd>
               <dt>Due</dt>
-              <dd className="num">{dateLabel(dueOf(invoice))}</dd>
+              <dd className="num">{dateLabel(invoice.dueAt)}</dd>
               <dt>Terms</dt>
-              <dd>{client?.terms ?? '—'}</dd>
+              <dd>{client ? termsLabel(client.paymentTermsDays) : '—'}</dd>
             </dl>
           </div>
         </header>
@@ -99,7 +106,7 @@ export function InvoiceDocument({ invoice, onOpen }: InvoiceDocumentProps): JSX.
         <div className="doc__bill">
           <span className="t-overline doc__bill-label">Bill to</span>
           <span className="doc__bill-name">{client?.company ?? '—'}</span>
-          <span className="doc__bill-line">{client?.contact}</span>
+          <span className="doc__bill-line">{client?.name}</span>
           {address.map((line) => (
             <span className="doc__bill-line" key={line}>
               {line}
@@ -108,25 +115,27 @@ export function InvoiceDocument({ invoice, onOpen }: InvoiceDocumentProps): JSX.
         </div>
 
         <div className="doc__lines">
-          {invoice.groups.map((entry) => {
-            const groupTotal = entry.lines.reduce((sum, line) => sum + line.amount, 0)
+          {lines.map((entry) => (
+            <section className="doc__group" key={entry.key}>
+              <div className="doc__group-head">
+                <span className="t-overline doc__group-name">{entry.project}</span>
+                {grouped && (
+                  <span className="doc__group-total num">
+                    {formatCents(entry.totalCents, symbol)}
+                  </span>
+                )}
+              </div>
 
-            return (
-              <section className="doc__group" key={entry.project}>
-                <div className="doc__group-head">
-                  <span className="t-overline doc__group-name">{entry.project}</span>
-                  {grouped && <span className="doc__group-total num">{formatMoney(groupTotal)}</span>}
+              {entry.lines.map((line) => (
+                <div className="doc__line" key={line.id}>
+                  <span className="doc__line-label">{line.label}</span>
+                  <span className="doc__line-amount num">
+                    {formatCents(line.amountCents, symbol)}
+                  </span>
                 </div>
-
-                {entry.lines.map((line) => (
-                  <div className="doc__line" key={line.id}>
-                    <span className="doc__line-label">{line.label}</span>
-                    <span className="doc__line-amount num">{formatMoney(line.amount)}</span>
-                  </div>
-                ))}
-              </section>
-            )
-          })}
+              ))}
+            </section>
+          ))}
         </div>
 
         <div className="doc__rule" />
@@ -141,7 +150,9 @@ export function InvoiceDocument({ invoice, onOpen }: InvoiceDocumentProps): JSX.
           <div className="doc__totals">
             <div className="doc__totals-row">
               <span className="doc__totals-label">Subtotal</span>
-              <span className="doc__totals-value num">{formatMoney(subtotal)}</span>
+              <span className="doc__totals-value num">
+                {formatCents(invoice.subtotalCents, symbol)}
+              </span>
             </div>
 
             {/* Only the invoice that has tax on it shows a tax line — a row
@@ -149,13 +160,17 @@ export function InvoiceDocument({ invoice, onOpen }: InvoiceDocumentProps): JSX.
             {invoice.taxRate > 0 && (
               <div className="doc__totals-row">
                 <span className="doc__totals-label">Tax {invoice.taxRate}%</span>
-                <span className="doc__totals-value num">{formatMoney(tax)}</span>
+                <span className="doc__totals-value num">
+                  {formatCents(invoice.taxCents, symbol)}
+                </span>
               </div>
             )}
 
             <div className="doc__totals-total">
               <span className="doc__totals-total-label">Total</span>
-              <span className="doc__totals-total-value num">{formatMoney(totalOf(invoice))}</span>
+              <span className="doc__totals-total-value num">
+                {formatCents(invoice.totalCents, symbol)}
+              </span>
             </div>
 
             {voided && (
@@ -167,7 +182,7 @@ export function InvoiceDocument({ invoice, onOpen }: InvoiceDocumentProps): JSX.
         </footer>
       </article>
 
-      {statusOf(invoice) === 'draft' && (
+      {invoice.status === 'draft' && (
         <p className="doc-draft">
           Nothing has been sent. The number is already reserved; the issue and due dates are
           set when you mark it as sent.

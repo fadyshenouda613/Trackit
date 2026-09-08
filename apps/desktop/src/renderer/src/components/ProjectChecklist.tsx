@@ -2,92 +2,117 @@ import { useMemo, useRef, useState, type JSX } from 'react'
 import { ReorderConflictNotice } from './ConflictNotice'
 import { Icon } from './Icon'
 import { Meter } from './Meter'
-import { checklistProgress, withMove } from '@trackit/shared'
+import {
+  bySortOrder,
+  checklistProgress,
+  sortOrderForAppend,
+  sortOrderForMove,
+  withMove,
+  type ChecklistItem,
+  type Id
+} from '@trackit/shared'
 import type { DragState } from './reorder'
-
-export type ChecklistItem = {
-  id: string
-  label: string
-  done: boolean
-  /** Added after the project went active. Shown, never flagged. */
-  addedLater?: boolean
-}
-
-/**
- * Seeds the one row the design specifies as mid-drag. It is a presentation
- * state, not a real pointer session, so the first interaction with the list
- * clears it and drag behaves normally from then on.
- */
-const DEMO_DRAG: DragState = { id: 'guidelines', overId: 'stationery' }
-
-const initialItems: ChecklistItem[] = [
-  { id: 'kickoff', label: 'Kickoff call and brief sign-off', done: true },
-  { id: 'interviews', label: 'Stakeholder interviews — four sessions', done: true },
-  { id: 'audit', label: 'Competitive audit', done: true },
-  { id: 'moodboards', label: 'Moodboards — three directions', done: true },
-  { id: 'review', label: 'Direction review with Priya', done: true },
-  { id: 'primary', label: 'Primary logo lockup', done: true },
-  { id: 'horizontal', label: 'Horizontal logo lockup', done: true },
-  { id: 'palette', label: 'Colour palette and type pairing', done: true },
-  { id: 'secondary', label: 'Secondary marks for social', done: false, addedLater: true },
-  { id: 'stationery', label: 'Business card and letterhead', done: false },
-  { id: 'guidelines', label: 'Brand guidelines PDF', done: false },
-  { id: 'avatars', label: 'Social avatar set — six platforms', done: false, addedLater: true },
-  { id: 'signature', label: 'Email signature template', done: false, addedLater: true },
-  { id: 'handover', label: 'Handover call and file package', done: false, addedLater: true }
-]
+import {
+  useCreateChecklistItem,
+  useDeleteChecklistItem,
+  useUpdateChecklistItem
+} from '../data/use-checklist'
 
 type ProjectChecklistProps = {
+  projectId: Id
+  items: ChecklistItem[]
   /** Whether this list came back from a sync ordered two different ways. */
   conflict?: boolean
 }
 
-export function ProjectChecklist({ conflict = false }: ProjectChecklistProps): JSX.Element {
-  const [items, setItems] = useState(initialItems)
+export function ProjectChecklist({
+  projectId,
+  items,
+  conflict = false
+}: ProjectChecklistProps): JSX.Element {
   const [conflictShown, setConflictShown] = useState(true)
-  const [drag, setDrag] = useState<DragState | null>(DEMO_DRAG)
+  const [drag, setDrag] = useState<DragState | null>(null)
   const [grabbed, setGrabbed] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  /*
+   * A rename is buffered per row: a write on every keystroke would be a row of
+   * sync changes for one edit. The store hears about it when the field is left
+   * or Return is pressed, and the buffer is dropped once the refetch has landed
+   * so the row never flickers back to the old label.
+   */
+  const [labels, setLabels] = useState<Record<Id, string>>({})
   const addRef = useRef<HTMLInputElement>(null)
 
+  const create = useCreateChecklistItem()
+  const update = useUpdateChecklistItem()
+  const del = useDeleteChecklistItem()
+
+  const ordered = useMemo(() => [...items].sort(bySortOrder), [items])
   const { done, total, percent } = checklistProgress(items)
-  const later = items.filter((item) => item.addedLater).length
+  const later = items.filter((item) => item.addedAfterKickoff).length
 
   // The lifted row renders in the slot it would drop into, so the list shows
   // the result of the move rather than asking the reader to imagine it.
-  const order = useMemo(() => (drag ? withMove(items, drag.id, drag.overId) : items), [items, drag])
+  const order = useMemo(
+    () => (drag ? withMove(ordered, drag.id, drag.overId) : ordered),
+    [ordered, drag]
+  )
 
+  const forget = (id: Id): void =>
+    setLabels((current) => {
+      const rest = { ...current }
+      delete rest[id]
+      return rest
+    })
+
+  /* One row's sortOrder, not a renumbered list: the midpoint of its new
+     neighbours is the whole move, and one row is what syncs. */
   const commit = (): void => {
-    if (drag) setItems(withMove(items, drag.id, drag.overId))
+    if (drag) {
+      const sortOrder = sortOrderForMove(ordered, drag.id, drag.overId)
+      if (sortOrder !== null) update.mutate({ id: drag.id, projectId, patch: { sortOrder } })
+    }
     setDrag(null)
     setGrabbed(null)
   }
 
-  const toggle = (id: string): void => {
+  const toggle = (item: ChecklistItem): void => {
     setDrag(null)
-    setItems((current) =>
-      current.map((item) => (item.id === id ? { ...item, done: !item.done } : item))
+    update.mutate({ id: item.id, projectId, patch: { done: !item.done } })
+  }
+
+  const commitLabel = (item: ChecklistItem): void => {
+    const buffered = labels[item.id]
+    if (buffered === undefined) return
+    const label = buffered.trim()
+    if (!label || label === item.label) {
+      forget(item.id)
+      return
+    }
+    update.mutate(
+      { id: item.id, projectId, patch: { label } },
+      { onSuccess: () => forget(item.id) }
     )
   }
 
-  const rename = (id: string, label: string): void => {
-    setItems((current) => current.map((item) => (item.id === id ? { ...item, label } : item)))
-  }
-
-  const remove = (id: string): void => {
+  const remove = (id: Id): void => {
     setDrag(null)
-    setItems((current) => current.filter((item) => item.id !== id))
+    del.mutate({ id, projectId })
   }
 
   const add = (): void => {
     const label = draft.trim()
     if (!label) return
     setDrag(null)
-    // The project is active, so anything added now is added after kickoff.
-    setItems((current) => [
-      ...current,
-      { id: `item-${Date.now()}`, label, done: false, addedLater: true }
-    ])
+    /* `addedAfterKickoff` is not ours to say — the store reads the project's
+       state at the moment of creation and sets it. */
+    create.mutate({
+      id: crypto.randomUUID(),
+      projectId,
+      label,
+      done: false,
+      sortOrder: sortOrderForAppend(ordered)
+    })
     setDraft('')
     addRef.current?.focus()
   }
@@ -156,20 +181,26 @@ export function ProjectChecklist({ conflict = false }: ProjectChecklistProps): J
                 role="checkbox"
                 aria-checked={item.done}
                 className="checklist__box"
-                onClick={() => toggle(item.id)}
+                onClick={() => toggle(item)}
               >
                 {item.done && <Icon name="check" size={11} />}
               </button>
 
               <input
                 className="checklist__label"
-                value={item.label}
+                value={labels[item.id] ?? item.label}
                 aria-label="Item"
-                onChange={(event) => rename(item.id, event.target.value)}
+                onChange={(event) =>
+                  setLabels((current) => ({ ...current, [item.id]: event.target.value }))
+                }
                 onFocus={() => setDrag(null)}
+                onBlur={() => commitLabel(item)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') event.currentTarget.blur()
+                }}
               />
 
-              {item.addedLater && <span className="checklist__later">added later</span>}
+              {item.addedAfterKickoff && <span className="checklist__later">added later</span>}
 
               <button
                 type="button"

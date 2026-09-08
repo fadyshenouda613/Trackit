@@ -2,10 +2,12 @@ import type { Database } from 'better-sqlite3'
 import {
   timeEntrySchema,
   type CreateTimeEntryInput,
+  type StartTimerInput,
   type TimeEntry,
   type TimeEntryListFilters,
   type UpdateTimeEntryInput
 } from '@trackit/shared/schemas'
+import { nowIso } from '../db/clock'
 import { RepositoryError } from './errors'
 import { createRow, defineTable, getRow, selectRows, softDeleteRow, updateRow } from './table'
 
@@ -76,4 +78,57 @@ export function listTimeEntries(db: Database, filters: TimeEntryListFilters = {}
     db.prepare(`SELECT * FROM time_entries WHERE ${where.join(' AND ')} ORDER BY started_at, id`),
     params
   )
+}
+
+/** Starts the clock now. The store sets the start; a client cannot backdate one. */
+export function startTimer(db: Database, input: StartTimerInput, now: string = nowIso()): TimeEntry {
+  assertNoOtherRunning(db, input.id)
+  return createRow(db, timeEntriesTable, {
+    id: input.id,
+    projectId: input.projectId,
+    checklistItemId: input.checklistItemId,
+    note: input.note,
+    startedAt: now,
+    endedAt: null,
+    source: 'timer'
+  })
+}
+
+/** Ends the running entry at `now`. */
+export function stopTimer(db: Database, now: string = nowIso()): TimeEntry {
+  const running = runningTimeEntry(db)
+  if (!running) throw new RepositoryError('invalid_state', 'No timer is running')
+  return updateRow(db, timeEntriesTable, running.id, { endedAt: now })
+}
+
+/**
+ * Ends every open entry — what `before-quit` calls, so a clean exit never
+ * leaves a clock running. Anything still open at the next launch therefore
+ * survived a crash, which is what the recovery dialog is for.
+ */
+export function closeOpenEntries(db: Database, now: string = nowIso()): TimeEntry[] {
+  const open = selectRows(
+    timeEntriesTable,
+    db.prepare('SELECT * FROM time_entries WHERE ended_at IS NULL AND deleted_at IS NULL ORDER BY started_at')
+  )
+  return open.map((entry) => updateRow(db, timeEntriesTable, entry.id, { endedAt: now }))
+}
+
+/**
+ * The running entry, if it predates this launch. A clock this process started
+ * is just running; one that was already running when the process came up
+ * belongs to a session that never ended.
+ */
+export function orphanedTimeEntry(db: Database, bootedAt: string): TimeEntry | null {
+  const running = runningTimeEntry(db)
+  return running && running.startedAt < bootedAt ? running : null
+}
+
+/** The most recently started live entry: the project the tray offers to restart. */
+export function latestTimeEntry(db: Database): TimeEntry | null {
+  const [entry] = selectRows(
+    timeEntriesTable,
+    db.prepare('SELECT * FROM time_entries WHERE deleted_at IS NULL ORDER BY started_at DESC, id DESC LIMIT 1')
+  )
+  return entry ?? null
 }

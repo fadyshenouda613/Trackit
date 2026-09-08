@@ -1,25 +1,31 @@
 import { useEffect, useState, type JSX } from 'react'
 import { Icon } from './Icon'
-import { formatMoney, parseMoney, shortDate } from '@trackit/shared'
-import { toneVar } from './tone'
-import { TODAY } from './time-data'
 import {
-  balanceOf,
-  paidOf,
-  paymentMethods,
-  totalOf,
+  balanceCents,
+  formatCents,
+  formatMoney,
+  paidCents,
+  parseMoneyToCents,
+  paymentMethodLabels,
+  shortDate,
   type Invoice,
   type Payment,
   type PaymentMethod
-} from './invoices-data'
+} from '@trackit/shared'
+import { toneVar } from './tone'
+import { atLocal, parseShortDate, todayIso } from './local-dates'
+import { symbolFor } from './invoices-data'
+import { useRecordPayment } from '../data/use-payments'
 
 type RecordPaymentModalProps = {
   invoice: Invoice
+  payments: Payment[]
   onClose: () => void
-  onRecord: (payment: Payment) => void
+  /** The payment the store wrote, so the toast can quote the figure it stored. */
+  onRecorded: (payment: Payment) => void
 }
 
-let nextPaymentId = 0
+const methods = Object.entries(paymentMethodLabels) as [PaymentMethod, string][]
 
 /**
  * Recording a payment is one number, and the reason the dialog is not just a
@@ -35,15 +41,20 @@ let nextPaymentId = 0
  */
 export function RecordPaymentModal({
   invoice,
+  payments,
   onClose,
-  onRecord
+  onRecorded
 }: RecordPaymentModalProps): JSX.Element {
-  const outstanding = balanceOf(invoice)
-  const alreadyPaid = paidOf(invoice)
+  const symbol = symbolFor(invoice)
+  const alreadyPaid = paidCents(payments)
+  const outstanding = balanceCents(invoice.totalCents, alreadyPaid)
+  const record = useRecordPayment()
 
-  const [amount, setAmount] = useState(formatMoney(outstanding, ''))
-  const [date, setDate] = useState(shortDate(TODAY))
-  const [method, setMethod] = useState<PaymentMethod>('Bank transfer')
+  /* The field holds major units while it is being typed — the symbol sits
+     beside it — and is read back to cents at the edge, on submit. */
+  const [amount, setAmount] = useState(formatMoney(outstanding / 100, ''))
+  const [date, setDate] = useState(shortDate(todayIso()))
+  const [method, setMethod] = useState<PaymentMethod>('bank_transfer')
   const [note, setNote] = useState('')
 
   useEffect(() => {
@@ -54,34 +65,43 @@ export function RecordPaymentModal({
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
-  const value = parseMoney(amount)
-  const valid = value !== null && value > 0
-  const remaining = valid ? outstanding - value : outstanding
+  const cents = parseMoneyToCents(amount)
+  const day = parseShortDate(date)
+  const valid = cents !== null && cents > 0 && day !== null
+  const readable = cents !== null && cents > 0
+  const remaining = readable ? outstanding - cents : outstanding
   const over = remaining < 0
 
-  const tone = !valid ? 'neutral' : over ? 'negative' : remaining === 0 ? 'positive' : 'secondary'
+  const tone = !readable ? 'neutral' : over ? 'negative' : remaining === 0 ? 'positive' : 'secondary'
 
   const figure = (): string => {
-    if (!valid) return formatMoney(outstanding)
-    return over ? formatMoney(Math.abs(remaining)) : formatMoney(remaining)
+    if (!readable) return formatCents(outstanding, symbol)
+    return formatCents(Math.abs(remaining), symbol)
   }
 
   const caption = (): string => {
-    if (!valid) return 'Enter an amount to see the balance it leaves'
+    if (!readable) return 'Enter an amount to see the balance it leaves'
     if (over) return 'More than is owed'
     return remaining === 0 ? 'Paid in full' : 'Still outstanding'
   }
 
   const submit = (): void => {
-    if (!valid) return
-    nextPaymentId += 1
-    onRecord({
-      id: `p-new-${nextPaymentId}`,
-      date: TODAY,
-      amount: value,
-      method,
-      note: note.trim() || undefined
-    })
+    /* Restated rather than read off `valid`, so the two figures below are
+       narrowed to what the payment actually needs. */
+    if (cents === null || cents <= 0 || day === null || record.isPending) return
+    record.mutate(
+      {
+        id: crypto.randomUUID(),
+        invoiceId: invoice.id,
+        /* Today is recorded to the minute; a date typed back is local
+           midnight of that day, which is all the field ever said. */
+        paidAt: day === todayIso() ? new Date().toISOString() : atLocal(day, 0),
+        amountCents: cents,
+        method,
+        note: note.trim() || null
+      },
+      { onSuccess: onRecorded }
+    )
   }
 
   return (
@@ -108,7 +128,7 @@ export function RecordPaymentModal({
           <div className="field-row">
             <label htmlFor="rp-amount">Amount received</label>
             <div className="field field--filled money-field">
-              <span className="money-field__symbol num">$</span>
+              <span className="money-field__symbol num">{symbol}</span>
               <input
                 id="rp-amount"
                 type="text"
@@ -118,7 +138,8 @@ export function RecordPaymentModal({
               />
             </div>
             <span className="field-row__hint">
-              Opens at the full {formatMoney(outstanding)} outstanding. Change it for a part payment.
+              Opens at the full {formatCents(outstanding, symbol)} outstanding. Change it for a part
+              payment.
             </span>
           </div>
 
@@ -143,8 +164,10 @@ export function RecordPaymentModal({
                   value={method}
                   onChange={(event) => setMethod(event.target.value as PaymentMethod)}
                 >
-                  {paymentMethods.map((option) => (
-                    <option key={option}>{option}</option>
+                  {methods.map(([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
                   ))}
                 </select>
                 <Icon name="caret" size={12} className="select-wrap__caret" />
@@ -172,8 +195,8 @@ export function RecordPaymentModal({
                 {over ? 'Overpayment' : 'Balance after this payment'}
               </span>
               <span className="implied__basis">
-                {formatMoney(totalOf(invoice))} invoiced
-                {alreadyPaid > 0 ? ` · ${formatMoney(alreadyPaid)} already received` : ''}
+                {formatCents(invoice.totalCents, symbol)} invoiced
+                {alreadyPaid > 0 ? ` · ${formatCents(alreadyPaid, symbol)} already received` : ''}
               </span>
             </div>
 
@@ -197,7 +220,7 @@ export function RecordPaymentModal({
           <button
             type="button"
             className="button button--primary dialog__create"
-            disabled={!valid}
+            disabled={!valid || record.isPending}
             onClick={submit}
           >
             Record payment

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type JSX } from 'react'
-import { ledger } from './bridge'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { useEffect, useState, type JSX } from 'react'
+import { isDesktop, ledger } from './bridge'
 import { AllProjectsTable } from './components/AllProjectsTable'
 import { AttentionList } from './components/AttentionList'
 import { AuthScreen } from './components/AuthScreen'
@@ -27,6 +28,7 @@ import { ToastStack, useToasts } from './components/Toast'
 import { UpdateNotice } from './components/UpdateNotice'
 import {
   deliveredToast,
+  errorToast,
   paymentToast,
   pdfToast,
   timerToast,
@@ -36,8 +38,14 @@ import { TimerBar } from './components/TimerBar'
 import { TimerRecoveryDialog } from './components/TimerRecoveryDialog'
 import { TimeScreen } from './components/TimeScreen'
 import { TopBar } from './components/TopBar'
-import { TODAY } from './components/time-data'
-import { parseMoney } from '@trackit/shared'
+import { useNow } from './components/use-now'
+import {
+  elapsedSeconds,
+  hoursToMinutes,
+  totalMinutes,
+  type Id,
+  type ProjectListFilters
+} from '@trackit/shared'
 import {
   clearSession,
   hasSeenWelcome,
@@ -45,26 +53,44 @@ import {
   readSession,
   writeSession
 } from './components/auth-session'
-import { defaultSettings, type Settings } from './components/settings-data'
-import {
-  invoices as seedInvoices,
-  summarise,
-  type Invoice,
-  type Payment
-} from './components/invoices-data'
+import { dashboardDate } from './components/local-dates'
+import { useInvoiceFigures } from './components/use-invoice-figures'
 import {
   StatePanel,
   type AuthView,
-  type DataState,
   type Modal,
   type NoticeState,
-  type Screen,
-  type TimerState
+  type Screen
 } from './dev/StatePanel'
+import { createQueryClient } from './data/query-client'
+import { useChecklist } from './data/use-checklist'
+import { useClient, useClients } from './data/use-clients'
+import { useDevReset, useDevSeed, useDevTimerScenario } from './data/use-dev'
+import { useInvoice, useInvoices } from './data/use-invoices'
+import { usePayments } from './data/use-payments'
+import { useProject, useProjects } from './data/use-projects'
+import { useUpdateSettings } from './data/use-settings'
+import { usePendingCounts } from './data/use-sync'
+import {
+  useDeleteTimeEntry,
+  useOrphanedTimer,
+  useRunningTimer,
+  useStopTimer,
+  useTimeEntries,
+  useTimerChangedFromMain,
+  useUpdateTimeEntry
+} from './data/use-time'
 
-/* The two the dev panel opens straight to: the richest partial, and the void. */
+/*
+ * The two records the dev panel opens straight to, found by number in whatever
+ * the store holds: the richest partial, and the void. The panel is the only
+ * thing in the renderer that still knows a fixture by name, and it has to —
+ * "open the interesting invoice" is not a query.
+ */
 const SAMPLE_INVOICE = 'INV-0145'
 const SAMPLE_VOID = 'INV-0137'
+/* The project the panel's Project and Timer choices open, likewise. */
+const SAMPLE_PROJECT = 'Brand refresh'
 
 /*
  * Read once, here, rather than in an effect: an effect would paint the sign-in
@@ -80,18 +106,54 @@ const storedSession = readSession()
 const storedTheme = readTheme()
 
 export function App(): JSX.Element {
+  const toastQueue = useToasts()
+  const [queryClient] = useState(() =>
+    createQueryClient((error) => toastQueue.push(errorToast(error.message)))
+  )
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Shell toastQueue={toastQueue} />
+    </QueryClientProvider>
+  )
+}
+
+function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JSX.Element {
   const [screen, setScreen] = useState<Screen>('dashboard')
   const [modal, setModal] = useState<Modal>(null)
+  /* Which record a detail screen is showing. Ids, not names: the screens read
+     them back out of the store. */
+  const [selectedClientId, setSelectedClientId] = useState<Id | null>(null)
+  const [selectedProjectId, setSelectedProjectId] = useState<Id | null>(null)
+  const [openInvoiceId, setOpenInvoiceId] = useState<Id | null>(null)
+  /* The client "New project" is opened for, so the dialog can pre-select it. */
+  const [newProjectClientId, setNewProjectClientId] = useState<Id | null>(null)
+  /* The same for "Create invoice" raised from a project: the client the work
+     belongs to, and the project it was raised from — which is the line the
+     screen opens already ticked, because raising an invoice from a project is
+     an answer to "bill this", not a fresh start. */
+  const [newInvoiceClientId, setNewInvoiceClientId] = useState<Id | null>(null)
+  const [newInvoiceProjectId, setNewInvoiceProjectId] = useState<Id | null>(null)
+  /* The Status/Client/sort state for the Projects screen's toolbar and table —
+     lifted here so the TopBar's unfiltered totals and the filtered table both
+     read from the one store query each of them needs. */
+  const [projectFilters, setProjectFilters] = useState<ProjectListFilters>({})
   /* Create invoice is reached from three places now, so it remembers which one
      and names it in the breadcrumb rather than always claiming to come from the
      dashboard. */
   const [invoiceFrom, setInvoiceFrom] = useState<Screen>('dashboard')
-  const [timer, setTimer] = useState<TimerState>('running')
   const [syncState, setSyncState] = useState<SyncState>('saved')
   const [notice, setNotice] = useState<NoticeState>('none')
-  const [data, setData] = useState<DataState>('ready')
+  /*
+   * The Data axis. Loading is a real query state now; this only forces it, so
+   * the skeletons stay reviewable against a local database that answers in
+   * under a frame.
+   */
+  const [forceLoading, setForceLoading] = useState(false)
   const [theme, setTheme] = useState<Theme>(storedTheme)
-  const { toasts, push: pushToast, dismiss: dismissToast } = useToasts()
+  /* Covers the frame between answering the recovery dialog and the refetch
+     that finds no orphaned timer any more. */
+  const [recoveryDismissed, setRecoveryDismissed] = useState(false)
+  const { toasts, push: pushToast, dismiss: dismissToast } = toastQueue
 
   /*
    * Being signed in is the one thing this app remembers across launches, because
@@ -105,27 +167,6 @@ export function App(): JSX.Element {
   const [authView, setAuthView] = useState<AuthView | null>(
     storedSession ? null : navigator.onLine ? 'signIn' : 'offline'
   )
-
-  /*
-   * The register lives here rather than in either invoice screen, because both
-   * of them read it: a payment recorded on a detail has to move the list's
-   * outstanding figure, and a list that disagreed with the invoice you had just
-   * settled would be the first thing anyone noticed.
-   */
-  /*
-   * Settings is the other thing more than one screen reads. The rate floor in
-   * particular decides which figures the dashboard, the Projects table and the
-   * New project dialog draw in red, so it cannot live inside the Settings
-   * screen: changing it there has to change them here.
-   */
-  /* Seeded with the signed-in address, so Settings' "Signed in as" states who is
-     actually signed in rather than the profile's own default. */
-  const [settings, setSettings] = useState<Settings>(
-    storedSession ? { ...defaultSettings, accountEmail: storedSession.email } : defaultSettings
-  )
-
-  const [register, setRegister] = useState<Invoice[]>(seedInvoices)
-  const [openInvoice, setOpenInvoice] = useState(SAMPLE_INVOICE)
 
   /*
    * The preference is what is stored and what the main process is told —
@@ -170,37 +211,143 @@ export function App(): JSX.Element {
     }
   }, [])
 
-  const isEmpty = screen === 'empty'
+  /* The project screen is about one record, so it cannot be shown without one
+     — an empty store reached through the panel lands on the list instead. */
+  useEffect(() => {
+    if (screen === 'project' && selectedProjectId === null) setScreen('projects')
+  }, [screen, selectedProjectId])
+
+  /* The same for the invoice detail: it is about one record. */
+  useEffect(() => {
+    if (screen === 'invoice' && openInvoiceId === null) setScreen('invoices')
+  }, [screen, openInvoiceId])
+
+  /* The client a Create invoice was raised for belongs to that visit to the
+     screen and nothing else, so it goes when the screen does. */
+  useEffect(() => {
+    if (screen === 'newInvoice') return
+    if (newInvoiceClientId !== null) setNewInvoiceClientId(null)
+    if (newInvoiceProjectId !== null) setNewInvoiceProjectId(null)
+  }, [screen, newInvoiceClientId, newInvoiceProjectId])
+
+  /*
+   * What the shell itself needs from the store. Everything below is derived
+   * from these — the shell holds no copy of any of it.
+   */
+  const clients = useClients()
+  const projects = useProjects()
+  const invoices = useInvoices()
+  const runningTimer = useRunningTimer()
+  const orphanedTimer = useOrphanedTimer()
+  const pendingCounts = usePendingCounts()
+  /* The tray and the shortcut move the clock behind our back; this is how the
+     bar hears about it without a refresh. */
+  useTimerChangedFromMain()
+
+  const stopTimer = useStopTimer()
+  const updateTimeEntry = useUpdateTimeEntry()
+  const deleteTimeEntry = useDeleteTimeEntry()
+  const updateSettings = useUpdateSettings()
+  const devReset = useDevReset()
+  const devSeed = useDevSeed()
+  const devScenario = useDevTimerScenario()
+
+  const clientList = clients.data ?? []
+  const projectList = projects.data ?? []
+  const invoiceList = invoices.data ?? []
+
+  /*
+   * Empty is not a screen any more — it is what the dashboard looks like with
+   * nothing behind it. While the first list is still in flight the shell draws
+   * populated, so the skeletons rather than the empty state are what a launch
+   * shows.
+   */
+  const isEmpty = clients.isSuccess && clients.data.length === 0
   const isClients = screen === 'clients' || screen === 'client'
   const isProjects = screen === 'projects' || screen === 'project'
   const isInvoices = screen === 'invoices' || screen === 'invoice' || screen === 'newInvoice'
+
+  const running = runningTimer.data ?? null
+  /* A clock still running from before this launch: one the app never got to
+     stop, which is what the recovery dialog is for. It is the same row as
+     `running`, so everything the bar works out about that row serves it too. */
+  const orphan = orphanedTimer.data ?? null
+
+  /*
+   * The shell's own clock. Nothing it feeds is finer than a minute — the
+   * dashboard's date, the budget meter, the recovery dialog's figure — so it
+   * ticks once a minute unless a timer is running, when the recovery dialog
+   * and the logged total want to keep step with the bar. The second hand
+   * belongs to the bar itself, which reads its own clock, so a running timer
+   * re-renders one component a second rather than the whole window.
+   */
+  const nowMs = useNow(running ? 1000 : 60_000)
+
+  const runningProject = useProject(running?.projectId ?? null).data ?? null
+  const runningClient = useClient(runningProject?.clientId ?? null).data ?? null
+  const runningDeliverable = useChecklist(running?.projectId ?? null).data?.find(
+    (item) => item.id === running?.checklistItemId
+  )
+  /* Null, not undefined: with no timer running there is no project to total,
+     and undefined would ask for the whole log once a second. */
+  const runningProjectEntries =
+    useTimeEntries(running ? { projectId: running.projectId } : null).data ?? []
+
+  /* Measured to this second, so the meter moves with the clock above it. */
+  const loggedMinutes = totalMinutes(runningProjectEntries, new Date(nowMs).toISOString())
+  const overBudget =
+    running && runningProject ? loggedMinutes > hoursToMinutes(runningProject.budgetedHours) : false
+
   /*
    * The timer bar is window chrome, not part of a screen: "spans the full
    * window above everything and only exists while a timer runs". A new account
-   * has nothing to time, so only the empty screen suppresses it.
+   * has nothing to time, so an empty store suppresses it.
+   *
+   * The recovery dialog is the one thing that outranks it: that dialog exists
+   * because the clock cannot be trusted, so a bar counting it up behind the
+   * question would be arguing with it.
    */
-  const showTimerBar = timer !== 'off' && !isEmpty
+  const showTimerBar = running !== null && !isEmpty && (orphan === null || recoveryDismissed)
 
-  const figures = useMemo(() => summarise(register), [register])
-  /* Held as typed text, read back as a number at the one place it is used. */
-  const rateFloor = parseMoney(settings.rateFloor) ?? 0
-  const invoice = register.find((entry) => entry.number === openInvoice) ?? register[0]
+  /* What the panel's Project, Invoice and Void invoice choices open. Found by
+     name and number, because that is what makes them the interesting ones. */
+  const sampleProject =
+    projectList.find((project) => project.name === SAMPLE_PROJECT) ?? projectList[0] ?? null
+  const sampleInvoice =
+    invoiceList.find((entry) => entry.number === SAMPLE_INVOICE) ?? invoiceList[0] ?? null
+  const sampleVoid =
+    invoiceList.find((entry) => entry.number === SAMPLE_VOID) ?? invoiceList[0] ?? null
+  /* Record payment is the one preview that needs an invoice which can actually
+     take one: a void or a draft has no such action in the real UI, so opening
+     the dialog over either would be previewing a state the app cannot reach. */
+  const samplePayable =
+    invoiceList.find((entry) => entry.number === SAMPLE_INVOICE) ??
+    invoiceList.find((entry) => entry.status === 'sent' || entry.status === 'partial') ??
+    invoiceList[0] ??
+    null
 
-  const patchSettings = (change: Partial<Settings>): void =>
-    setSettings((current) => ({ ...current, ...change }))
+  const selectedClient = useClient(selectedClientId).data ?? null
+  const selectedProject = useProject(selectedProjectId).data ?? null
+  /* The record the payment dialog is opened over. The detail screen reads it
+     for itself; the shell needs it because the dialog is the shell's. */
+  const openInvoiceQuery = useInvoice(openInvoiceId)
+  const openPaymentsQuery = usePayments(openInvoiceId)
+  const openInvoice = openInvoiceQuery.data ?? null
+  const openInvoicePayments = openPaymentsQuery.data ?? []
+  /* The dialog seeds its amount from the outstanding balance once, when it
+     mounts. Opening it over payments still in flight would seed it from the
+     full total — the right figure for the wrong invoice — so it waits. */
+  const openInvoiceSettled = !openInvoiceQuery.isPending && !openPaymentsQuery.isPending
 
-  /** One place the register changes, so every screen reading it changes together. */
-  const patch = (number: string, change: (entry: Invoice) => Invoice): void =>
-    setRegister((current) =>
-      current.map((entry) => (entry.number === number ? change(entry) : entry))
-    )
+  const activeProjects = projectList.filter((project) => project.status === 'active').length
+  /* One composition for the sidebar badge and the Invoices bar: a void, a
+     draft and a settled invoice are never overdue, whatever their date says. */
+  const { summary } = useInvoiceFigures(invoiceList)
 
   /** Signing in and signing up both end here: store it, name it, drop the gate. */
   const enter = (email: string, name: string, view: AuthView | null): void => {
     writeSession({ version: 1, email, name })
-    patchSettings({ accountEmail: email })
-    /* Deliberately not patching `person`: that is the name printed on invoices,
-       and the seeded business profile is what every invoice screen renders. */
+    updateSettings.mutate({ accountEmail: email })
     setAuthView(view)
   }
 
@@ -244,17 +391,19 @@ export function App(): JSX.Element {
 
   const onCreateInvoice = (): void => {
     setInvoiceFrom(screen)
+    setNewInvoiceClientId(screen === 'project' ? (selectedProject?.clientId ?? null) : null)
+    setNewInvoiceProjectId(screen === 'project' ? (selectedProject?.id ?? null) : null)
     setScreen('newInvoice')
   }
 
-  const openDetail = (number: string): void => {
-    setOpenInvoice(number)
+  const openDetail = (id: Id): void => {
+    setOpenInvoiceId(id)
     setScreen('invoice')
   }
 
   const backFrom = (from: Screen): { label: string; onClick: () => void } =>
     from === 'project'
-      ? { label: 'Brand refresh', onClick: () => setScreen('project') }
+      ? { label: selectedProject?.name ?? 'Project', onClick: () => setScreen('project') }
       : from === 'invoices'
         ? { label: 'Invoices', onClick: () => setScreen('invoices') }
         : { label: 'Dashboard', onClick: () => setScreen('dashboard') }
@@ -266,33 +415,62 @@ export function App(): JSX.Element {
       screen={screen}
       onScreen={(next) => {
         setModal(null)
-        if (next === 'newClient') {
+        if (next === 'empty') {
+          /* Empty and Seed are the database, not the screen: they wipe and
+             reload it, and every query refetches into whatever is left. */
+          devReset.mutate(undefined)
+          setScreen('dashboard')
+        } else if (next === 'seed') {
+          devSeed.mutate({ reset: true })
+          setScreen('dashboard')
+        } else if (next === 'newClient') {
           setScreen('clients')
           setModal('client')
         } else if (next === 'newProject') {
+          setNewProjectClientId(null)
           setScreen('projects')
           setModal('project')
         } else if (next === 'recovery') {
+          /* Stages a clock left running since yesterday afternoon; the dialog
+             is a condition of the launch, so it appears over whatever is up. */
+          setRecoveryDismissed(false)
+          devScenario.mutate('orphaned')
           setScreen('time')
-          setModal('recovery')
         } else if (next === 'voidInvoice') {
-          setOpenInvoice(SAMPLE_VOID)
+          setOpenInvoiceId(sampleVoid?.id ?? null)
           setScreen('invoice')
         } else if (next === 'payment') {
-          setOpenInvoice(SAMPLE_INVOICE)
+          setOpenInvoiceId(samplePayable?.id ?? null)
           setScreen('invoice')
           setModal('payment')
         } else {
-          if (next === 'invoice') setOpenInvoice(SAMPLE_INVOICE)
-          if (next === 'newInvoice') setInvoiceFrom('invoices')
+          if (next === 'invoice') setOpenInvoiceId(sampleInvoice?.id ?? null)
+          if (next === 'project') setSelectedProjectId(sampleProject?.id ?? null)
+          if (next === 'client') {
+            setSelectedClientId(sampleProject?.clientId ?? clientList[0]?.id ?? null)
+          }
+          if (next === 'newInvoice') {
+            setInvoiceFrom('invoices')
+            setNewInvoiceClientId(null)
+            setNewInvoiceProjectId(null)
+          }
           setScreen(next)
         }
       }}
       modal={modal}
+      isEmpty={isEmpty}
       authView={authView}
       onAuthView={setAuthView}
-      timer={timer}
-      onTimer={setTimer}
+      timer={running === null ? 'off' : overBudget ? 'over' : 'running'}
+      onTimer={(next) => {
+        /* Stopping is the app's own move; the other two stage a clock on a
+           project the store has to already hold. */
+        if (next === 'off') {
+          if (running) stopTimer.mutate()
+        } else {
+          devScenario.mutate(next)
+        }
+      }}
       syncState={syncState}
       onSyncState={setSyncState}
       notice={notice}
@@ -302,16 +480,21 @@ export function App(): JSX.Element {
         if (next === 'conflict' || next === 'reorder') setScreen('project')
         setNotice(next)
       }}
-      data={data}
-      onData={setData}
+      data={forceLoading ? 'loading' : 'ready'}
+      onData={(next) => setForceLoading(next === 'loading')}
       onToast={(kind: ToastKind) => {
         if (kind === 'pdf') pushToast(pdfToast('INV-0148'))
-        if (kind === 'payment') pushToast(paymentToast(2400, 'INV-0145'))
+        if (kind === 'payment') pushToast(paymentToast(240000, 'INV-0145'))
         if (kind === 'delivered') pushToast(deliveredToast('Brand refresh'))
         if (kind === 'timer') pushToast(timerToast(84, 'Brand refresh'))
+        if (kind === 'error')
+          pushToast(errorToast('A timer is already running; stop it before starting another'))
       }}
       theme={theme}
       onTheme={setTheme}
+      /* The levers that write to the store need the bridge and a development
+         build — main registers them only when the app is not packaged. */
+      devAvailable={isDesktop && import.meta.env.DEV}
     />
   )
 
@@ -336,10 +519,10 @@ export function App(): JSX.Element {
             setAuthView('signIn')
             return true
           }}
-          /* The welcome card's single action: into the app, on the screen a new
-             account actually has — the empty dashboard. */
+          /* The welcome card's single action: into the app, on the dashboard —
+             which a new account's empty store draws as the empty state. */
           onEnterApp={() => {
-            setScreen('empty')
+            setScreen('dashboard')
             setAuthView(null)
           }}
         />
@@ -355,9 +538,25 @@ export function App(): JSX.Element {
    * because it is the way back.
    */
   if (screen === 'printed') {
+    /* Whichever invoice is open, or the first on file — the sheet is reached
+       from the panel as often as from a record. Resolved against the register
+       rather than trusted, so an id left over from a wiped database falls back
+       to what is actually there. */
+    const printId =
+      (invoiceList.some((entry) => entry.id === openInvoiceId)
+        ? openInvoiceId
+        : invoiceList[0]?.id) ?? null
     return (
       <>
-        <PrintedInvoice />
+        {printId === null ? (
+          <EmptyState
+            title="Nothing to print"
+            body="Raise an invoice first."
+            action={{ label: 'Back to invoices', onClick: () => setScreen('invoices') }}
+          />
+        ) : (
+          <PrintedInvoice invoiceId={printId} />
+        )}
         {statePanel}
       </>
     )
@@ -365,19 +564,24 @@ export function App(): JSX.Element {
 
   return (
     <div className="app">
-      {showTimerBar && (
+      {showTimerBar && running && runningProject && runningClient && (
         <TimerBar
-          client="Northwind Studio"
-          project="Brand refresh"
-          deliverable="Logo lockups"
-          loggedMinutes={timer === 'over' ? 1960 : 1695}
-          budgetMinutes={1920}
-          elapsed={timer === 'over' ? '04:11:52' : '01:24:36'}
+          entry={running}
+          project={runningProject}
+          client={runningClient}
+          deliverable={runningDeliverable?.label ?? ''}
+          loggedMinutes={loggedMinutes}
+          budgetMinutes={hoursToMinutes(runningProject.budgetedHours)}
           onStop={() => {
             /* The bar takes the elapsed clock with it when it goes, so this is
-               the only place the hours just logged are ever stated. */
-            pushToast(timerToast(timer === 'over' ? 1960 : 1695, 'Brand refresh'))
-            setTimer('off')
+               the only place the hours just logged are ever stated. What was
+               just logged is this run, not the project's lifetime — and it has
+               to be read before the row closes. */
+            const minutes = Math.floor(elapsedSeconds(running.startedAt, Date.now()) / 60)
+            const name = runningProject.name
+            stopTimer.mutate(undefined, {
+              onSuccess: () => pushToast(timerToast(minutes, name))
+            })
           }}
         />
       )}
@@ -398,16 +602,12 @@ export function App(): JSX.Element {
                       ? 'projects'
                       : 'dashboard'
           }
-          counts={
-            isProjects || screen === 'time'
-              ? { clients: '8', projects: '14' }
-              : isClients
-                ? { clients: '8', projects: '6' }
-                : { clients: '7', projects: '6' }
-          }
-          /* The badge is the overdue count, so it is counted rather than typed. */
-          overdueInvoices={figures.overdueCount}
-          timerRunning={timer !== 'off'}
+          /* One real count on every screen: the artboards' per-screen figures
+             were fixtures of their own frames. */
+          counts={{ clients: String(clientList.length), projects: String(activeProjects) }}
+          pending={pendingCounts.data ?? {}}
+          overdueInvoices={summary.overdueCount}
+          timerRunning={running !== null}
           syncState={syncState}
           onSyncNow={onSyncNow}
           onNavigate={onNavigate}
@@ -421,27 +621,31 @@ export function App(): JSX.Element {
 
           {/* Time is the one screen that owns its whole header — see TimeScreen. */}
           {screen === 'time' ? (
-            <TimeScreen isTopmost={!showTimerBar} />
+            <TimeScreen isTopmost={!showTimerBar} loading={forceLoading} />
           ) : screen === 'settings' ? (
             /* Also owns its whole header: the sub-nav beside the pane is part
                of the screen, not of the shell. */
             <SettingsScreen
-              settings={settings}
-              onChange={patchSettings}
               syncState={syncState}
               isTopmost={!showTimerBar}
               onSignOut={onSignOut}
               theme={theme}
               onTheme={setTheme}
+              loading={forceLoading}
             />
           ) : screen === 'newInvoice' ? (
             /* Also owns its whole header: the footer acts on the body between. */
             <InvoiceScreen
               isTopmost={!showTimerBar}
               back={backFrom(invoiceFrom)}
-              /* The one project detail screen designed belongs to Northwind. */
-              initialClientId={invoiceFrom === 'project' ? 'northwind' : undefined}
+              /* Set when a project raised this invoice: whoever is paying for
+                 that project is the one fact the entry point carries. */
+              initialClientId={newInvoiceClientId ?? undefined}
+              /* And the project itself, so the work it was raised for is
+                 already ticked rather than asked for again. */
+              initialProjectId={newInvoiceProjectId ?? undefined}
               onOpenProjects={() => setScreen('projects')}
+              onSaved={openDetail}
             />
           ) : screen === 'invoice' ? (
             /* The document names the record, so the bar only offers a way back. */
@@ -452,7 +656,7 @@ export function App(): JSX.Element {
           ) : screen === 'invoices' ? (
             <TopBar
               title="Invoices"
-              meta={register.length + ' total · ' + figures.openCount + ' unpaid'}
+              meta={`${invoiceList.length} total · ${summary.openCount} unpaid`}
               isTopmost={!showTimerBar}
               actions={
                 <button
@@ -472,7 +676,7 @@ export function App(): JSX.Element {
           ) : screen === 'client' ? (
             <TopBar
               breadcrumb={{ label: 'Clients', onClick: () => setScreen('clients') }}
-              title="Northwind Studio"
+              title={selectedClient?.company || selectedClient?.name}
               isTopmost={!showTimerBar}
               actions={
                 <>
@@ -485,7 +689,10 @@ export function App(): JSX.Element {
                   <button
                     type="button"
                     className="button button--primary no-drag"
-                    onClick={() => setModal('project')}
+                    onClick={() => {
+                      setNewProjectClientId(selectedClientId)
+                      setModal('project')
+                    }}
                   >
                     New project
                   </button>
@@ -495,7 +702,7 @@ export function App(): JSX.Element {
           ) : screen === 'clients' ? (
             <TopBar
               title="Clients"
-              meta="8 active"
+              meta={`${clientList.length} active`}
               isTopmost={!showTimerBar}
               actions={
                 <button
@@ -510,7 +717,7 @@ export function App(): JSX.Element {
           ) : screen === 'projects' ? (
             <TopBar
               title="Projects"
-              meta="14 total · 6 active"
+              meta={`${projectList.length} total · ${activeProjects} active`}
               isTopmost={!showTimerBar}
               actions={
                 <button
@@ -525,7 +732,7 @@ export function App(): JSX.Element {
           ) : (
             <TopBar
               title="Dashboard"
-              meta="Friday, 28 August 2026"
+              meta={dashboardDate(new Date(nowMs))}
               isTopmost={!showTimerBar}
               actions={
                 isEmpty ? null : (
@@ -552,7 +759,9 @@ export function App(): JSX.Element {
             </div>
           )}
 
-          {screen === 'empty' && (
+          {/* An account with no clients has no dashboard to draw, so the
+              dashboard is where it says so. */}
+          {screen === 'dashboard' && isEmpty && (
             <EmptyState
               title="Start with a client"
               body="Add whoever is paying you. Projects, hours and invoices all hang off a client, and Trackit starts working out your real hourly rate from the first entry."
@@ -565,13 +774,24 @@ export function App(): JSX.Element {
             />
           )}
 
-          {screen === 'dashboard' && (
+          {screen === 'dashboard' && !isEmpty && (
             <div className="main__content">
               <MetricCards />
               {/* The table owns this one, because it owns the heading above
                   the rows and that heading is known while they load. */}
-              <ProjectsTable rateFloor={rateFloor} loading={data === 'loading'} />
-              <AttentionList />
+              <ProjectsTable
+                loading={forceLoading}
+                onOpen={(id) => {
+                  setSelectedProjectId(id)
+                  setScreen('project')
+                }}
+              />
+              <AttentionList
+                onOpenProject={(id) => {
+                  setSelectedProjectId(id)
+                  setScreen('project')
+                }}
+              />
             </div>
           )}
 
@@ -579,19 +799,38 @@ export function App(): JSX.Element {
             <>
               <ListToolbar />
               <div className="main__content">
-                <ClientsTable selectedId="northwind" onOpen={() => setScreen('client')} />
+                <ClientsTable
+                  selectedId={selectedClientId ?? undefined}
+                  onOpen={(id) => {
+                    setSelectedClientId(id)
+                    setScreen('client')
+                  }}
+                  onNewClient={() => setModal('client')}
+                  loading={forceLoading}
+                />
               </div>
             </>
           )}
 
           {screen === 'projects' && (
             <>
-              <ProjectsToolbar />
+              <ProjectsToolbar
+                filters={projectFilters}
+                onFilters={setProjectFilters}
+                clients={clientList}
+              />
               <div className="main__content">
-                {data === 'loading' ? (
+                {forceLoading ? (
                   <TableSkeleton block="all-projects" />
                 ) : (
-                  <AllProjectsTable onOpen={() => setScreen('project')} />
+                  <AllProjectsTable
+                    filters={projectFilters}
+                    onOpen={(id) => {
+                      setSelectedProjectId(id)
+                      setScreen('project')
+                    }}
+                    onNewProject={() => setModal('project')}
+                  />
                 )}
               </div>
             </>
@@ -599,67 +838,126 @@ export function App(): JSX.Element {
 
           {screen === 'invoices' && (
             <InvoicesScreen
-              register={register}
               onOpen={openDetail}
-              loading={data === 'loading'}
+              onNewInvoice={onCreateInvoice}
+              loading={forceLoading}
             />
           )}
 
-          {screen === 'invoice' && (
+          {screen === 'invoice' && openInvoiceId && (
             <div className="main__content">
               <InvoiceDetail
-                invoice={invoice}
+                invoiceId={openInvoiceId}
                 onOpen={openDetail}
-                onMarkSent={() => patch(invoice.number, (entry) => ({ ...entry, issued: TODAY }))}
                 onRecordPayment={() => setModal('payment')}
-                onVoid={() =>
-                  patch(invoice.number, (entry) => ({
-                    ...entry,
-                    voided: { date: TODAY, reason: 'Cancelled before payment' }
-                  }))
-                }
+                onBack={() => setScreen('invoices')}
+                loading={forceLoading}
               />
             </div>
           )}
 
-          {screen === 'client' && (
+          {screen === 'client' && selectedClientId && (
             <div className="main__content">
-              <ClientDetail />
+              <ClientDetail
+                clientId={selectedClientId}
+                onOpenProject={(id) => {
+                  setSelectedProjectId(id)
+                  setScreen('project')
+                }}
+                onOpenInvoice={(id) => {
+                  setOpenInvoiceId(id)
+                  setScreen('invoice')
+                }}
+                loading={forceLoading}
+              />
             </div>
           )}
 
-          {screen === 'project' && (
+          {screen === 'project' && selectedProjectId && (
             <div className="main__content">
               <ProjectDetail
+                projectId={selectedProjectId}
                 onCreateInvoice={onCreateInvoice}
-                rateFloor={rateFloor}
+                onOpenClient={(id) => {
+                  setSelectedClientId(id)
+                  setScreen('client')
+                }}
+                onOpenInvoice={(id) => {
+                  setOpenInvoiceId(id)
+                  setScreen('invoice')
+                }}
+                onRecordPayment={(invoiceId) => {
+                  setOpenInvoiceId(invoiceId)
+                  setScreen('invoice')
+                  setModal('payment')
+                }}
+                onBack={() => setScreen('projects')}
                 conflict={notice === 'conflict'}
                 reorderConflict={notice === 'reorder'}
                 onDelivered={(project) => pushToast(deliveredToast(project))}
+                loading={forceLoading}
               />
             </div>
           )}
         </main>
       </div>
 
-      {modal === 'client' && <NewClientModal onClose={() => setModal(null)} />}
-      {modal === 'project' && (
-        <NewProjectModal onClose={() => setModal(null)} rateFloor={rateFloor} />
-      )}
-      {modal === 'recovery' && <TimerRecoveryDialog onResolve={() => setModal(null)} />}
-      {modal === 'payment' && (
-        <RecordPaymentModal
-          invoice={invoice}
+      {modal === 'client' && (
+        <NewClientModal
           onClose={() => setModal(null)}
-          onRecord={(payment: Payment) => {
-            patch(invoice.number, (entry) => ({
-              ...entry,
-              payments: [...entry.payments, payment]
-            }))
-            /* The dialog closes over the figure it just changed, so the toast
-               restates the amount against the invoice it landed on. */
-            pushToast(paymentToast(payment.amount, invoice.number))
+          onCreated={(id) => setSelectedClientId(id)}
+        />
+      )}
+      {modal === 'project' && (
+        <NewProjectModal
+          onClose={() => {
             setModal(null)
+            setNewProjectClientId(null)
+          }}
+          initialClientId={newProjectClientId ?? undefined}
+        />
+      )}
+      {modal === 'payment' && openInvoice && openInvoiceSettled && (
+        <RecordPaymentModal
+          invoice={openInvoice}
+          payments={openInvoicePayments}
+          onClose={() => setModal(null)}
+          onRecorded={(payment) => {
+            pushToast(paymentToast(payment.amountCents, openInvoice.number))
+            setModal(null)
+          }}
+        />
+      )}
+
+      {/*
+       * Not a modal: a timer left running by a session that never ended is a
+       * condition of the launch, so the dialog appears over whatever screen is
+       * up and stays until it is answered. Every answer invalidates the time
+       * queries, which is what takes it away.
+       */}
+      {orphan && !recoveryDismissed && runningProject && (
+        <TimerRecoveryDialog
+          entry={orphan}
+          projectName={runningProject.name}
+          alreadyLoggedMinutes={totalMinutes(
+            runningProjectEntries.filter((entry) => entry.id !== orphan.id)
+          )}
+          nowMs={nowMs}
+          onResolve={(choice) => {
+            /* The dialog goes on the click rather than on the refetch, so the
+               frame between them is not a dialog answering itself. A write that
+               is refused brings it back — the timer still has to become
+               something, and the error toast says what went wrong. */
+            const reopen = { onError: () => setRecoveryDismissed(false) }
+            if (choice.kind === 'keep') stopTimer.mutate(undefined, reopen)
+            if (choice.kind === 'trim') {
+              updateTimeEntry.mutate(
+                { id: orphan.id, patch: { endedAt: choice.endedAt } },
+                reopen
+              )
+            }
+            if (choice.kind === 'discard') deleteTimeEntry.mutate(orphan.id, reopen)
+            setRecoveryDismissed(true)
           }}
         />
       )}

@@ -1,11 +1,11 @@
 import { useRef, type JSX } from 'react'
+import type { Settings, UpdateSettingsInput } from '@trackit/shared'
 import { Logo } from './Logo'
 import { SettingsRow, SettingsSection } from './SettingsRow'
-import type { Settings } from './settings-data'
 
 type SettingsBusinessProps = {
   settings: Settings
-  onChange: (patch: Partial<Settings>) => void
+  onChange: (patch: UpdateSettingsInput) => void
 }
 
 const fieldClass = (value: string): string => (value ? 'field field--filled' : 'field')

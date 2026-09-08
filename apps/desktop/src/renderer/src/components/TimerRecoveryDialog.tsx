@@ -1,17 +1,60 @@
 import { useState, type JSX } from 'react'
-import { clockSpanMinutes, formatClock, formatDuration, parseClock } from '@trackit/shared'
+import {
+  clockSpanMinutes,
+  elapsedSeconds,
+  formatClock,
+  formatDuration,
+  parseClock,
+  shortDate,
+  type TimeEntry
+} from '@trackit/shared'
+
+/**
+ * What the dialog answers with. Trim carries the end it worked out, so the
+ * shell writes a timestamp rather than re-deriving one from a clock face.
+ */
+export type RecoveryChoice =
+  | { kind: 'keep' }
+  | { kind: 'trim'; endedAt: string }
+  | { kind: 'discard' }
 
 type TimerRecoveryDialogProps = {
-  onResolve: () => void
+  /** The clock that was still running when the app came up. */
+  entry: TimeEntry
+  projectName: string
+  /** Minutes the project already has from other entries. */
+  alreadyLoggedMinutes: number
+  nowMs: number
+  onResolve: (choice: RecoveryChoice) => void
 }
 
 type Choice = 'keep' | 'trim' | 'discard'
 
-/* The run being recovered: started 4:10 PM yesterday, still going at 6:32 AM. */
-const PROJECT = 'Brand refresh'
-const STARTED = 16 * 60 + 10
-const RAN = 14 * 60 + 22
-const ALREADY_LOGGED = 28 * 60 + 15
+/** Minutes since local midnight — the clock face the entry started at. */
+const startedAtClock = (iso: string): number => {
+  const date = new Date(iso)
+  return date.getHours() * 60 + date.getMinutes()
+}
+
+/**
+ * `formatDuration` renders nothing under a minute as an em dash, which is right
+ * in a table column and wrong in a sentence: "has been running for —". In prose
+ * a run too short to round to a minute is still a run.
+ */
+const runLabel = (minutes: number): string =>
+  minutes <= 0 ? 'under a minute' : formatDuration(minutes)
+
+/** Whether the run began on the local day before `nowMs`. */
+function startedYesterday(iso: string, nowMs: number): boolean {
+  const started = new Date(iso)
+  const yesterday = new Date(nowMs)
+  yesterday.setDate(yesterday.getDate() - 1)
+  return (
+    started.getFullYear() === yesterday.getFullYear() &&
+    started.getMonth() === yesterday.getMonth() &&
+    started.getDate() === yesterday.getDate()
+  )
+}
 
 /**
  * Shown on launch when the app finds a timer that was never stopped.
@@ -24,9 +67,24 @@ const ALREADY_LOGGED = 28 * 60 + 15
  * Unlike the other dialogs there is no close button and no Esc handler: the
  * timer has to become something, even if that something is nothing.
  */
-export function TimerRecoveryDialog({ onResolve }: TimerRecoveryDialogProps): JSX.Element {
-  const [choice, setChoice] = useState<Choice>('trim')
-  const [trimText, setTrimText] = useState('6:00 PM')
+export function TimerRecoveryDialog({
+  entry,
+  projectName,
+  alreadyLoggedMinutes,
+  nowMs,
+  onResolve
+}: TimerRecoveryDialogProps): JSX.Element {
+  const STARTED = startedAtClock(entry.startedAt)
+  const RAN = Math.floor(elapsedSeconds(entry.startedAt, nowMs) / 60)
+  const ALREADY_LOGGED = alreadyLoggedMinutes
+
+  /* A run with nothing in it yet cannot be trimmed to anything valid, so the
+     question opens on the answer that is available. */
+  const [choice, setChoice] = useState<Choice>(RAN === 0 ? 'keep' : 'trim')
+  /* The run's own end, not a guess at when the day finished: the dialog opens
+     valid — trimming to it logs the whole run — and editing it down is what
+     makes it a trim. Anything else opens showing an error nobody typed. */
+  const [trimText, setTrimText] = useState(() => formatClock((STARTED + RAN) % 1440))
 
   const parsed = parseClock(trimText)
   const trimmed = parsed === null ? null : clockSpanMinutes(STARTED, parsed)
@@ -46,7 +104,7 @@ export function TimerRecoveryDialog({ onResolve }: TimerRecoveryDialogProps): JS
 
   const confirmLabel =
     choice === 'keep'
-      ? `Keep ${formatDuration(RAN)}`
+      ? `Keep ${runLabel(RAN)}`
       : choice === 'discard'
         ? 'Discard'
         : trimValid
@@ -56,7 +114,7 @@ export function TimerRecoveryDialog({ onResolve }: TimerRecoveryDialogProps): JS
   const choices: { key: Choice; label: JSX.Element; note: string }[] = [
     {
       key: 'keep',
-      label: <>Keep all {formatDuration(RAN)}</>,
+      label: <>Keep all {runLabel(RAN)}</>,
       note: 'Logs the whole run, ending now.'
     },
     {
@@ -78,9 +136,10 @@ export function TimerRecoveryDialog({ onResolve }: TimerRecoveryDialogProps): JS
     {
       key: 'discard',
       label: <>Discard it</>,
-      note: `Nothing is logged. ${PROJECT} keeps the ${formatDuration(
-        ALREADY_LOGGED
-      )} it already has.`
+      note:
+        ALREADY_LOGGED <= 0
+          ? `Nothing is logged. ${projectName} has nothing logged yet.`
+          : `Nothing is logged. ${projectName} keeps the ${runLabel(ALREADY_LOGGED)} it already has.`
     }
   ]
 
@@ -93,8 +152,12 @@ export function TimerRecoveryDialog({ onResolve }: TimerRecoveryDialogProps): JS
 
         <div className="dialog__body">
           <p className="t-body recovery__lede">
-            A timer for <strong>{PROJECT}</strong> has been running for{' '}
-            <strong>{formatDuration(RAN)}</strong> since yesterday at {formatClock(STARTED)}.
+            A timer for <strong>{projectName}</strong> has been running for{' '}
+            <strong>{runLabel(RAN)}</strong>{' '}
+            {startedYesterday(entry.startedAt, nowMs)
+              ? 'since yesterday at '
+              : `since ${shortDate(entry.startedAt)} at `}
+            {formatClock(STARTED)}.
           </p>
           <p className="recovery__hint">
             It most likely kept going after you finished for the day. Choose what to log — you
@@ -134,7 +197,17 @@ export function TimerRecoveryDialog({ onResolve }: TimerRecoveryDialogProps): JS
             type="button"
             className={choice === 'discard' ? 'button' : 'button button--primary'}
             disabled={choice === 'trim' && !trimValid}
-            onClick={onResolve}
+            onClick={() => {
+              if (choice === 'keep') return onResolve({ kind: 'keep' })
+              if (choice === 'discard') return onResolve({ kind: 'discard' })
+              /* The button is disabled until the trim parses, so this is the
+                 only branch left: the end the entry is given. */
+              if (trimmed === null) return
+              return onResolve({
+                kind: 'trim',
+                endedAt: new Date(Date.parse(entry.startedAt) + trimmed * 60_000).toISOString()
+              })
+            }}
           >
             {confirmLabel}
           </button>

@@ -1,9 +1,9 @@
 import type { JSX } from 'react'
+import type { Settings } from '@trackit/shared'
 import { SettingsRow, SettingsSection } from './SettingsRow'
 import { agoLabel } from './time-data'
 import { failureReasons, footerLabel, pendingTotal, snapshots, type SyncState } from './sync-data'
 import { syncTones } from './sync-data'
-import type { Settings } from './settings-data'
 import { toneVar } from './tone'
 import { useNow } from './use-now'
 

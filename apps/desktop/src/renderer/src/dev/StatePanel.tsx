@@ -5,7 +5,6 @@ import type { ToastKind } from '../components/toast-data'
 
 export type Screen =
   | 'dashboard'
-  | 'empty'
   | 'clients'
   | 'client'
   | 'projects'
@@ -40,17 +39,30 @@ export type TimerState = 'off' | 'running' | 'over'
 export type NoticeState = 'none' | 'conflict' | 'reorder' | 'update'
 
 /**
- * Whether the tables have their rows yet. There is no asynchrony in this app —
- * every row is a synchronous import — so the loading state is unreachable
- * without a switch for it, and a skeleton nobody can look at is a skeleton
- * nobody maintains.
+ * Whether the tables have their rows yet. Loading is the real query state; this
+ * switch forces it so the skeletons stay reviewable — a local database answers
+ * fast enough that nobody would otherwise see one.
  */
 export type DataState = 'ready' | 'loading'
 
 /** Dialogs are states of a screen, not screens of their own. */
-export type Modal = null | 'client' | 'project' | 'recovery' | 'payment'
+export type Modal = null | 'client' | 'project' | 'payment'
 
-type ScreenChoice = Screen | 'newClient' | 'newProject' | 'recovery' | 'voidInvoice' | 'payment'
+/**
+ * Everything the Screen row can ask for. Wider than `Screen` because some of
+ * its entries are not places: `empty` and `seed` are what the database holds,
+ * the dialogs are states of a screen, and `recovery` is a condition the app
+ * finds at launch.
+ */
+type ScreenChoice =
+  | Screen
+  | 'empty'
+  | 'seed'
+  | 'newClient'
+  | 'newProject'
+  | 'recovery'
+  | 'voidInvoice'
+  | 'payment'
 
 /** `in` is the way back to the app; the rest map straight to an `AuthView`. */
 type AccountChoice = 'in' | AuthView
@@ -58,6 +70,8 @@ type AccountChoice = 'in' | AuthView
 type StatePanelProps = {
   screen: Screen
   modal: Modal
+  /** Whether the database is empty, which is what the Screen row calls 'empty'. */
+  isEmpty: boolean
   onScreen: (choice: ScreenChoice) => void
   authView: AuthView | null
   onAuthView: (view: AuthView | null) => void
@@ -74,12 +88,19 @@ type StatePanelProps = {
   onToast: (kind: ToastKind) => void
   theme: Theme
   onTheme: (theme: Theme) => void
+  /**
+   * Whether the levers that write to the database are there to pull. They are
+   * registered only in a development build, so in a packaged one the options
+   * that need them say why they cannot be used rather than failing when they
+   * are.
+   */
+  devAvailable: boolean
 }
 
 type OptionRowProps<T extends string> = {
   label: string
   value: T
-  options: { value: T; label: string }[]
+  options: { value: T; label: string; disabled?: boolean }[]
   onChange: (value: T) => void
 }
 
@@ -102,6 +123,8 @@ function OptionRow<T extends string>({
                 ? 'state-panel__option state-panel__option--on'
                 : 'state-panel__option'
             }
+            disabled={option.disabled}
+            title={option.disabled ? 'Development build only' : undefined}
             onClick={() => onChange(option.value)}
           >
             {option.label}
@@ -145,16 +168,19 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
             ? 'newClient'
             : props.modal === 'project'
               ? 'newProject'
-              : props.modal === 'recovery'
-                ? 'recovery'
-                : props.modal === 'payment'
-                  ? 'payment'
+              : props.modal === 'payment'
+                ? 'payment'
+                : /* Empty is not a screen of its own any more: it is the
+                     dashboard with an empty database behind it. */
+                  props.isEmpty && props.screen === 'dashboard'
+                  ? 'empty'
                   : props.screen
         }
         onChange={props.onScreen}
         options={[
           { value: 'dashboard', label: 'Dashboard' },
-          { value: 'empty', label: 'Empty' },
+          { value: 'empty', label: 'Empty', disabled: !props.devAvailable },
+          { value: 'seed', label: 'Seed', disabled: !props.devAvailable },
           { value: 'clients', label: 'Clients' },
           { value: 'client', label: 'Detail' },
           { value: 'newClient', label: 'New client' },
@@ -162,7 +188,7 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
           { value: 'project', label: 'Project' },
           { value: 'newProject', label: 'New project' },
           { value: 'time', label: 'Time' },
-          { value: 'recovery', label: 'Recovery' },
+          { value: 'recovery', label: 'Recovery', disabled: !props.devAvailable },
           { value: 'newInvoice', label: 'New invoice' },
           { value: 'invoices', label: 'Invoices' },
           { value: 'invoice', label: 'Invoice' },
@@ -197,10 +223,12 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
         label="Timer"
         value={props.timer}
         onChange={props.onTimer}
+        /* Stopping is something the app itself can do; starting a clock on the
+           sample project, or on one already over its budget, is staged. */
         options={[
           { value: 'off', label: 'Stopped' },
-          { value: 'running', label: 'Running' },
-          { value: 'over', label: 'Over budget' }
+          { value: 'running', label: 'Running', disabled: !props.devAvailable },
+          { value: 'over', label: 'Over budget', disabled: !props.devAvailable }
         ]}
       />
 
@@ -248,7 +276,8 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
               { value: 'pdf', label: 'PDF' },
               { value: 'payment', label: 'Payment' },
               { value: 'delivered', label: 'Delivered' },
-              { value: 'timer', label: 'Timer' }
+              { value: 'timer', label: 'Timer' },
+              { value: 'error', label: 'Error' }
             ] as { value: ToastKind; label: string }[]
           ).map((option) => (
             <button

@@ -1,24 +1,29 @@
 import { Fragment, useEffect, useRef, useState, type JSX } from 'react'
-import { formatClock, formatDuration, parseClock } from '@trackit/shared'
-import { Icon } from './Icon'
 import {
-  clientFor,
-  dayLabel,
-  daysOf,
-  durationOf,
-  projectNames,
-  totalOf,
+  entryMinutes,
+  formatClock,
+  formatDuration,
+  parseClock,
+  totalMinutes,
+  type Id,
+  type Project,
   type TimeEntry,
-  type Week
-} from './time-data'
+  type UpdateTimeEntryInput
+} from '@trackit/shared'
+import { Icon } from './Icon'
+import { dayLabel, dayOf } from './time-data'
+import { atLocal, localMinutesOf } from './local-dates'
 
 type TimeLogProps = {
-  week: Week
+  days: string[]
+  today: string
   entries: TimeEntry[]
+  projects: Project[]
+  clientNameOf: (projectId: Id) => string
   /** The row whose description should take focus — set when a row is added. */
-  focusId: string | null
-  onChange: (id: string, patch: Partial<TimeEntry>) => void
-  onDelete: (id: string) => void
+  focusId: Id | null
+  onChange: (id: Id, patch: UpdateTimeEntryInput) => void
+  onDelete: (id: Id) => void
   onFocused: () => void
 }
 
@@ -65,18 +70,27 @@ function TimeCell({
 
 function Row({
   entry,
+  projects,
+  clientNameOf,
   focus,
   onChange,
   onDelete,
   onFocused
 }: {
   entry: TimeEntry
+  projects: Project[]
+  clientNameOf: (projectId: Id) => string
   focus: boolean
-  onChange: (id: string, patch: Partial<TimeEntry>) => void
-  onDelete: (id: string) => void
+  onChange: (id: Id, patch: UpdateTimeEntryInput) => void
+  onDelete: (id: Id) => void
   onFocused: () => void
 }): JSX.Element {
   const note = useRef<HTMLInputElement>(null)
+  /* Buffered like the time cells: a note typed mid-word should not fire a
+     write on every keystroke, only when it is left. */
+  const [noteText, setNoteText] = useState(entry.note)
+
+  useEffect(() => setNoteText(entry.note), [entry.note])
 
   useEffect(() => {
     if (!focus) return
@@ -84,18 +98,27 @@ function Row({
     onFocused()
   }, [focus, onFocused])
 
+  const day = dayOf(entry)
+  const startMin = localMinutesOf(entry.startedAt)
+  /* Guaranteed set: the running entry (endedAt null) never reaches the log. */
+  const endMin = localMinutesOf(entry.endedAt ?? entry.startedAt)
+
+  const commitNote = (): void => {
+    if (noteText !== entry.note) onChange(entry.id, { note: noteText })
+  }
+
   return (
     <div className="time-log__row">
       <div className="time-log__cell time-log__pick">
         <select
           className="time-log__select truncate"
-          value={entry.project}
+          value={entry.projectId}
           aria-label="Project"
-          onChange={(event) => onChange(entry.id, { project: event.target.value })}
+          onChange={(event) => onChange(entry.id, { projectId: event.target.value })}
         >
-          {projectNames.map((name) => (
-            <option key={name} value={name}>
-              {name}
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
             </option>
           ))}
         </select>
@@ -104,30 +127,38 @@ function Row({
 
       {/* The client follows the project — two places to change it would be two
           places for it to disagree. */}
-      <span className="time-log__client truncate">{clientFor(entry.project)}</span>
+      <span className="time-log__client truncate">{clientNameOf(entry.projectId)}</span>
 
       <input
         ref={note}
         className="time-log__cell time-log__note"
-        value={entry.note}
+        value={noteText}
         aria-label="Description"
         placeholder="What did you work on?"
         spellCheck={false}
-        onChange={(event) => onChange(entry.id, { note: event.target.value })}
+        onChange={(event) => setNoteText(event.target.value)}
+        onBlur={commitNote}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur()
+        }}
       />
 
       <TimeCell
-        value={entry.startMin}
+        value={startMin}
         label="Start time"
-        onCommit={(startMin) => onChange(entry.id, { startMin })}
+        onCommit={(minutes) => onChange(entry.id, { startedAt: atLocal(day, minutes) })}
       />
       <TimeCell
-        value={entry.endMin}
+        value={endMin}
         label="End time"
-        onCommit={(endMin) => onChange(entry.id, { endMin })}
+        onCommit={(minutes) =>
+          onChange(entry.id, {
+            endedAt: atLocal(day, minutes < startMin ? minutes + 1440 : minutes)
+          })
+        }
       />
 
-      <span className="time-log__duration num">{formatDuration(durationOf(entry))}</span>
+      <span className="time-log__duration num">{formatDuration(entryMinutes(entry))}</span>
 
       <button
         type="button"
@@ -146,15 +177,16 @@ function Row({
  * drawn as a thin line, so the shape of the week survives.
  */
 export function TimeLog({
-  week,
+  days,
+  today,
   entries,
+  projects,
+  clientNameOf,
   focusId,
   onChange,
   onDelete,
   onFocused
 }: TimeLogProps): JSX.Element {
-  const days = daysOf(week)
-
   return (
     <div className="panel time-log">
       <div className="time-log__header t-overline">
@@ -168,10 +200,10 @@ export function TimeLog({
       </div>
 
       {days.map((iso) => {
-        const label = dayLabel(iso)
+        const label = dayLabel(iso, today)
         const dayEntries = entries
-          .filter((item) => item.iso === iso)
-          .sort((a, b) => a.startMin - b.startMin)
+          .filter((entry) => dayOf(entry) === iso)
+          .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
 
         if (dayEntries.length === 0) {
           return (
@@ -193,15 +225,19 @@ export function TimeLog({
                 {label.primary}
                 <span className="time-log__day-date">{label.secondary}</span>
               </span>
-              <span className="time-log__day-total num">{formatDuration(totalOf(dayEntries))}</span>
+              <span className="time-log__day-total num">
+                {formatDuration(totalMinutes(dayEntries))}
+              </span>
               <span />
             </div>
 
-            {dayEntries.map((item) => (
+            {dayEntries.map((entry) => (
               <Row
-                key={item.id}
-                entry={item}
-                focus={item.id === focusId}
+                key={entry.id}
+                entry={entry}
+                projects={projects}
+                clientNameOf={clientNameOf}
+                focus={entry.id === focusId}
                 onChange={onChange}
                 onDelete={onDelete}
                 onFocused={onFocused}

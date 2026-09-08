@@ -1,13 +1,22 @@
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
+import {
+  addDays,
+  currencies,
+  nextInvoiceNumber,
+  nextInvoiceSequence,
+  shortDate,
+  type Settings,
+  type UpdateSettingsInput
+} from '@trackit/shared'
 import { Icon } from './Icon'
+import { formFrom, parseScheme, parseTaxRate, parseTermDays, type SettingsForm } from './settings-data'
 import { SettingsRow, SettingsSection } from './SettingsRow'
-import { addDays, currencies, shortDate } from '@trackit/shared'
-import { nextInvoiceNumber, type Settings } from './settings-data'
-import { TODAY } from './time-data'
+import { todayIso } from './local-dates'
+import { useInvoices } from '../data/use-invoices'
 
 type SettingsInvoicingProps = {
   settings: Settings
-  onChange: (patch: Partial<Settings>) => void
+  onChange: (patch: UpdateSettingsInput) => void
 }
 
 /**
@@ -15,15 +24,21 @@ type SettingsInvoicingProps = {
  * live — the terms name the date they produce, the scheme names the number it
  * produces — because both are rules whose output is the thing you actually care
  * about, and neither is obvious from the rule alone.
+ *
+ * Tax, terms and the numbering scheme are held here as typed text and only
+ * committed to the store when they parse: a rejected keystroke stays on
+ * screen rather than reverting mid-edit, and the field alone still says why
+ * with the same phrasing the previews below already use.
  */
 export function SettingsInvoicing({ settings, onChange }: SettingsInvoicingProps): JSX.Element {
-  const days = Number(settings.paymentTermsDays)
-  const dueDate =
-    Number.isFinite(days) && days >= 0 && settings.paymentTermsDays.trim()
-      ? shortDate(addDays(TODAY, days))
-      : null
+  const [form, setForm] = useState<SettingsForm>(() => formFrom(settings))
+  const invoices = useInvoices()
 
-  const preview = nextInvoiceNumber(settings.numberingScheme)
+  const days = parseTermDays(form.paymentTermsDays)
+  const dueDate = days !== null ? shortDate(addDays(todayIso(), days)) : null
+
+  const sequence = nextInvoiceSequence((invoices.data ?? []).map((i) => i.number), form.numberingScheme)
+  const preview = nextInvoiceNumber(form.numberingScheme, sequence, new Date())
 
   return (
     <SettingsSection
@@ -43,6 +58,7 @@ export function SettingsInvoicing({ settings, onChange }: SettingsInvoicingProps
             onChange={(event) =>
               onChange({ currency: event.target.value as Settings['currency'] })
             }
+            /* Direct: a currency code has no invalid keystroke to buffer against. */
           >
             {currencies.map((entry) => (
               <option key={entry.code} value={entry.code}>
@@ -64,8 +80,13 @@ export function SettingsInvoicing({ settings, onChange }: SettingsInvoicingProps
             id="set-tax"
             type="text"
             className="pct-field__input num"
-            value={settings.taxRate}
-            onChange={(event) => onChange({ taxRate: event.target.value })}
+            value={form.taxRate}
+            onChange={(event) => {
+              const taxRate = event.target.value
+              setForm((current) => ({ ...current, taxRate }))
+              const parsed = parseTaxRate(taxRate)
+              if (parsed !== null) onChange({ taxRate: parsed })
+            }}
           />
           <span className="hours-field__suffix">%</span>
         </div>
@@ -78,8 +99,13 @@ export function SettingsInvoicing({ settings, onChange }: SettingsInvoicingProps
               id="set-terms"
               type="text"
               className="pct-field__input num"
-              value={settings.paymentTermsDays}
-              onChange={(event) => onChange({ paymentTermsDays: event.target.value })}
+              value={form.paymentTermsDays}
+              onChange={(event) => {
+                const paymentTermsDays = event.target.value
+                setForm((current) => ({ ...current, paymentTermsDays }))
+                const parsed = parseTermDays(paymentTermsDays)
+                if (parsed !== null) onChange({ paymentTermsDays: parsed })
+              }}
             />
             <span className="hours-field__suffix">days</span>
           </div>
@@ -107,8 +133,13 @@ export function SettingsInvoicing({ settings, onChange }: SettingsInvoicingProps
             id="set-numbering"
             type="text"
             className="field field--filled t-mono"
-            value={settings.numberingScheme}
-            onChange={(event) => onChange({ numberingScheme: event.target.value })}
+            value={form.numberingScheme}
+            onChange={(event) => {
+              const numberingScheme = event.target.value
+              setForm((current) => ({ ...current, numberingScheme }))
+              const parsed = parseScheme(numberingScheme)
+              if (parsed !== null) onChange({ numberingScheme: parsed })
+            }}
           />
 
           <div className="settings-preview">

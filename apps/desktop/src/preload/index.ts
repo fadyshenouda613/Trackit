@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { DataApi, LedgerApi } from '@trackit/shared/api'
+import type { DataApi, LedgerApi, Result } from '@trackit/shared/api'
 
 /*
  * One entry per channel, each the mirror of a handler in main/data-ipc.ts.
@@ -43,7 +43,10 @@ const data: DataApi = {
     delete: (id) => ipcRenderer.invoke('time:delete', id),
     get: (id) => ipcRenderer.invoke('time:get', id),
     list: (filters) => ipcRenderer.invoke('time:list', filters),
-    running: () => ipcRenderer.invoke('time:running')
+    running: () => ipcRenderer.invoke('time:running'),
+    start: (input) => ipcRenderer.invoke('time:start', input),
+    stop: () => ipcRenderer.invoke('time:stop'),
+    orphan: () => ipcRenderer.invoke('time:orphan')
   },
   invoices: {
     create: (input) => ipcRenderer.invoke('invoices:create', input),
@@ -66,8 +69,21 @@ const data: DataApi = {
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
     update: (patch) => ipcRenderer.invoke('settings:update', patch)
+  },
+  sync: {
+    pendingCounts: () => ipcRenderer.invoke('sync:pendingCounts')
   }
 }
+
+/*
+ * The dev channels have no handler in a packaged build. `invoke` rejects on a
+ * missing handler, and nothing rejects across this bridge, so the rejection
+ * is turned into the Result the renderer already knows how to read.
+ */
+const devInvoke = <T>(channel: string, payload?: unknown): Promise<Result<T>> =>
+  ipcRenderer.invoke(channel, payload).catch(
+    (): Result<T> => ({ ok: false, error: { code: 'not_found', message: `${channel} is not available in this build` } })
+  )
 
 const api: LedgerApi = {
   platform: process.platform,
@@ -83,7 +99,19 @@ const api: LedgerApi = {
     },
     setTheme: (theme) => ipcRenderer.send('window:set-theme', theme)
   },
-  data
+  data,
+  timer: {
+    onChanged: (listener) => {
+      const handler = (): void => listener()
+      ipcRenderer.on('timer:changed', handler)
+      return () => ipcRenderer.removeListener('timer:changed', handler)
+    }
+  },
+  dev: {
+    reset: () => devInvoke('dev:reset'),
+    seed: (options) => devInvoke('dev:seed', options),
+    timerScenario: (scenario) => devInvoke('dev:timerScenario', scenario)
+  }
 }
 
 contextBridge.exposeInMainWorld('ledger', api)

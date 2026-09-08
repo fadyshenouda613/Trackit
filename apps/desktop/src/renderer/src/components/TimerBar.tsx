@@ -1,16 +1,27 @@
 import type { JSX } from 'react'
 import { TitleBarControls } from './TitleBarControls'
-import { budgetConsumption, formatBudget, formatDuration } from '@trackit/shared'
+import { useNow } from './use-now'
+import {
+  budgetConsumption,
+  elapsedSeconds,
+  formatBudget,
+  formatDuration,
+  formatElapsed,
+  type Client,
+  type Project,
+  type TimeEntry
+} from '@trackit/shared'
 
 type TimerBarProps = {
-  client: string
-  project: string
+  /** The running entry. Its `startedAt` is the clock; nothing here accumulates. */
+  entry: TimeEntry
+  project: Project
+  client: Client
+  /** The checklist item the timer was started on, or '' when it was not. */
   deliverable: string
   /** Everything logged to the project so far, this session included. */
   loggedMinutes: number
   budgetMinutes: number
-  /** Pre-formatted: the app has no clock, so nothing here counts. */
-  elapsed: string
   onStop?: () => void
 }
 
@@ -25,17 +36,25 @@ type TimerBarProps = {
  * timer is still running, which is the whole point of the warning.
  */
 export function TimerBar({
+  entry,
   client,
   project,
   deliverable,
   loggedMinutes,
   budgetMinutes,
-  elapsed,
   onStop
 }: TimerBarProps): JSX.Element {
+  /* The second hand lives here and nowhere else. The shell above ticks once a
+     minute, which is all its date and its meter need; a clock in a bar is the
+     one thing in this window that has to move every second, so only this
+     component is re-rendered that often. */
+  const nowMs = useNow(1000)
   const budget = budgetConsumption(loggedMinutes, budgetMinutes)
   const over = budget.over
   const percent = Math.min(100, budget.percent ?? 0)
+  /* Computed from the stored start every tick, never counted up: a machine
+     that slept through the night wakes with the right figure. */
+  const elapsed = formatElapsed(elapsedSeconds(entry.startedAt, nowMs))
 
   return (
     <div className={over ? 'timer-bar timer-bar--over drag' : 'timer-bar drag'}>
@@ -47,9 +66,12 @@ export function TimerBar({
       <div className="timer-bar__divider" />
 
       <span className="timer-bar__project truncate">
-        {client} — {project}
+        {client.company || client.name} — {project.name}
       </span>
-      <span className="timer-bar__meta truncate">Deliverable: {deliverable}</span>
+      {/* A timer started from the project rather than from one of its
+          deliverables has nothing to name, so the line goes rather than
+          standing empty. */}
+      {deliverable && <span className="timer-bar__meta truncate">Deliverable: {deliverable}</span>}
 
       <div className="spacer" />
 

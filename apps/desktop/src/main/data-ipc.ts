@@ -16,6 +16,8 @@ import {
   noteListFiltersSchema,
   projectListFiltersSchema,
   projectTransitionSchema,
+  startTimerInputSchema,
+  type Settings,
   timeEntryListFiltersSchema,
   updateChecklistItemInputSchema,
   updateClientInputSchema,
@@ -36,17 +38,20 @@ import * as repo from './repositories'
  * Nothing thrown here reaches the renderer as an exception.
  */
 
-function toApiError(error: unknown): ApiError {
+export function toApiError(error: unknown): ApiError {
   if (error instanceof repo.RepositoryError) return { code: error.code, message: error.message }
   // A merged row that fails its schema — an end before its start, say.
   if (error instanceof z.ZodError) return { code: 'validation', message: z.prettifyError(error) }
   return { code: 'internal', message: error instanceof Error ? error.message : String(error) }
 }
 
-function handle<S extends z.ZodType, T>(
+export function handle<S extends z.ZodType, T>(
   channel: string,
   schema: S,
-  run: (input: z.output<S>) => T
+  run: (input: z.output<S>) => T,
+  /* Given what the call returned, so a hook can act on the new row rather
+     than reading it back out of the database a second time. */
+  after?: (data: T) => void
 ): void {
   ipcMain.handle(channel, (_event, payload: unknown): Result<T> => {
     const parsed = schema.safeParse(payload)
@@ -54,7 +59,9 @@ function handle<S extends z.ZodType, T>(
       return { ok: false, error: { code: 'validation', message: z.prettifyError(parsed.error) } }
     }
     try {
-      return { ok: true, data: run(parsed.data) }
+      const data = run(parsed.data)
+      after?.(data)
+      return { ok: true, data }
     } catch (error) {
       return { ok: false, error: toApiError(error) }
     }
@@ -67,7 +74,17 @@ const withId = <S extends z.ZodType>(patch: S) => z.object({ id: idSchema, patch
 /** A list call may be made with no filters at all. */
 const optional = <S extends z.ZodType>(filters: S) => filters.optional()
 
-export function registerDataIpc(db: Database): void {
+export type DataIpcDeps = {
+  /** When this process came up; a clock running from before it is an orphan. */
+  bootedAt: string
+  /** The tray redraws and the renderer refetches after any change to the clock. */
+  onTimerChanged: () => void
+  /** Settings that main acts on — the global shortcut — are rebound from here. */
+  onSettingsChanged: (settings: Settings) => void
+}
+
+export function registerDataIpc(db: Database, deps: DataIpcDeps): void {
+  const { onTimerChanged } = deps
   handle('clients:create', createClientInputSchema, (input) => repo.createClient(db, input))
   handle('clients:update', withId(updateClientInputSchema), ({ id, patch }) => repo.updateClient(db, id, patch))
   handle('clients:delete', idSchema, (id) => repo.deleteClient(db, id))
@@ -97,12 +114,15 @@ export function registerDataIpc(db: Database): void {
   handle('notes:delete', idSchema, (id) => repo.deleteNote(db, id))
   handle('notes:list', noteListFiltersSchema, (filters) => repo.listNotes(db, filters))
 
-  handle('time:create', createTimeEntryInputSchema, (input) => repo.createTimeEntry(db, input))
-  handle('time:update', withId(updateTimeEntryInputSchema), ({ id, patch }) => repo.updateTimeEntry(db, id, patch))
-  handle('time:delete', idSchema, (id) => repo.deleteTimeEntry(db, id))
+  handle('time:create', createTimeEntryInputSchema, (input) => repo.createTimeEntry(db, input), onTimerChanged)
+  handle('time:update', withId(updateTimeEntryInputSchema), ({ id, patch }) => repo.updateTimeEntry(db, id, patch), onTimerChanged)
+  handle('time:delete', idSchema, (id) => repo.deleteTimeEntry(db, id), onTimerChanged)
   handle('time:get', idSchema, (id) => repo.getTimeEntry(db, id))
   handle('time:list', optional(timeEntryListFiltersSchema), (filters) => repo.listTimeEntries(db, filters))
   handle('time:running', z.undefined(), () => repo.runningTimeEntry(db))
+  handle('time:start', startTimerInputSchema, (input) => repo.startTimer(db, input), onTimerChanged)
+  handle('time:stop', z.undefined(), () => repo.stopTimer(db), onTimerChanged)
+  handle('time:orphan', z.undefined(), () => repo.orphanedTimeEntry(db, deps.bootedAt))
 
   handle('invoices:create', newInvoiceInputSchema, (input) => repo.createInvoice(db, input))
   handle('invoices:update', withId(updateInvoiceInputSchema), ({ id, patch }) => repo.updateInvoice(db, id, patch))
@@ -129,5 +149,12 @@ export function registerDataIpc(db: Database): void {
   handle('payments:list', idSchema, (invoiceId) => repo.listPayments(db, invoiceId))
 
   handle('settings:get', z.undefined(), () => repo.getSettings(db))
-  handle('settings:update', updateSettingsInputSchema, (patch) => repo.updateSettings(db, patch))
+  handle(
+    'settings:update',
+    updateSettingsInputSchema,
+    (patch) => repo.updateSettings(db, patch),
+    deps.onSettingsChanged
+  )
+
+  handle('sync:pendingCounts', z.undefined(), () => repo.pendingCounts(db))
 }

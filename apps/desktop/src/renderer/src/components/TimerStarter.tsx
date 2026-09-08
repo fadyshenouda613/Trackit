@@ -1,9 +1,10 @@
-import { useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
+import type { Id, Project } from '@trackit/shared'
 import { Icon } from './Icon'
-import { startableProjects } from './time-data'
 
 type TimerStarterProps = {
-  onStart?: (project: string) => void
+  projects: Project[]
+  onStart?: (projectId: Id) => void
 }
 
 /**
@@ -11,8 +12,14 @@ type TimerStarterProps = {
  * a dialog: starting a timer is the one thing on this screen that should cost a
  * single click once the project is right.
  */
-export function TimerStarter({ onStart }: TimerStarterProps): JSX.Element {
-  const [project, setProject] = useState(startableProjects[0])
+export function TimerStarter({ projects, onStart }: TimerStarterProps): JSX.Element {
+  const [project, setProject] = useState<Id | ''>(projects[0]?.id ?? '')
+
+  /* The list starts empty while the query is in flight; adopt the first
+     project once it lands rather than leaving the picker stuck blank. */
+  useEffect(() => {
+    if (project === '' && projects[0]) setProject(projects[0].id)
+  }, [project, projects])
 
   return (
     <div className="timer-starter no-drag">
@@ -23,9 +30,9 @@ export function TimerStarter({ onStart }: TimerStarterProps): JSX.Element {
           aria-label="Project to time"
           onChange={(event) => setProject(event.target.value)}
         >
-          {startableProjects.map((name) => (
-            <option key={name} value={name}>
-              {name}
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
             </option>
           ))}
         </select>
@@ -35,7 +42,8 @@ export function TimerStarter({ onStart }: TimerStarterProps): JSX.Element {
       <button
         type="button"
         className="button button--primary timer-starter__start"
-        onClick={() => onStart?.(project)}
+        disabled={!project}
+        onClick={() => project && onStart?.(project)}
       >
         <Icon name="play" size={11} />
         Start

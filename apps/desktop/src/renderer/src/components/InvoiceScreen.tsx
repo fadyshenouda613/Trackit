@@ -1,21 +1,32 @@
-import { useState, type JSX } from 'react'
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { BillableProjects } from './BillableProjects'
 import { Icon } from './Icon'
 import { InvoiceLines } from './InvoiceLines'
 import { InvoiceRail } from './InvoiceRail'
 import { TopBar } from './TopBar'
 import {
-  ISSUE_DATE,
-  NEXT_NUMBER,
-  billingClients,
-  clientById,
-  dueDateFor,
-  newLineId,
-  subtotalOf,
-  symbolFor,
-  type BillableProject,
-  type InvoiceLine
-} from './invoice-data'
+  addDays,
+  nextInvoiceNumber,
+  nextInvoiceSequence,
+  shortDate,
+  symbolOf,
+  type Id,
+  type Project
+} from '@trackit/shared'
+import {
+  billableView,
+  draftSubtotal,
+  lineFromProject,
+  newLine,
+  toNewInvoiceInput,
+  type LineDraft
+} from './invoices-data'
+import { todayIso } from './local-dates'
+import { termsLabel } from './terms'
+import { useClients } from '../data/use-clients'
+import { useCreateInvoice, useInvoices } from '../data/use-invoices'
+import { useBillableProjects, useProjectInvoices, useProjects } from '../data/use-projects'
+import { useSettings } from '../data/use-settings'
 
 type InvoiceScreenProps = {
   isTopmost: boolean
@@ -26,8 +37,16 @@ type InvoiceScreenProps = {
    * project is the one fact the entry point carries, and asking for it again
    * would be asking the freelancer to repeat themselves.
    */
-  initialClientId?: string
+  initialClientId?: Id
+  /**
+   * And the project it was raised from, which opens already ticked: "create an
+   * invoice for this project" is an answer, not a question to ask back. Ignored
+   * if that project is not billable — already invoiced work is not offered.
+   */
+  initialProjectId?: Id
   onOpenProjects: () => void
+  /** The draft the store wrote, so the screen it lands on is that record. */
+  onSaved: (id: Id) => void
 }
 
 /**
@@ -46,18 +65,77 @@ type InvoiceScreenProps = {
 export function InvoiceScreen({
   isTopmost,
   back,
-  initialClientId = '',
-  onOpenProjects
+  initialClientId,
+  initialProjectId,
+  onOpenProjects,
+  onSaved
 }: InvoiceScreenProps): JSX.Element {
-  const [clientId, setClientId] = useState(initialClientId)
-  const [lines, setLines] = useState<InvoiceLine[]>([])
-  const [number, setNumber] = useState(NEXT_NUMBER)
-  const [taxRate, setTaxRate] = useState('')
+  const [clientId, setClientId] = useState<Id | ''>(initialClientId ?? '')
+  const [lines, setLines] = useState<LineDraft[]>([])
+  /* Null until the field is touched: the number the scheme produces is what it
+     shows, and typing over it is what makes it the freelancer's. */
+  const [typedNumber, setTypedNumber] = useState<string | null>(null)
+  const [typedTaxRate, setTypedTaxRate] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
 
-  const client = clientId ? clientById(clientId) : null
-  /* The invoice is written in the client currency throughout, symbol included. */
-  const symbol = client ? symbolFor(client.currency) : '$'
+  const clients = useClients()
+  const settings = useSettings()
+  /* The whole register, for the numbers the scheme counts past. */
+  const register = useInvoices()
+  const billable = useBillableProjects(clientId || null)
+  const clientProjects = useProjects({ clientId: clientId || undefined })
+  const create = useCreateInvoice()
+
+  const clientList = clients.data ?? []
+  const client = clientList.find((entry) => entry.id === clientId) ?? null
+  const billableList = useMemo(() => billable.data ?? [], [billable.data])
+  const projectList = useMemo(
+    () => (clientId ? (clientProjects.data ?? []) : []),
+    [clientId, clientProjects.data]
+  )
+
+  /* The delivered work that is spoken for: each one names the invoice it went
+     out on, which is the answer to "didn't I already bill that?". */
+  const invoicedIds = useMemo(
+    () =>
+      projectList
+        .filter(
+          (p) =>
+            p.status === 'invoiced' ||
+            p.status === 'paid' ||
+            (p.status === 'delivered' && !billableList.some((b) => b.id === p.id))
+        )
+        .map((p) => p.id),
+    [projectList, billableList]
+  )
+  const projectInvoices = useProjectInvoices(invoicedIds)
+
+  /* What is on offer only moves when the store does, so it is worked out when
+     the store moves rather than on every keystroke in the rail beside it. */
+  const view = useMemo(
+    () => (client ? billableView(client, projectList, billableList, projectInvoices.data ?? {}) : null),
+    [client, projectList, billableList, projectInvoices.data]
+  )
+
+  const today = todayIso()
+  /* The invoice is written in the client currency throughout, symbol included;
+     before a client is chosen the settings default stands in. */
+  const currency = client?.currency ?? settings.data?.currency ?? 'USD'
+  const symbol = symbolOf(currency)
+
+  const suggested = settings.data
+    ? (nextInvoiceNumber(
+        settings.data.numberingScheme,
+        nextInvoiceSequence(
+          (register.data ?? []).map((invoice) => invoice.number),
+          settings.data.numberingScheme
+        ),
+        new Date()
+      ) ?? '')
+    : ''
+  const number = typedNumber ?? suggested
+  const defaultTaxRate = settings.data && settings.data.taxRate > 0 ? String(settings.data.taxRate) : ''
+  const taxRate = typedTaxRate ?? defaultTaxRate
 
   /* One invoice, one client: changing it starts the invoice again rather than
      carrying another client's work across. */
@@ -70,39 +148,54 @@ export function InvoiceScreen({
      above reads its state back off them and the two can never disagree. */
   const selected = lines
     .map((line) => line.projectId)
-    .filter((id): id is string => Boolean(id))
+    .filter((id): id is Id => id !== null)
 
-  const toggle = (project: BillableProject): void => {
+  const toggle = (project: Project): void => {
     setLines((current) =>
       current.some((line) => line.projectId === project.id)
         ? current.filter((line) => line.projectId !== project.id)
-        : [
-            ...current,
-            {
-              id: project.id,
-              label: project.name,
-              amount: project.price,
-              projectId: project.id
-            }
-          ]
+        : [...current, lineFromProject(project)]
     )
   }
 
-  const change = (id: string, patch: Partial<InvoiceLine>): void => {
+  /*
+   * The tick the entry point already made. It has to wait for the billable list
+   * — until that answers there is no project to tick — and it happens once: a
+   * seed that ran again would put the line back after it was deliberately
+   * unticked. Untouched if the project is not on the list, because delivered
+   * work that is already invoiced is not on offer.
+   */
+  const seeded = useRef(false)
+  useEffect(() => {
+    if (seeded.current || initialProjectId === undefined) return
+    const project = billableList.find((entry) => entry.id === initialProjectId)
+    if (!project) return
+    seeded.current = true
+    toggle(project)
+  }, [initialProjectId, billableList])
+
+  const change = (id: Id, patch: Partial<LineDraft>): void => {
     setLines((current) => current.map((line) => (line.id === id ? { ...line, ...patch } : line)))
   }
 
-  const remove = (id: string): void => {
+  const remove = (id: Id): void => {
     setLines((current) => current.filter((line) => line.id !== id))
   }
 
-  const add = (label: string): string => {
-    const id = newLineId()
-    setLines((current) => [...current, { id, label, amount: 0 }])
-    return id
+  const add = (label: string): Id => {
+    const line = newLine(label)
+    setLines((current) => [...current, line])
+    return line.id
   }
 
-  const ready = lines.length > 0
+  const ready = clientId !== '' && lines.length > 0
+
+  const save = (): void => {
+    if (!ready || create.isPending) return
+    create.mutate(toNewInvoiceInput({ clientId, number, currency, taxRate, notes, lines }), {
+      onSuccess: (invoice) => onSaved(invoice.id)
+    })
+  }
 
   return (
     <>
@@ -127,9 +220,9 @@ export function InvoiceScreen({
                     onChange={(event) => chooseClient(event.target.value)}
                   >
                     <option value="">Choose a client…</option>
-                    {billingClients.map((entry) => (
+                    {clientList.map((entry) => (
                       <option key={entry.id} value={entry.id}>
-                        {entry.company} — {entry.contact}
+                        {entry.company} — {entry.name}
                       </option>
                     ))}
                   </select>
@@ -137,16 +230,16 @@ export function InvoiceScreen({
                 </div>
                 <span className="field-row__hint">
                   {client
-                    ? `Billed in ${client.currency} on ${client.terms.toLowerCase()} terms, from this client's record.`
+                    ? `Billed in ${client.currency} (${symbol}) on ${termsLabel(client.paymentTermsDays).toLowerCase()} terms, from this client's record.`
                     : 'Everything below follows from this — the work on offer, the currency and the due date.'}
                 </span>
               </div>
             </section>
 
-            {client ? (
+            {client && view ? (
               <>
                 <BillableProjects
-                  client={client}
+                  view={view}
                   selected={selected}
                   symbol={symbol}
                   onToggle={toggle}
@@ -177,13 +270,13 @@ export function InvoiceScreen({
 
           <InvoiceRail
             number={number}
-            onNumber={setNumber}
-            issue={ISSUE_DATE}
-            due={client ? dueDateFor(client.termDays) : '—'}
-            terms={client ? client.terms : null}
+            onNumber={setTypedNumber}
+            issue={shortDate(today)}
+            due={client ? shortDate(addDays(today, client.paymentTermsDays)) : '—'}
+            terms={client ? termsLabel(client.paymentTermsDays) : null}
             taxRate={taxRate}
-            onTaxRate={setTaxRate}
-            subtotal={client ? subtotalOf(lines) : null}
+            onTaxRate={setTypedTaxRate}
+            subtotalCents={client ? draftSubtotal(lines) : null}
             notes={notes}
             onNotes={setNotes}
             symbol={symbol}
@@ -198,7 +291,12 @@ export function InvoiceScreen({
             : 'An invoice needs at least one line.'}
         </span>
         <div className="spacer" />
-        <button type="button" className="button" disabled={!ready}>
+        <button
+          type="button"
+          className="button"
+          disabled={!ready || create.isPending}
+          onClick={save}
+        >
           Save as draft
         </button>
         <button type="button" className="button button--primary" disabled={!ready}>

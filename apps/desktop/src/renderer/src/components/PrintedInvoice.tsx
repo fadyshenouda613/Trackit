@@ -1,22 +1,18 @@
 import type { JSX } from 'react'
 import { Logo } from './Logo'
-import { formatMoney } from '@trackit/shared'
-import { bank, paymentTerms, printedInvoice } from './printed-invoice-data'
-import {
-  billTo,
-  business,
-  clientOf,
-  dateLabel,
-  dueOf,
-  subtotalOfInvoice,
-  taxOf,
-  totalOf,
-  type Invoice
-} from './invoices-data'
+import { formatCents, type Id } from '@trackit/shared'
+import { bank, paymentTermsProse } from './printed-invoice-data'
+import { groupLines, symbolFor } from './invoices-data'
+import { dateLabel } from './local-dates'
+import { termsLabel } from './terms'
+import { useClient } from '../data/use-clients'
+import { useInvoice, useInvoiceLines } from '../data/use-invoices'
+import { useProjects } from '../data/use-projects'
+import { useSettings } from '../data/use-settings'
 
 type PrintedInvoiceProps = {
-  /** Any register invoice prints; the specimen is what the artboard shows. */
-  invoice?: Invoice
+  /** Any invoice on file prints; the app hands over whichever one is open. */
+  invoiceId: Id
 }
 
 /**
@@ -36,14 +32,30 @@ type PrintedInvoiceProps = {
  * is for, what the work was, what it comes to, and then — at the foot, where
  * someone who has decided to pay goes looking — how to pay it.
  */
-export function PrintedInvoice({ invoice = printedInvoice }: PrintedInvoiceProps): JSX.Element {
-  const client = clientOf(invoice)
-  const address = billTo[invoice.clientId] ?? []
-  const subtotal = subtotalOfInvoice(invoice)
-  const due = dateLabel(dueOf(invoice))
+export function PrintedInvoice({ invoiceId }: PrintedInvoiceProps): JSX.Element | null {
+  const invoice = useInvoice(invoiceId)
+  const lines = useInvoiceLines(invoiceId)
+  const record = invoice.data ?? null
+  const client = useClient(record?.clientId ?? null)
+  const projects = useProjects({ clientId: record?.clientId })
+  const settings = useSettings()
+
+  /* A sheet is either the whole document or nothing: a half-printed invoice
+     with skeleton bars where the money goes is worse than a blank frame. The
+     lines and the client are part of "the whole document" — without them the
+     sheet would print a total with no items under it and terms worked out from
+     a payment window nobody has read yet. */
+  if (!record || !settings.data || lines.isPending || client.isPending) return null
+
+  const business = settings.data
+  const bill = client.data ?? null
+  const symbol = symbolFor(record)
+  const from = business.address.split('\n').filter(Boolean)
+  const address = (bill?.address ?? '').split('\n').filter(Boolean)
+  const groups = groupLines(lines.data ?? [], projects.data ?? [])
   /* One project's subtotal would be the invoice total said twice. The in-app
      document draws the same conclusion; stating it identically is the point. */
-  const grouped = invoice.groups.length > 1
+  const grouped = groups.length > 1
 
   return (
     <div className="print-board">
@@ -52,27 +64,30 @@ export function PrintedInvoice({ invoice = printedInvoice }: PrintedInvoiceProps
           <div className="paper__from">
             <div className="paper__brand">
               <Logo size={26} tone="print" />
-              <span className="paper__brand-name">{business.name}</span>
+              <span className="paper__brand-name">
+                {business.businessName || business.person}
+              </span>
             </div>
             <span className="paper__from-person">{business.person}</span>
-            {business.lines.map((line) => (
+            {from.map((line) => (
               <span key={line}>{line}</span>
             ))}
             <span>{business.email}</span>
-            <span className="num">{business.taxId}</span>
+            {/* The slot the artboard gave a tax id, which no schema carries. */}
+            {business.phone && <span className="num">{business.phone}</span>}
           </div>
 
           <div className="paper__meta">
             <span className="paper__kind">Invoice</span>
-            <span className="paper__number num">{invoice.number}</span>
+            <span className="paper__number num">{record.number}</span>
 
             <dl className="paper__dates">
               <dt>Issued</dt>
-              <dd className="num">{dateLabel(invoice.issued)}</dd>
+              <dd className="num">{dateLabel(record.issuedAt)}</dd>
               <dt>Due</dt>
-              <dd className="num">{due}</dd>
+              <dd className="num">{dateLabel(record.dueAt)}</dd>
               <dt>Terms</dt>
-              <dd>{client?.terms ?? '—'}</dd>
+              <dd>{bill ? termsLabel(bill.paymentTermsDays) : '—'}</dd>
             </dl>
           </div>
         </header>
@@ -81,8 +96,8 @@ export function PrintedInvoice({ invoice = printedInvoice }: PrintedInvoiceProps
 
         <div className="paper__bill">
           <span className="paper__overline">Bill to</span>
-          <span className="paper__bill-name">{client?.company ?? '—'}</span>
-          {client?.contact && <span className="paper__bill-line">{client.contact}</span>}
+          <span className="paper__bill-name">{bill?.company ?? '—'}</span>
+          {bill?.name && <span className="paper__bill-line">{bill.name}</span>}
           {address.map((line) => (
             <span className="paper__bill-line" key={line}>
               {line}
@@ -97,49 +112,49 @@ export function PrintedInvoice({ invoice = printedInvoice }: PrintedInvoiceProps
             <span className="paper__overline paper__amount">Amount</span>
           </div>
 
-          {invoice.groups.map((entry) => {
-            const groupTotal = entry.lines.reduce((sum, line) => sum + line.amount, 0)
+          {groups.map((entry) => (
+            <section className="paper__group" key={entry.key}>
+              <h2 className="paper__group-name">{entry.project}</h2>
 
-            return (
-              <section className="paper__group" key={entry.project}>
-                <h2 className="paper__group-name">{entry.project}</h2>
+              {entry.lines.map((line) => (
+                <div className="paper__line" key={line.id}>
+                  <span>{line.label}</span>
+                  <span className="paper__amount num">
+                    {formatCents(line.amountCents, symbol)}
+                  </span>
+                </div>
+              ))}
 
-                {entry.lines.map((line) => (
-                  <div className="paper__line" key={line.id}>
-                    <span>{line.label}</span>
-                    <span className="paper__amount num">{formatMoney(line.amount)}</span>
-                  </div>
-                ))}
-
-                {grouped && (
-                  <div className="paper__group-total">
-                    <span>{entry.project} subtotal</span>
-                    <span className="paper__amount num">{formatMoney(groupTotal)}</span>
-                  </div>
-                )}
-              </section>
-            )
-          })}
+              {grouped && (
+                <div className="paper__group-total">
+                  <span>{entry.project} subtotal</span>
+                  <span className="paper__amount num">
+                    {formatCents(entry.totalCents, symbol)}
+                  </span>
+                </div>
+              )}
+            </section>
+          ))}
         </div>
 
         <div className="paper__totals">
           <div className="paper__totals-row">
             <span>Subtotal</span>
-            <span className="paper__amount num">{formatMoney(subtotal)}</span>
+            <span className="paper__amount num">{formatCents(record.subtotalCents, symbol)}</span>
           </div>
 
           {/* A row reading 0% is a question with no answer, so it only appears
               on an invoice that actually carries tax. */}
-          {invoice.taxRate > 0 && (
+          {record.taxRate > 0 && (
             <div className="paper__totals-row">
-              <span>Sales tax {invoice.taxRate}%</span>
-              <span className="paper__amount num">{formatMoney(taxOf(invoice))}</span>
+              <span>Sales tax {record.taxRate}%</span>
+              <span className="paper__amount num">{formatCents(record.taxCents, symbol)}</span>
             </div>
           )}
 
           <div className="paper__total">
             <span className="paper__total-label">Total due</span>
-            <span className="paper__amount num">{formatMoney(totalOf(invoice))}</span>
+            <span className="paper__amount num">{formatCents(record.totalCents, symbol)}</span>
           </div>
         </div>
 
@@ -150,12 +165,12 @@ export function PrintedInvoice({ invoice = printedInvoice }: PrintedInvoiceProps
         <footer className="paper__foot">
           <div className="paper__terms">
             <span className="paper__overline">Payment terms</span>
-            <p className="paper__prose">{paymentTerms}</p>
+            <p className="paper__prose">{paymentTermsProse(bill?.paymentTermsDays ?? 0)}</p>
 
-            {invoice.notes && (
+            {record.notes && (
               <>
                 <span className="paper__overline paper__overline--spaced">Notes</span>
-                <p className="paper__prose">{invoice.notes}</p>
+                <p className="paper__prose">{record.notes}</p>
               </>
             )}
           </div>
@@ -176,17 +191,17 @@ export function PrintedInvoice({ invoice = printedInvoice }: PrintedInvoiceProps
               <dt>SWIFT</dt>
               <dd className="num">{bank.swift}</dd>
               <dt>Reference</dt>
-              <dd className="num paper__bank-ref">{invoice.number}</dd>
+              <dd className="num paper__bank-ref">{record.number}</dd>
             </dl>
           </div>
         </footer>
 
         <div className="paper__strip">
           <span>
-            {business.name} · {business.email}
+            {business.businessName || business.person} · {business.email}
           </span>
           <span className="num">
-            {invoice.number} · Page 1 of 1
+            {record.number} · Page 1 of 1
           </span>
         </div>
       </article>
