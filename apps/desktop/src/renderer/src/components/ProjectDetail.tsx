@@ -1,72 +1,43 @@
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { Avatar } from './Avatar'
+import { noteRow } from './client-rows'
 import { RecordConflictNotice } from './ConflictNotice'
+import { EmptyState } from './EmptyState'
 import { Icon } from './Icon'
+import { averageDaysToPay } from './invoices-data'
+import { dayMonth, longDate } from './local-dates'
 import { Meter } from './Meter'
 import { Pill } from './Pill'
+import { projectFigures, sessionRows, statusHistory } from './project-rows'
 import { ProjectChecklist } from './ProjectChecklist'
 import { StatusPill } from './StatusPill'
+import { TableSkeleton } from './TableSkeleton'
+import { initialsOf, termsLabel } from './terms'
+import { toneVar } from './tone'
 import {
-  budgetConsumption,
   budgetJudgement,
-  effectiveRateCents,
   formatBudget,
   formatCents,
   formatDuration,
-  hoursToMinutes
+  symbolOf,
+  type Id,
+  type ProjectStatus
 } from '@trackit/shared'
-import { toneVar } from './tone'
-import type { Status } from './status'
-
-/* The three figures the header does arithmetic on: $6,500.00 against the
-   28h 15m logged below, judged against a 32h budget. Everything the metrics
-   row shows is derived from these, so no caption can disagree with the number
-   beside it. */
-const PRICE_CENTS = 650000
-const LOGGED_MINUTES = 28 * 60 + 15
-const BUDGET_MINUTES = hoursToMinutes(32)
-const EFFECTIVE_RATE_CENTS = effectiveRateCents(PRICE_CENTS, LOGGED_MINUTES) ?? 0
-const budget = budgetConsumption(LOGGED_MINUTES, BUDGET_MINUTES)
-const budgetPercent = budget.percent ?? 0
-const budgetTone = budgetJudgement(budgetPercent)
-
-/** The single step that moves a project forward. Paid and cancelled are ends. */
-const advance: Partial<Record<Status, { label: string; to: Status; entry: string }>> = {
-  draft: { label: 'Mark as active', to: 'active', entry: 'Marked active' },
-  active: { label: 'Mark as delivered', to: 'delivered', entry: 'Marked delivered' },
-  delivered: { label: 'Create invoice', to: 'invoiced', entry: 'Invoiced — INV-0148' },
-  invoiced: { label: 'Mark as paid', to: 'paid', entry: 'Paid in full' }
-}
+import { useChecklist } from '../data/use-checklist'
+import { useClient } from '../data/use-clients'
+import { useInvoices } from '../data/use-invoices'
+import { useCreateNote, useNotes } from '../data/use-notes'
+import { usePayments, usePaymentsByInvoice } from '../data/use-payments'
+import {
+  useProject,
+  useProjectInvoice,
+  useProjects,
+  useTransitionProject
+} from '../data/use-projects'
+import { useSettings } from '../data/use-settings'
+import { useTimeEntries } from '../data/use-time'
 
 type Tab = 'scope' | 'checklist' | 'notes' | 'time'
-
-const tabs: { key: Tab; label: string; meta?: string }[] = [
-  { key: 'scope', label: 'Scope' },
-  { key: 'checklist', label: 'Checklist', meta: '8/14' },
-  { key: 'notes', label: 'Notes', meta: '2' },
-  { key: 'time', label: 'Time', meta: '7' }
-]
-
-const sessions = [
-  { date: '28 Aug', note: 'Logo lockup refinements', length: '3h 20m' },
-  { date: '26 Aug', note: 'Colour palette and type pairing', length: '5h 45m' },
-  { date: '22 Aug', note: 'Direction review with Priya', length: '1h 10m' },
-  { date: '20 Aug', note: 'Moodboards — three directions', length: '8h 05m' },
-  { date: '15 Aug', note: 'Competitive audit', length: '4h 30m' },
-  { date: '13 Aug', note: 'Stakeholder interviews', length: '3h 55m' },
-  { date: '12 Aug', note: 'Kickoff call and brief', length: '1h 30m' }
-]
-
-const notes = [
-  {
-    date: '27 Aug 2026',
-    body: 'Priya asked for social avatars and an email signature on top of the agreed brief. Both are on the checklist, marked added later — raise at the delivery call rather than mid-stream.'
-  },
-  {
-    date: '12 Aug 2026',
-    body: 'Brief signed off on the call. Two rounds of revisions included; anything past that is quoted separately.'
-  }
-]
 
 type MenuProps = {
   onCancel: () => void
@@ -134,19 +105,24 @@ function OverflowMenu({ onCancel }: MenuProps): JSX.Element {
   )
 }
 
-type HistoryEntry = { label: string; date: string }
-
 type ProjectDetailProps = {
+  /** The project this screen is about; everything else is read from the store. */
+  projectId: Id
   /** Delivered is the one step that opens a screen rather than just moving on. */
-  onCreateInvoice?: () => void
-  /** The rate every project is judged against, from Settings, in cents. */
-  rateFloorCents: number
+  onCreateInvoice: () => void
+  onOpenClient: (id: Id) => void
+  onOpenInvoice: (id: Id) => void
+  /** "Mark as paid" on an invoiced project: open its invoice with the payment dialog up. */
+  onRecordPayment: (invoiceId: Id) => void
+  onBack: () => void
   /** Fires once the project reaches delivered, so the shell can say so. */
   onDelivered?: (project: string) => void
   /** Whether this project came back from a sync disagreeing with itself. */
   conflict?: boolean
   /** The same, for the checklist's order — a separate disagreement. */
   reorderConflict?: boolean
+  /** Rows not in yet. */
+  loading?: boolean
 }
 
 /**
@@ -155,38 +131,143 @@ type ProjectDetailProps = {
  * itself, with the client's facts kept in view beside it.
  */
 export function ProjectDetail({
+  projectId,
   onCreateInvoice,
-  rateFloorCents,
+  onOpenClient,
+  onOpenInvoice,
+  onRecordPayment,
+  onBack,
   onDelivered,
   conflict = false,
-  reorderConflict = false
-}: ProjectDetailProps): JSX.Element {
-  const [status, setStatus] = useState<Status>('active')
+  reorderConflict = false,
+  loading = false
+}: ProjectDetailProps): JSX.Element | null {
   const [conflictShown, setConflictShown] = useState(true)
   const [tab, setTab] = useState<Tab>('checklist')
-  const [history, setHistory] = useState<HistoryEntry[]>([
-    { label: 'Draft created', date: '8 Aug 2026' },
-    { label: 'Marked active', date: '12 Aug 2026' }
-  ])
+  const [composing, setComposing] = useState(false)
+  const [draft, setDraft] = useState('')
+  /* Escape unmounts the textarea while it still has focus; the blur that
+     follows can reach the stale onBlur closure from the render being torn
+     down. A ref survives by identity, so the flag is visible to it too. */
+  const cancelledRef = useRef(false)
 
-  const next = advance[status]
-  const invoiced = status === 'invoiced' || status === 'paid'
-  const floorCents = rateFloorCents
+  const project = useProject(projectId)
+  const clientId = project.data?.clientId ?? null
+  const client = useClient(clientId)
+  const checklist = useChecklist(projectId)
+  const time = useTimeEntries({ projectId })
+  const notes = useNotes({ projectId })
+  const projectInvoice = useProjectInvoice(projectId)
+  const invoice = projectInvoice.data ?? null
+  const payments = usePayments(invoice?.id ?? null)
+  /* Only the rail's "pays in N days on average" needs these two. */
+  const clientInvoices = useInvoices(clientId === null ? undefined : { clientId })
+  const clientInvoiceIds = useMemo(
+    () => (clientInvoices.data ?? []).map((entry) => entry.id),
+    [clientInvoices.data]
+  )
+  const clientPayments = usePaymentsByInvoice(clientInvoiceIds)
+  const clientProjects = useProjects(clientId === null ? undefined : { clientId })
+  const settings = useSettings()
+  const transition = useTransitionProject()
+  const createNote = useCreateNote()
 
-  const onAdvance = (): void => {
-    if (!next) return
-    setStatus(next.to)
-    setHistory((current) => [...current, { label: next.entry, date: '1 Sep 2026' }])
-    /* The pill changing is visible; what is worth saying is what it unlocked. */
-    if (next.to === 'delivered') onDelivered?.('Brand refresh')
-    /* The invoice is what makes a delivered project invoiced, so this step
-       opens the screen that raises it rather than only flipping the pill. */
-    if (status === 'delivered') onCreateInvoice?.()
+  /* Forced from the States panel: a local database answers in under a frame,
+     so this is the only way the Data axis is reviewable on this screen. */
+  if (loading) return <TableSkeleton block="projects" rows={3} />
+
+  /* A single-row read, so there is nothing to draw a skeleton of yet. */
+  if (project.data === undefined) return null
+
+  if (project.data === null) {
+    return (
+      <EmptyState
+        variant="screen"
+        title="That project is gone"
+        body="It may have been deleted on another machine."
+        action={{ label: 'Back to projects', onClick: onBack }}
+      />
+    )
   }
 
+  const record = project.data
+  const now = new Date().toISOString()
+  const items = checklist.data ?? []
+  const entries = time.data ?? []
+  const noteRows = (notes.data ?? []).map(noteRow)
+
+  const f = projectFigures(record, client.data ? [client.data] : [], entries, items, now)
+  const symbol = f.symbol
+  const floorCents = settings.data?.rateFloorCents ?? 0
+  const rate = f.rateCents
+  const rateTone = rate === null ? 'neutral' : rate >= floorCents ? 'positive' : 'negative'
+  const budget = f.budget
+  const budgetPercent = budget.percent ?? 0
+  const budgetTone = budgetJudgement(budgetPercent)
+
+  const sessions = sessionRows(f.entries, now)
+  const firstStartedAt =
+    f.entries.length === 0
+      ? null
+      : [...f.entries].sort((a, b) => a.startedAt.localeCompare(b.startedAt))[0].startedAt
+  const sessionsNote = firstStartedAt
+    ? `Across ${f.entries.length} sessions since ${dayMonth(firstStartedAt)}`
+    : 'No sessions yet'
+
+  const history = statusHistory(record, invoice, payments.data ?? [])
+  const others = (clientProjects.data ?? []).filter((entry) => entry.id !== record.id).length
+  const avgDays = averageDaysToPay(clientInvoices.data ?? [], clientPayments.data ?? {})
+
+  const tabs: { key: Tab; label: string; meta?: string }[] = [
+    { key: 'scope', label: 'Scope' },
+    { key: 'checklist', label: 'Checklist', meta: `${f.checklist.done}/${f.checklist.total}` },
+    { key: 'notes', label: 'Notes', meta: String(noteRows.length) },
+    { key: 'time', label: 'Time', meta: String(f.entries.length) }
+  ]
+
+  /** The single step that moves a project forward. Paid and cancelled are ends. */
+  const steps: Partial<Record<ProjectStatus, { label: string; run: () => void }>> = {
+    draft: {
+      label: 'Mark as active',
+      run: () => transition.mutate({ id: projectId, to: 'active' })
+    },
+    active: {
+      label: 'Mark as delivered',
+      run: () =>
+        transition.mutate(
+          { id: projectId, to: 'delivered' },
+          /* The pill changing is visible; what is worth saying is what it
+             unlocked, and only the store can say the move landed. */
+          { onSuccess: (updated) => onDelivered?.(updated.name) }
+        )
+    },
+    /* The invoice is what makes a delivered project invoiced, so this step
+       opens the screen that raises it rather than flipping a pill. */
+    delivered: { label: 'Create invoice', run: onCreateInvoice },
+    invoiced: {
+      label: 'Mark as paid',
+      run: () => {
+        if (invoice) onRecordPayment(invoice.id)
+      }
+    }
+  }
+  const next = steps[record.status] ?? null
+
   const onCancel = (): void => {
-    setStatus('cancelled')
-    setHistory((current) => [...current, { label: 'Cancelled', date: '1 Sep 2026' }])
+    transition.mutate({ id: projectId, to: 'cancelled' })
+  }
+
+  const submitNote = (): void => {
+    if (cancelledRef.current) {
+      cancelledRef.current = false
+      return
+    }
+    const body = draft.trim()
+    if (body) {
+      createNote.mutate({ id: crypto.randomUUID(), projectId, clientId: null, body, pinned: false })
+    }
+    setComposing(false)
+    setDraft('')
   }
 
   return (
@@ -194,17 +275,24 @@ export function ProjectDetail({
       <header className="project__head">
         <div className="project__identity">
           <div className="project__title-line">
-            <h2 className="t-title">Brand refresh</h2>
-            <StatusPill status={status} />
+            <h2 className="t-title">{record.name}</h2>
+            <StatusPill status={record.status} />
           </div>
           <div className="project__client-line">
-            <a href="#" className="project__client">
-              Northwind Studio
+            <a
+              href="#"
+              className="project__client"
+              onClick={(event) => {
+                event.preventDefault()
+                if (client.data) onOpenClient(client.data.id)
+              }}
+            >
+              {client.data?.company || client.data?.name || '—'}
             </a>
             <span className="project__sep">·</span>
             <span>Fixed price</span>
             <span className="project__sep">·</span>
-            <span className="num">Due 11 Sep 2026</span>
+            <span className="num">Due {record.dueAt ? longDate(record.dueAt) : '—'}</span>
           </div>
         </div>
 
@@ -213,7 +301,7 @@ export function ProjectDetail({
         <div className="project__actions">
           <OverflowMenu onCancel={onCancel} />
           {next && (
-            <button type="button" className="button button--primary" onClick={onAdvance}>
+            <button type="button" className="button button--primary" onClick={next.run}>
               {next.label}
             </button>
           )}
@@ -234,38 +322,48 @@ export function ProjectDetail({
       <section className="panel project__metrics" aria-label="Project figures">
         <div className="project__metric">
           <span className="t-overline project__metric-label">Price</span>
-          <span className="project__metric-value num">{formatCents(PRICE_CENTS)}</span>
-          <span className="project__metric-note">Agreed 12 Aug · one invoice at delivery</span>
+          <span className="project__metric-value num">
+            {formatCents(record.priceCents, symbol)}
+          </span>
+          <span className="project__metric-note">
+            Agreed {dayMonth(record.kickoffAt ?? record.createdAt)} · one invoice at delivery
+          </span>
         </div>
 
         <div className="project__metric">
           <span className="t-overline project__metric-label">Checklist</span>
           <span className="project__metric-value num">
-            8<span className="project__metric-unit">/14</span>
+            {f.checklist.done}
+            <span className="project__metric-unit">/{f.checklist.total}</span>
           </span>
-          <Meter value={57} size="lg" label="Checklist 8 of 14 done" />
-          <span className="project__metric-note">57% done · 6 items open</span>
+          <Meter
+            value={f.checklist.percent}
+            size="lg"
+            label={`Checklist ${f.checklist.done} of ${f.checklist.total} done`}
+          />
+          <span className="project__metric-note">
+            {f.checklist.percent}% done · {f.checklist.open} items open
+          </span>
         </div>
 
         <div className="project__metric">
           <span className="t-overline project__metric-label">Hours</span>
-          <span className="project__metric-value num">{formatDuration(LOGGED_MINUTES)}</span>
-          <span className="project__metric-note">Across 7 sessions since 12 Aug</span>
+          <span className="project__metric-value num">{formatDuration(f.loggedMinutes)}</span>
+          <span className="project__metric-note">{sessionsNote}</span>
         </div>
 
         <div className="project__metric">
           <span className="t-overline project__metric-label">Effective rate</span>
-          <span
-            className="project__rate num"
-            style={{ color: toneVar[EFFECTIVE_RATE_CENTS >= floorCents ? 'positive' : 'negative'] }}
-          >
-            {formatCents(EFFECTIVE_RATE_CENTS)}
-            <span className="project__rate-unit">/hr</span>
+          <span className="project__rate num" style={{ color: toneVar[rateTone] }}>
+            {rate === null ? '—' : formatCents(rate, symbol)}
+            {rate !== null && <span className="project__rate-unit">/hr</span>}
           </span>
           <span className="project__metric-note">
-            {EFFECTIVE_RATE_CENTS >= floorCents
-              ? `Earning ${formatCents(EFFECTIVE_RATE_CENTS - floorCents)}/hr over your ${formatCents(floorCents)} floor`
-              : `Running ${formatCents(floorCents - EFFECTIVE_RATE_CENTS)}/hr under your ${formatCents(floorCents)} floor`}
+            {rate === null
+              ? 'No hours logged yet'
+              : rate >= floorCents
+                ? `Earning ${formatCents(rate - floorCents, symbol)}/hr over your ${formatCents(floorCents, symbol)} floor`
+                : `Running ${formatCents(floorCents - rate, symbol)}/hr under your ${formatCents(floorCents, symbol)} floor`}
           </span>
         </div>
 
@@ -282,8 +380,8 @@ export function ProjectDetail({
           />
           <span className="project__metric-note">
             {budget.over
-              ? `${formatDuration(budget.overMinutes)} over a ${formatBudget(BUDGET_MINUTES)} budget`
-              : `${formatDuration(budget.remainingMinutes)} left of a ${formatBudget(BUDGET_MINUTES)} budget`}
+              ? `${formatDuration(budget.overMinutes)} over a ${formatBudget(f.budgetMinutes)} budget`
+              : `${formatDuration(budget.remainingMinutes)} left of a ${formatBudget(f.budgetMinutes)} budget`}
           </span>
         </div>
       </section>
@@ -307,31 +405,35 @@ export function ProjectDetail({
           </div>
 
           <div className="panel project__pane" role="tabpanel">
-            {tab === 'checklist' && <ProjectChecklist conflict={reorderConflict} />}
+            {tab === 'checklist' && (
+              <ProjectChecklist projectId={projectId} items={items} conflict={reorderConflict} />
+            )}
 
             {tab === 'scope' && (
               <div className="scope">
                 <p className="scope__body t-body">
-                  A full identity refresh for Northwind Studio: primary and horizontal lockups, a
-                  colour palette, a type pairing, and the stationery and guidelines needed to hand
-                  it over. Two rounds of revisions are included.
+                  {record.description || 'No description yet'}
                 </p>
                 <div className="scope__grid">
                   <div className="scope__cell">
                     <span className="t-overline scope__label">Price basis</span>
-                    <span className="scope__value">Fixed price · $6,500.00</span>
+                    <span className="scope__value">
+                      Fixed price · {formatCents(record.priceCents, symbol)}
+                    </span>
                   </div>
                   <div className="scope__cell">
                     <span className="t-overline scope__label">Hours budget</span>
-                    <span className="scope__value num">32h</span>
+                    <span className="scope__value num">{formatBudget(f.budgetMinutes)}</span>
                   </div>
+                  {/* Neither has a field on the project, so neither can claim
+                      one. Both are the schema's silence, stated. */}
                   <div className="scope__cell">
                     <span className="t-overline scope__label">Revisions</span>
-                    <span className="scope__value">Two rounds included</span>
+                    <span className="scope__value">—</span>
                   </div>
                   <div className="scope__cell">
                     <span className="t-overline scope__label">Not included</span>
-                    <span className="scope__value">Web build, photography, print buying</span>
+                    <span className="scope__value">—</span>
                   </div>
                 </div>
               </div>
@@ -339,14 +441,50 @@ export function ProjectDetail({
 
             {tab === 'notes' && (
               <div className="project-notes">
-                {notes.map((note, index) => (
-                  <div className="project-notes__entry" key={note.date}>
-                    {index > 0 && <div className="project-notes__rule" />}
-                    <span className="project-notes__date num">{note.date}</span>
-                    <p className="project-notes__body t-body">{note.body}</p>
+                {composing && (
+                  <div className="project-notes__entry">
+                    <textarea
+                      className="field field--filled"
+                      rows={2}
+                      autoFocus
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      onBlur={submitNote}
+                      onKeyDown={(event) => {
+                        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                          event.currentTarget.blur()
+                        }
+                        if (event.key === 'Escape') {
+                          cancelledRef.current = true
+                          setDraft('')
+                          setComposing(false)
+                        }
+                      }}
+                    />
                   </div>
-                ))}
-                <button type="button" className="project-notes__add">
+                )}
+
+                {!notes.isPending && noteRows.length === 0 && !composing ? (
+                  <EmptyState
+                    variant="panel"
+                    title="No notes yet"
+                    body="Anything worth remembering about this project."
+                  />
+                ) : (
+                  noteRows.map((note, index) => (
+                    <div className="project-notes__entry" key={note.id}>
+                      {(index > 0 || composing) && <div className="project-notes__rule" />}
+                      <span className="project-notes__date num">{note.date}</span>
+                      <p className="project-notes__body t-body">{note.body}</p>
+                    </div>
+                  ))
+                )}
+
+                <button
+                  type="button"
+                  className="project-notes__add"
+                  onClick={() => setComposing(true)}
+                >
                   Add note
                 </button>
               </div>
@@ -354,18 +492,33 @@ export function ProjectDetail({
 
             {tab === 'time' && (
               <div className="sessions">
-                {sessions.map((session) => (
-                  <div className="sessions__row" key={session.date + session.note}>
-                    <span className="sessions__date num">{session.date}</span>
-                    <span className="sessions__note truncate">{session.note}</span>
-                    <span className="sessions__length num">{session.length}</span>
-                  </div>
-                ))}
-                <div className="sessions__row sessions__row--total">
-                  <span className="sessions__date">Total</span>
-                  <span className="sessions__note">7 sessions since 12 Aug</span>
-                  <span className="sessions__length num">28h 15m</span>
-                </div>
+                {sessions.length === 0 ? (
+                  <EmptyState
+                    variant="panel"
+                    title="No hours logged"
+                    body="Start the timer or add an entry on the Time screen."
+                  />
+                ) : (
+                  <>
+                    {sessions.map((session) => (
+                      <div className="sessions__row" key={session.id}>
+                        <span className="sessions__date num">{session.date}</span>
+                        <span className="sessions__note truncate">{session.note}</span>
+                        <span className="sessions__length num">{session.length}</span>
+                      </div>
+                    ))}
+                    <div className="sessions__row sessions__row--total">
+                      <span className="sessions__date">Total</span>
+                      <span className="sessions__note">
+                        {f.entries.length} sessions since{' '}
+                        {firstStartedAt ? dayMonth(firstStartedAt) : '—'}
+                      </span>
+                      <span className="sessions__length num">
+                        {formatDuration(f.loggedMinutes)}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -376,35 +529,55 @@ export function ProjectDetail({
           <section className="panel rail__card">
             <span className="t-overline rail__title">Client</span>
             <div className="rail__client">
-              <Avatar initials="PR" tone="accent" />
+              <Avatar initials={initialsOf(client.data?.name ?? '')} tone="accent" />
               <div className="rail__client-names">
-                <a href="#" className="rail__client-name">
-                  Priya Raghunathan
+                <a
+                  href="#"
+                  className="rail__client-name"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    if (client.data) onOpenClient(client.data.id)
+                  }}
+                >
+                  {client.data?.name ?? '—'}
                 </a>
-                <span className="rail__client-company">Northwind Studio</span>
+                <span className="rail__client-company">{client.data?.company ?? ''}</span>
               </div>
             </div>
             <a href="#" className="rail__link">
-              priya@northwindstudio.com
+              {client.data?.email ?? '—'}
             </a>
             <div className="rail__pills">
-              <Pill>USD ($)</Pill>
-              <Pill>Net 14</Pill>
+              <Pill>
+                {client.data
+                  ? `${client.data.currency} (${symbolOf(client.data.currency)})`
+                  : '—'}
+              </Pill>
+              <Pill>{client.data ? termsLabel(client.data.paymentTermsDays) : '—'}</Pill>
             </div>
-            <span className="rail__aside">3 other projects · pays in 6 days on average</span>
+            <span className="rail__aside">
+              {others === 1 ? '1 other project' : `${others} other projects`}
+              {avgDays === null ? '' : ` · pays in ${avgDays} days on average`}
+            </span>
           </section>
 
           <section className="panel rail__card">
             <span className="t-overline rail__title">Dates</span>
             <dl className="rail__dates">
               <dt>Created</dt>
-              <dd className="num">8 Aug 2026</dd>
+              <dd className="num">{longDate(record.createdAt)}</dd>
               <dt>Kickoff</dt>
-              <dd className="num">12 Aug 2026</dd>
+              <dd className={record.kickoffAt ? 'num' : 'num rail__dates-empty'}>
+                {record.kickoffAt ? longDate(record.kickoffAt) : '—'}
+              </dd>
               <dt>Due</dt>
-              <dd className="num">11 Sep 2026</dd>
+              <dd className={record.dueAt ? 'num' : 'num rail__dates-empty'}>
+                {record.dueAt ? longDate(record.dueAt) : '—'}
+              </dd>
               <dt>Delivered</dt>
-              <dd className="num rail__dates-empty">{invoiced ? '1 Sep 2026' : '—'}</dd>
+              <dd className={record.deliveredAt ? 'num' : 'num rail__dates-empty'}>
+                {record.deliveredAt ? longDate(record.deliveredAt) : '—'}
+              </dd>
             </dl>
           </section>
 
@@ -428,11 +601,20 @@ export function ProjectDetail({
 
           <section className="panel rail__card">
             <span className="t-overline rail__title">Invoice</span>
-            {invoiced ? (
-              <a href="#" className="rail__invoice">
-                <span className="rail__invoice-number">INV-0148</span>
-                <span className="rail__invoice-total num">$6,500.00</span>
-                <StatusPill status={status === 'paid' ? 'paid' : 'sent'} />
+            {invoice ? (
+              <a
+                href="#"
+                className="rail__invoice"
+                onClick={(event) => {
+                  event.preventDefault()
+                  onOpenInvoice(invoice.id)
+                }}
+              >
+                <span className="rail__invoice-number">{invoice.number}</span>
+                <span className="rail__invoice-total num">
+                  {formatCents(invoice.totalCents, symbolOf(invoice.currency))}
+                </span>
+                <StatusPill status={invoice.status} />
               </a>
             ) : (
               <p className="rail__empty">

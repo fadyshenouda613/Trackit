@@ -69,7 +69,7 @@ import { useClient, useClients } from './data/use-clients'
 import { useDevReset, useDevSeed, useDevTimerScenario } from './data/use-dev'
 import { useInvoices } from './data/use-invoices'
 import { useProject, useProjects } from './data/use-projects'
-import { useSettings, useUpdateSettings } from './data/use-settings'
+import { useUpdateSettings } from './data/use-settings'
 import { usePendingCounts } from './data/use-sync'
 import {
   useDeleteTimeEntry,
@@ -127,6 +127,10 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   const [openInvoiceId, setOpenInvoiceId] = useState<Id | null>(null)
   /* The client "New project" is opened for, so the dialog can pre-select it. */
   const [newProjectClientId, setNewProjectClientId] = useState<Id | null>(null)
+  /* The same for "Create invoice" raised from a project: the client the work
+     belongs to. Recorded here now; the Create invoice screen still reads the
+     fixture id below until Task 18 puts it on the store. */
+  const [newInvoiceClientId, setNewInvoiceClientId] = useState<Id | null>(null)
   /* The Status/Client/sort state for the Projects screen's toolbar and table —
      lifted here so the TopBar's unfiltered totals and the filtered table both
      read from the one store query each of them needs. */
@@ -222,6 +226,12 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
     }
   }, [])
 
+  /* The project screen is about one record, so it cannot be shown without one
+     — an empty store reached through the panel lands on the list instead. */
+  useEffect(() => {
+    if (screen === 'project' && selectedProjectId === null) setScreen('projects')
+  }, [screen, selectedProjectId])
+
   /*
    * What the shell itself needs from the store. Everything below is derived
    * from these — the shell holds no copy of any of it.
@@ -229,7 +239,6 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   const clients = useClients()
   const projects = useProjects()
   const invoices = useInvoices()
-  const settings = useSettings()
   const runningTimer = useRunningTimer()
   const orphanedTimer = useOrphanedTimer()
   const pendingCounts = usePendingCounts()
@@ -263,8 +272,6 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   const isClients = screen === 'clients' || screen === 'client'
   const isProjects = screen === 'projects' || screen === 'project'
   const isInvoices = screen === 'invoices' || screen === 'invoice' || screen === 'newInvoice'
-
-  const rateFloorCents = settings.data?.rateFloorCents ?? 0
 
   const running = runningTimer.data ?? null
   /* A clock still running from before this launch: one the app never got to
@@ -374,6 +381,7 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
 
   const onCreateInvoice = (): void => {
     setInvoiceFrom(screen)
+    setNewInvoiceClientId(screen === 'project' ? (selectedProject?.clientId ?? null) : null)
     setScreen('newInvoice')
   }
 
@@ -432,7 +440,10 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           if (next === 'client') {
             setSelectedClientId(sampleProject?.clientId ?? clientList[0]?.id ?? null)
           }
-          if (next === 'newInvoice') setInvoiceFrom('invoices')
+          if (next === 'newInvoice') {
+            setInvoiceFrom('invoices')
+            setNewInvoiceClientId(null)
+          }
           setScreen(next)
         }
       }}
@@ -603,8 +614,11 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
             <InvoiceScreen
               isTopmost={!showTimerBar}
               back={backFrom(invoiceFrom)}
-              /* The one project detail screen designed belongs to Northwind. */
-              initialClientId={invoiceFrom === 'project' ? 'northwind' : undefined}
+              /* Interim: the screen still resolves its client out of the
+                 fixture register, so the real id recorded when the project
+                 raised this invoice cannot be handed over until Task 18 —
+                 only whether there is one. */
+              initialClientId={newInvoiceClientId ? 'northwind' : undefined}
               onOpenProjects={() => setScreen('projects')}
             />
           ) : screen === 'invoice' ? (
@@ -832,14 +846,29 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
             </div>
           )}
 
-          {screen === 'project' && (
+          {screen === 'project' && selectedProjectId && (
             <div className="main__content">
               <ProjectDetail
+                projectId={selectedProjectId}
                 onCreateInvoice={onCreateInvoice}
-                rateFloorCents={rateFloorCents}
+                onOpenClient={(id) => {
+                  setSelectedClientId(id)
+                  setScreen('client')
+                }}
+                onOpenInvoice={(id) => {
+                  setOpenInvoiceId(id)
+                  setScreen('invoice')
+                }}
+                onRecordPayment={(invoiceId) => {
+                  setOpenInvoiceId(invoiceId)
+                  setScreen('invoice')
+                  setModal('payment')
+                }}
+                onBack={() => setScreen('projects')}
                 conflict={notice === 'conflict'}
                 reorderConflict={notice === 'reorder'}
                 onDelivered={(project) => pushToast(deliveredToast(project))}
+                loading={forceLoading}
               />
             </div>
           )}
