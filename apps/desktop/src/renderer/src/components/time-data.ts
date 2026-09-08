@@ -1,95 +1,31 @@
 /*
- * The Time screen's seed and its arithmetic.
+ * The Time screen's week arithmetic and sync-clock prose.
  *
- * Every other seed in the app is pre-formatted strings ("28h 15m") because
- * nothing recomputes. The weekly log does: retyping an end time has to move the
- * row's duration, its day total, the week total and the comparison against last
- * week all at once. So times are held as minutes and formatted at the edge.
+ * The log itself lives on the store now — entries are UTC ISO timestamps,
+ * read back as minutes since local midnight at the edge. What is here is the
+ * week window a filter asks the store for, and the labels drawn from it.
  *
  * The arithmetic itself — durations, clock times, calendar days — lives in
- * @trackit/shared so the server can do the same sums. What is here is the
- * seed and the week.
+ * @trackit/shared so the server can do the same sums.
  */
 
-import { addDays, clockSpanMinutes, formatDuration, pad2, shortDate } from '@trackit/shared'
+import {
+  addDays,
+  formatDuration,
+  pad2,
+  shortDate,
+  type Client,
+  type Id,
+  type Project,
+  type TimeEntry
+} from '@trackit/shared'
+import { atLocal, localDateOf, MONTHS, WEEKDAYS } from './local-dates'
 
-/** Minutes since midnight. `endMin` below `startMin` means it ran past midnight. */
-export type TimeEntry = {
-  id: string
-  /** The day it belongs to, as an ISO date. */
-  iso: string
-  project: string
-  note: string
-  startMin: number
-  endMin: number
-}
-
-export type Week = {
-  /** 0 is the current week; every step back is -1. */
-  offset: number
-  /** Monday, as an ISO date. */
-  start: string
-  /** Last week's total, for the header comparison. */
-  previousMinutes: number
-  entries: TimeEntry[]
-}
-
-/*
- * The project list and its client mapping are the ones in AllProjectsTable —
- * a global log has to name the same work the projects screen does. Cancelled
- * work is left out; you cannot log against it.
- */
-export const projectClients: Record<string, string> = {
-  'Brand refresh': 'Northwind Studio',
-  'Site build': 'Sable Studio',
-  'Report design': 'Ortega & Co',
-  'Packaging system': 'Marlow Foods',
-  'Editorial templates': 'Kestrel Press',
-  'Onboarding emails': 'Halcyon Labs',
-  'Trade show panels': 'Northwind Studio',
-  'Annual report layout': 'Brandt & Vale',
-  'Menu system': 'Meridian Coffee',
-  'Site copy refresh': 'Northwind Studio',
-  'Wholesale one-pager': 'Marlow Foods',
-  'Rebrand phase 2': 'Kestrel Press'
-}
-
-export const projectNames = Object.keys(projectClients)
-
-/** Only live work can start a timer, so the header picker is the shorter list. */
-export const startableProjects = [
-  'Brand refresh',
-  'Site build',
-  'Report design',
-  'Packaging system',
-  'Editorial templates',
-  'Onboarding emails'
-]
-
-export const clientFor = (project: string): string => projectClients[project] ?? ''
+export type { TimeEntry }
 
 /* ---- Dates ---------------------------------------------------------------
- * The app has no clock — the dashboard names its own day — so "today" is a
- * constant here too, and every other screen's copy is written against it. */
-
-export const TODAY = '2026-08-28' // Friday
-
-const MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December'
-]
-
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+ * Weeks run Monday to Sunday, against whatever day the caller says is today —
+ * the store has a clock now, so nothing here is a constant any more. */
 
 const asDate = (iso: string): Date => new Date(`${iso}T00:00:00Z`)
 
@@ -99,28 +35,51 @@ const mondayOf = (iso: string): string => {
   return addDays(iso, day === 0 ? -6 : 1 - day)
 }
 
-export const weekStartFor = (offset: number): string => addDays(mondayOf(TODAY), offset * 7)
+export const weekStartFor = (offset: number, today: string): string =>
+  addDays(mondayOf(today), offset * 7)
+
+/* Interim: the invoice fixtures and the Settings screen still date themselves
+   against this constant rather than a query — Task 18/19 move them onto the
+   store's own clock. The Time screen itself no longer reads it. */
+export const TODAY = '2026-08-28' // Friday
+
+export type WeekWindow = { offset: number; start: string; from: string; to: string }
+
+/** The list filter for one week: local Monday 00:00 to the next, as UTC ISO. */
+export function weekWindow(offset: number, today: string): WeekWindow {
+  const start = weekStartFor(offset, today)
+  return { offset, start, from: atLocal(start, 0), to: atLocal(addDays(start, 7), 0) }
+}
 
 /**
  * Newest first, and the current week stops at today: a Saturday that has not
  * happened yet is not a day you failed to log.
  */
-export function daysOf(week: Week): string[] {
+export function daysOf(week: WeekWindow, today: string): string[] {
   const days: string[] = []
   for (let i = 0; i < 7; i += 1) {
     const iso = addDays(week.start, i)
-    if (week.offset === 0 && iso > TODAY) break
+    if (week.offset === 0 && iso > today) break
     days.push(iso)
   }
   return days.reverse()
 }
 
-export function dayLabel(iso: string): { primary: string; secondary: string } {
+export function dayLabel(iso: string, today: string): { primary: string; secondary: string } {
   const date = asDate(iso)
   const secondary = `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`
-  if (iso === TODAY) return { primary: 'Today', secondary }
-  if (iso === addDays(TODAY, -1)) return { primary: 'Yesterday', secondary }
+  if (iso === today) return { primary: 'Today', secondary }
+  if (iso === addDays(today, -1)) return { primary: 'Yesterday', secondary }
   return { primary: WEEKDAYS[date.getUTCDay()], secondary }
+}
+
+/** A finished entry's local day. */
+export const dayOf = (entry: TimeEntry): string => localDateOf(entry.startedAt)
+
+/** The client a project belongs to, by name, for the log's client column. */
+export const clientNameOf = (projectId: Id, projects: Project[], clients: Client[]): string => {
+  const p = projects.find((x) => x.id === projectId)
+  return clients.find((c) => c.id === p?.clientId)?.company ?? ''
 }
 
 /** "24–30 Aug 2026", collapsing the parts the two ends share. */
@@ -136,14 +95,6 @@ export function weekRangeLabel(start: string): string {
   return `${from.getUTCDate()} ${month(from)} – ${to.getUTCDate()} ${month(to)} ${year}`
 }
 
-/* ---- Durations ----------------------------------------------------------- */
-
-export const durationOf = (entry: TimeEntry): number =>
-  clockSpanMinutes(entry.startMin, entry.endMin)
-
-export const totalOf = (entries: TimeEntry[]): number =>
-  entries.reduce((sum, entry) => sum + durationOf(entry), 0)
-
 /** The header's comparison. Direction is carried by the caret, never by colour. */
 export function formatDelta(minutes: number, previous: number): string {
   if (previous === 0) return 'No entries last week'
@@ -152,70 +103,9 @@ export function formatDelta(minutes: number, previous: number): string {
   return `${diff > 0 ? '▲' : '▼'} ${formatDuration(Math.abs(diff))} vs last week`
 }
 
-/* ---- The seed ------------------------------------------------------------
- * Three weeks, so the arrows have somewhere to go and the header comparison
- * changes when they do. This week deliberately skips Wednesday and the week
- * before last is empty outright — the two shapes the "no entries" line has to
- * hold. Anything further back comes back empty.
- */
-
-const entry = (
-  id: string,
-  iso: string,
-  project: string,
-  note: string,
-  startMin: number,
-  endMin: number
-): TimeEntry => ({ id, iso, project, note, startMin, endMin })
-
-const thisWeek: TimeEntry[] = [
-  entry('e1', '2026-08-24', 'Site build', 'Nav and footer build', 570, 765),
-  entry('e2', '2026-08-24', 'Onboarding emails', 'Sequence copy', 820, 900),
-  entry('e3', '2026-08-24', 'Brand refresh', 'Kickoff call and notes', 915, 995),
-  entry('e4', '2026-08-25', 'Packaging system', 'Dieline revisions', 600, 795),
-  entry('e5', '2026-08-25', 'Site build', 'Component audit', 840, 980),
-  entry('e6', '2026-08-25', 'Brand refresh', 'Competitor sweep', 990, 1085),
-  entry('e7', '2026-08-27', 'Report design', 'Chart styling for section 3', 530, 730),
-  entry('e8', '2026-08-27', 'Brand refresh', 'Type scale exploration', 810, 975),
-  entry('e9', '2026-08-28', 'Brand refresh', 'Logo lockup refinements', 555, 700),
-  entry('e10', '2026-08-28', 'Brand refresh', 'Colour system pass', 785, 930),
-  entry('e11', '2026-08-28', 'Editorial templates', 'Grid spec review', 945, 1020)
-]
-
-const lastWeek: TimeEntry[] = [
-  entry('p1', '2026-08-17', 'Site build', 'Sprint planning', 840, 940),
-  entry('p2', '2026-08-18', 'Editorial templates', 'Master pages', 545, 750),
-  entry('p3', '2026-08-18', 'Brand refresh', 'Stakeholder review', 840, 925),
-  entry('p4', '2026-08-19', 'Site build', 'Auth screens', 580, 775),
-  entry('p5', '2026-08-19', 'Onboarding emails', 'Welcome sequence', 830, 920),
-  entry('p6', '2026-08-20', 'Brand refresh', 'Moodboard round two', 610, 780),
-  entry('p7', '2026-08-20', 'Packaging system', 'Print spec call', 855, 945),
-  entry('p8', '2026-08-21', 'Site build', 'Responsive pass', 540, 730),
-  entry('p9', '2026-08-21', 'Report design', 'Data table spec', 795, 935)
-]
-
-const seeded: Record<number, { entries: TimeEntry[]; previousMinutes: number }> = {
-  0: { entries: thisWeek, previousMinutes: 1265 },
-  [-1]: { entries: lastWeek, previousMinutes: 1180 },
-  [-2]: { entries: [], previousMinutes: 0 }
-}
-
-export function weekFor(offset: number): Week {
-  const seed = seeded[offset] ?? { entries: [], previousMinutes: 0 }
-  return {
-    offset,
-    start: weekStartFor(offset),
-    previousMinutes: seed.previousMinutes,
-    entries: seed.entries.map((item) => ({ ...item }))
-  }
-}
-
 /* ---- Wall-clock recency ---------------------------------------------------
- * Everything above is ledger time: ISO dates measured against TODAY, which is
- * a constant because the app has no clock and a fixture that drifted would
- * make the artboards' figures wrong overnight.
- *
- * A sync timestamp is the opposite kind of fact. It is not something the
+ * Everything above is ledger time: calendar days and week windows. A sync
+ * timestamp is the opposite kind of fact. It is not something the
  * ledger records — it is something that happened to this machine a moment ago,
  * and "4 minutes ago" is only true while you are reading it. So these two take
  * epoch milliseconds and measure against a real Date.now(), and they are kept

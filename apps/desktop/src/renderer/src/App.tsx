@@ -596,7 +596,7 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
 
           {/* Time is the one screen that owns its whole header — see TimeScreen. */}
           {screen === 'time' ? (
-            <TimeScreen isTopmost={!showTimerBar} />
+            <TimeScreen isTopmost={!showTimerBar} loading={forceLoading} />
           ) : screen === 'settings' ? (
             /* Also owns its whole header: the sub-nav beside the pane is part
                of the screen, not of the shell. */

@@ -1,15 +1,27 @@
-import { useCallback, useMemo, useState, type JSX } from 'react'
+import { useCallback, useState, type JSX } from 'react'
+import { totalMinutes, type Id, type TimeEntry } from '@trackit/shared'
+import { EmptyState } from './EmptyState'
+import { TableSkeleton } from './TableSkeleton'
 import { TimeLog } from './TimeLog'
 import { TimerStarter } from './TimerStarter'
 import { TopBar } from './TopBar'
 import { WeekToolbar } from './WeekToolbar'
-import { TODAY, totalOf, weekFor, type TimeEntry } from './time-data'
+import { clientNameOf, dayOf, daysOf, weekWindow } from './time-data'
+import { atLocal, localMinutesOf, todayIso } from './local-dates'
+import { useClients } from '../data/use-clients'
+import { useProjects } from '../data/use-projects'
+import {
+  useCreateTimeEntry,
+  useDeleteTimeEntry,
+  useStartTimer,
+  useTimeEntries,
+  useUpdateTimeEntry
+} from '../data/use-time'
 
 type TimeScreenProps = {
   isTopmost: boolean
+  loading?: boolean
 }
-
-let nextId = 100
 
 /**
  * The global weekly log.
@@ -18,32 +30,38 @@ let nextId = 100
  * because the header acts on the log below it: "Add entry" writes a row, and
  * the week arrows decide which rows exist at all.
  */
-export function TimeScreen({ isTopmost }: TimeScreenProps): JSX.Element {
+export function TimeScreen({ isTopmost, loading = false }: TimeScreenProps): JSX.Element {
+  const today = todayIso()
   const [offset, setOffset] = useState(0)
-  const week = useMemo(() => weekFor(offset), [offset])
-  const [entries, setEntries] = useState<TimeEntry[]>(week.entries)
-  const [focusId, setFocusId] = useState<string | null>(null)
-  /* Stepping to another week loads its rows; edits to the old one are dropped,
-     which is honest for a design build with no store behind it. */
-  const [loaded, setLoaded] = useState(offset)
+  const week = weekWindow(offset, today)
+  const previous = weekWindow(offset - 1, today)
+  const [focusId, setFocusId] = useState<Id | null>(null)
 
-  if (loaded !== offset) {
-    setLoaded(offset)
-    setEntries(week.entries)
-    setFocusId(null)
-  }
+  const entriesQuery = useTimeEntries({ from: week.from, to: week.to })
+  const previousQuery = useTimeEntries({ from: previous.from, to: previous.to })
+  const projectsQuery = useProjects()
+  const clientsQuery = useClients()
 
-  const total = totalOf(entries)
+  const create = useCreateTimeEntry()
+  const update = useUpdateTimeEntry()
+  const del = useDeleteTimeEntry()
+  const start = useStartTimer()
 
-  const change = useCallback((id: string, patch: Partial<TimeEntry>): void => {
-    setEntries((current) =>
-      current.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry))
-    )
-  }, [])
+  const projects = projectsQuery.data ?? []
+  const clients = clientsQuery.data ?? []
+  /* The running entry (endedAt null) belongs to the timer bar, not the log. */
+  const entries = (entriesQuery.data ?? []).filter((entry) => entry.endedAt !== null)
+  const previousEntries = (previousQuery.data ?? []).filter((entry) => entry.endedAt !== null)
 
-  const remove = useCallback((id: string): void => {
-    setEntries((current) => current.filter((entry) => entry.id !== id))
-  }, [])
+  const loggable = projects.filter((project) => project.status !== 'cancelled')
+  const startable = projects.filter((project) => project.status === 'active')
+
+  const pending =
+    loading ||
+    entriesQuery.isPending ||
+    previousQuery.isPending ||
+    projectsQuery.isPending ||
+    clientsQuery.isPending
 
   const clearFocus = useCallback(() => setFocusId(null), [])
 
@@ -54,27 +72,30 @@ export function TimeScreen({ isTopmost }: TimeScreenProps): JSX.Element {
    * right and is at worst two keystrokes from it.
    */
   const addEntry = (): void => {
-    const iso = offset === 0 ? TODAY : week.start
-    const dayEntries = entries.filter((entry) => entry.iso === iso)
-    const last = dayEntries.reduce(
-      (latest, entry) => (entry.endMin > latest.endMin ? entry : latest),
-      dayEntries[0]
+    const day = offset === 0 ? today : week.start
+    const dayEntries = entries.filter((entry) => dayOf(entry) === day)
+    const last = dayEntries.reduce<TimeEntry | undefined>(
+      (latest, entry) =>
+        !latest || (entry.endedAt ?? '') > (latest.endedAt ?? '') ? entry : latest,
+      undefined
     )
-    const startMin = last ? last.endMin : 540
-    const id = `n${(nextId += 1)}`
+    const startMin = last?.endedAt ? localMinutesOf(last.endedAt) : 540
+    const projectId = entries.at(-1)?.projectId ?? loggable[0]?.id
+    if (!projectId) return
+    const id = crypto.randomUUID()
 
-    setEntries((current) => [
-      ...current,
+    create.mutate(
       {
         id,
-        iso,
-        project: entries[entries.length - 1]?.project ?? 'Brand refresh',
+        projectId,
+        checklistItemId: null,
         note: '',
-        startMin,
-        endMin: startMin
-      }
-    ])
-    setFocusId(id)
+        startedAt: atLocal(day, startMin),
+        endedAt: atLocal(day, startMin),
+        source: 'manual'
+      },
+      { onSuccess: () => setFocusId(id) }
+    )
   }
 
   return (
@@ -84,7 +105,12 @@ export function TimeScreen({ isTopmost }: TimeScreenProps): JSX.Element {
         isTopmost={isTopmost}
         actions={
           <>
-            <TimerStarter />
+            <TimerStarter
+              projects={startable}
+              onStart={(projectId) =>
+                start.mutate({ id: crypto.randomUUID(), projectId, checklistItemId: null, note: '' })
+              }
+            />
             <button type="button" className="button no-drag" onClick={addEntry}>
               Add entry
             </button>
@@ -95,20 +121,33 @@ export function TimeScreen({ isTopmost }: TimeScreenProps): JSX.Element {
       <WeekToolbar
         offset={offset}
         start={week.start}
-        totalMinutes={total}
-        previousMinutes={week.previousMinutes}
+        totalMinutes={totalMinutes(entries)}
+        previousMinutes={totalMinutes(previousEntries)}
         onOffset={setOffset}
       />
 
       <div className="main__content">
-        <TimeLog
-          week={week}
-          entries={entries}
-          focusId={focusId}
-          onChange={change}
-          onDelete={remove}
-          onFocused={clearFocus}
-        />
+        {pending ? (
+          <TableSkeleton block="time-log" />
+        ) : loggable.length === 0 ? (
+          <EmptyState
+            variant="panel"
+            title="Nothing to log against"
+            body="Create a project first; hours are always logged to one."
+          />
+        ) : (
+          <TimeLog
+            days={daysOf(week, today)}
+            today={today}
+            entries={entries}
+            projects={loggable}
+            clientNameOf={(projectId) => clientNameOf(projectId, projects, clients)}
+            focusId={focusId}
+            onChange={(id, patch) => update.mutate({ id, patch })}
+            onDelete={(id) => del.mutate(id)}
+            onFocused={clearFocus}
+          />
+        )}
       </div>
     </>
   )
