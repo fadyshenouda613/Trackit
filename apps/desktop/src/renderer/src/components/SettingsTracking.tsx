@@ -4,6 +4,7 @@ import { formFrom, parseRateFloor, type SettingsForm } from './settings-data'
 import { projectFigures } from './project-rows'
 import { SettingsRow, SettingsSection } from './SettingsRow'
 import { SettingsShortcutField } from './SettingsShortcutField'
+import { plural } from './terms'
 import { toneVar } from './tone'
 import { useClients } from '../data/use-clients'
 import { useProjects } from '../data/use-projects'
@@ -82,7 +83,7 @@ export function SettingsTracking({ settings, onChange }: SettingsTrackingProps):
               <span className="implied__basis">
                 {floorCents === null
                   ? 'Enter a rate to see how your projects measure up'
-                  : `Across ${rated.length} projects with hours logged against a price`}
+                  : `Across ${plural(rated.length, 'project')} with hours logged against a price`}
               </span>
             </div>
 

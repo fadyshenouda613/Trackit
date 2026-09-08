@@ -21,7 +21,7 @@ import type {
   TimeEntry
 } from '@trackit/shared'
 import { dateLabel, localDateOf, monthYear } from './local-dates'
-import { initialsOf, termsLabel } from './terms'
+import { initialsOf, plural, termsLabel } from './terms'
 
 export type PaymentsByInvoice = Record<Id, Payment[]>
 
@@ -158,13 +158,13 @@ export function clientHeader(
     .map((i) => overdueDays(i.dueAt, today))
     .filter((d): d is number => d !== null)
   const n = openOnes.length
-  const noun = n === 1 ? 'invoice' : 'invoices'
+  const owed = plural(n, 'invoice')
   const outstandingNote =
     n === 0
       ? 'Nothing owed'
       : late.length
-        ? `${n} ${noun} · ${Math.max(...late)} days overdue`
-        : `${n} ${noun} · due in ${daysBetween(today, localDateOf(soonest as string))} days`
+        ? `${owed} · ${plural(Math.max(...late), 'day')} overdue`
+        : `${owed} · due in ${plural(daysBetween(today, localDateOf(soonest as string)), 'day')}`
   return {
     initials: initialsOf(c.name),
     name: c.name,
@@ -179,7 +179,7 @@ export function clientHeader(
     currencyPill: `${c.currency} (${symbol})`,
     termsPill: termsLabel(c.paymentTermsDays),
     lifetime: formatCents(lifetime, symbol),
-    lifetimeNote: `${projects.length} ${projects.length === 1 ? 'project' : 'projects'} since ${monthYear(c.createdAt)}`,
+    lifetimeNote: `${plural(projects.length, 'project')} since ${monthYear(c.createdAt)}`,
     outstanding: formatCents(balanceCents(lifetime, paid), symbol),
     outstandingNote,
     outstandingTone: n === 0 ? null : late.length ? 'negative' : 'positive'

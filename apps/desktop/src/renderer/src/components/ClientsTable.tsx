@@ -7,6 +7,7 @@ import { Icon } from './Icon'
 import { todayIso } from './local-dates'
 import { Pill } from './Pill'
 import { TableSkeleton } from './TableSkeleton'
+import { plural } from './terms'
 import { useClients } from '../data/use-clients'
 import { useInvoices } from '../data/use-invoices'
 import { usePaymentsByInvoice } from '../data/use-payments'
@@ -127,7 +128,7 @@ export function ClientsTable({
       )}
 
       <div className="clients__row clients__totals">
-        <span className="clients__totals-label">{totals.count} clients</span>
+        <span className="clients__totals-label">{plural(totals.count, 'client')}</span>
         <span />
         <span className="align-right clients__totals-label">{totals.active}</span>
         <span className="align-right clients__totals-value">{totals.lifetime}</span>

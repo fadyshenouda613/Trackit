@@ -12,7 +12,7 @@ import { projectFigures, sessionRows, statusHistory } from './project-rows'
 import { ProjectChecklist } from './ProjectChecklist'
 import { StatusPill } from './StatusPill'
 import { TableSkeleton } from './TableSkeleton'
-import { initialsOf, termsLabel } from './terms'
+import { initialsOf, plural, termsLabel } from './terms'
 import { toneVar } from './tone'
 import {
   budgetJudgement,
@@ -211,7 +211,7 @@ export function ProjectDetail({
       ? null
       : [...f.entries].sort((a, b) => a.startedAt.localeCompare(b.startedAt))[0].startedAt
   const sessionsNote = firstStartedAt
-    ? `Across ${f.entries.length} sessions since ${dayMonth(firstStartedAt)}`
+    ? `Across ${plural(f.entries.length, 'session')} since ${dayMonth(firstStartedAt)}`
     : 'No sessions yet'
 
   const history = statusHistory(record, invoice, payments.data ?? [])
@@ -342,7 +342,7 @@ export function ProjectDetail({
             label={`Checklist ${f.checklist.done} of ${f.checklist.total} done`}
           />
           <span className="project__metric-note">
-            {f.checklist.percent}% done · {f.checklist.open} items open
+            {f.checklist.percent}% done · {plural(f.checklist.open, 'item')} open
           </span>
         </div>
 
@@ -556,7 +556,7 @@ export function ProjectDetail({
               <Pill>{client.data ? termsLabel(client.data.paymentTermsDays) : '—'}</Pill>
             </div>
             <span className="rail__aside">
-              {others === 1 ? '1 other project' : `${others} other projects`}
+              {plural(others, 'other project')}
               {avgDays === null ? '' : ` · pays in ${avgDays} days on average`}
             </span>
           </section>

@@ -123,10 +123,10 @@ export function InvoiceDetail({
         today={today}
         onMarkSent={() => send.mutate(current.id)}
         onRecordPayment={onRecordPayment}
-        onVoid={() =>
+        onVoid={(reason) =>
           voidIt.mutate({
             id: current.id,
-            input: { reason: 'Cancelled before payment', replacedByInvoiceId: null }
+            input: { reason, replacedByInvoiceId: null }
           })
         }
         /* A draft was never issued, so there is nothing to void: it goes, and

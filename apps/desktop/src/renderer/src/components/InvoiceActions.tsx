@@ -12,7 +12,8 @@ type InvoiceActionsProps = {
   today: string
   onMarkSent: () => void
   onRecordPayment: () => void
-  onVoid: () => void
+  /** Why it was voided, in the freelancer's words — it is printed on the sheet. */
+  onVoid: (reason: string) => void
   /** A draft was never issued, so it is deleted rather than voided. */
   onDelete: () => void
   /** Whether that destructive write is in flight, so the confirm can close after it. */
@@ -51,6 +52,11 @@ export function InvoiceActions({
   const balance = balanceCents(invoice.totalCents, paid)
   const late = overdueDaysOf(invoice, today)
   const [confirming, setConfirming] = useState(false)
+  /* Pre-filled with the commonest reason rather than left blank: the field is
+     there to be corrected, not to be an obstacle between a decision and the
+     word for it. It is still required — a void with no reason is a record that
+     answers "why?" with nothing. */
+  const [reason, setReason] = useState('Cancelled before payment')
 
   const settled = status === 'paid'
   const closed = settled || status === 'void'
@@ -150,6 +156,20 @@ export function InvoiceActions({
                     ? `Delete ${invoice.number}? The draft is removed from the list; nothing was issued.`
                     : `Void ${invoice.number}? It stays on the list, numbered and dimmed, counting towards nothing.`}
                 </span>
+                {/* A void is not an undo — it is a numbered record that stays
+                    on the list, and the sheet prints why. So the confirm asks
+                    for the word rather than inventing one. A draft has no
+                    document to say it on, so it is not asked. */}
+                {!draft && (
+                  <input
+                    type="text"
+                    className={reason.trim() ? 'field field--filled' : 'field'}
+                    value={reason}
+                    aria-label="Reason for voiding"
+                    placeholder="Why it is being voided"
+                    onChange={(event) => setReason(event.target.value)}
+                  />
+                )}
                 <div className="inv-acts__confirm-row">
                   <button
                     type="button"
@@ -161,8 +181,8 @@ export function InvoiceActions({
                   <button
                     type="button"
                     className="button inv-acts__button inv-acts__button--danger"
-                    disabled={pending}
-                    onClick={draft ? onDelete : onVoid}
+                    disabled={pending || (!draft && reason.trim() === '')}
+                    onClick={draft ? onDelete : () => onVoid(reason.trim())}
                   >
                     {draft ? 'Delete it' : 'Void it'}
                   </button>

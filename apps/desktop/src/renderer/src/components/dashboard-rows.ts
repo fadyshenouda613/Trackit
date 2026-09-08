@@ -1,6 +1,7 @@
 import { budgetJudgement, daysBetween, formatCents, formatDuration, rateJudgement, rateVsFloorPercent, overdueJudgement } from '@trackit/shared'
 import type { Client, Id, Invoice, Project } from '@trackit/shared'
 import { localDateOf } from './local-dates'
+import { plural } from './terms'
 import type { ProjectFigures } from './project-rows'
 import {
   averageDaysToPay,
@@ -73,7 +74,7 @@ export function attentionItems(
       key: `inv-${i.id}`,
       tone: overdueJudgement(days),
       subject: `Chase ${clientOf(i, clients)?.company ?? i.number}`,
-      detail: `— ${i.number} is ${days} days overdue, ${formatCents(balanceOf(i, payments), symbolFor(i))}`,
+      detail: `— ${i.number} is ${plural(days, 'day')} overdue, ${formatCents(balanceOf(i, payments), symbolFor(i))}`,
       action: 'Send reminder'
     })
   )
@@ -97,7 +98,7 @@ export function attentionItems(
             ...base,
             tone: 'negative',
             subject: `Re-scope ${p.name}`,
-            detail: `— ${budget.percent}% of budgeted hours spent against ${c.done} of ${c.total} deliverables done`
+            detail: `— ${budget.percent}% of budgeted hours spent against ${c.done} of ${plural(c.total, 'deliverable')} done`
           }
         ]
       if (c.later >= 3)
@@ -106,7 +107,7 @@ export function attentionItems(
             ...base,
             tone: 'warning',
             subject: `Bill added scope on ${p.name}`,
-            detail: `— ${c.later} deliverables added since kickoff, price unchanged`,
+            detail: `— ${plural(c.later, 'deliverable')} added since kickoff, price unchanged`,
             action: 'Review scope'
           }
         ]
@@ -116,7 +117,7 @@ export function attentionItems(
             ...base,
             tone: 'warning',
             subject: `Watch ${p.name}`,
-            detail: `— ${budget.percent}% of budgeted hours used with ${c.open} ${c.open === 1 ? 'deliverable' : 'deliverables'} open`
+            detail: `— ${budget.percent}% of budgeted hours used with ${plural(c.open, 'deliverable')} open`
           }
         ]
       return []

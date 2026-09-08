@@ -128,9 +128,11 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   /* The client "New project" is opened for, so the dialog can pre-select it. */
   const [newProjectClientId, setNewProjectClientId] = useState<Id | null>(null)
   /* The same for "Create invoice" raised from a project: the client the work
-     belongs to. Recorded here now; the Create invoice screen still reads the
-     fixture id below until Task 18 puts it on the store. */
+     belongs to, and the project it was raised from — which is the line the
+     screen opens already ticked, because raising an invoice from a project is
+     an answer to "bill this", not a fresh start. */
   const [newInvoiceClientId, setNewInvoiceClientId] = useState<Id | null>(null)
+  const [newInvoiceProjectId, setNewInvoiceProjectId] = useState<Id | null>(null)
   /* The Status/Client/sort state for the Projects screen's toolbar and table —
      lifted here so the TopBar's unfiltered totals and the filtered table both
      read from the one store query each of them needs. */
@@ -223,8 +225,10 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   /* The client a Create invoice was raised for belongs to that visit to the
      screen and nothing else, so it goes when the screen does. */
   useEffect(() => {
-    if (screen !== 'newInvoice' && newInvoiceClientId !== null) setNewInvoiceClientId(null)
-  }, [screen, newInvoiceClientId])
+    if (screen === 'newInvoice') return
+    if (newInvoiceClientId !== null) setNewInvoiceClientId(null)
+    if (newInvoiceProjectId !== null) setNewInvoiceProjectId(null)
+  }, [screen, newInvoiceClientId, newInvoiceProjectId])
 
   /*
    * What the shell itself needs from the store. Everything below is derived
@@ -292,8 +296,12 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
    * The timer bar is window chrome, not part of a screen: "spans the full
    * window above everything and only exists while a timer runs". A new account
    * has nothing to time, so an empty store suppresses it.
+   *
+   * The recovery dialog is the one thing that outranks it: that dialog exists
+   * because the clock cannot be trusted, so a bar counting it up behind the
+   * question would be arguing with it.
    */
-  const showTimerBar = running !== null && !isEmpty
+  const showTimerBar = running !== null && !isEmpty && (orphan === null || recoveryDismissed)
 
   /* What the panel's Project, Invoice and Void invoice choices open. Found by
      name and number, because that is what makes them the interesting ones. */
@@ -303,6 +311,14 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
     invoiceList.find((entry) => entry.number === SAMPLE_INVOICE) ?? invoiceList[0] ?? null
   const sampleVoid =
     invoiceList.find((entry) => entry.number === SAMPLE_VOID) ?? invoiceList[0] ?? null
+  /* Record payment is the one preview that needs an invoice which can actually
+     take one: a void or a draft has no such action in the real UI, so opening
+     the dialog over either would be previewing a state the app cannot reach. */
+  const samplePayable =
+    invoiceList.find((entry) => entry.number === SAMPLE_INVOICE) ??
+    invoiceList.find((entry) => entry.status === 'sent' || entry.status === 'partial') ??
+    invoiceList[0] ??
+    null
 
   const selectedClient = useClient(selectedClientId).data ?? null
   const selectedProject = useProject(selectedProjectId).data ?? null
@@ -370,6 +386,7 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   const onCreateInvoice = (): void => {
     setInvoiceFrom(screen)
     setNewInvoiceClientId(screen === 'project' ? (selectedProject?.clientId ?? null) : null)
+    setNewInvoiceProjectId(screen === 'project' ? (selectedProject?.id ?? null) : null)
     setScreen('newInvoice')
   }
 
@@ -417,7 +434,7 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           setOpenInvoiceId(sampleVoid?.id ?? null)
           setScreen('invoice')
         } else if (next === 'payment') {
-          setOpenInvoiceId(sampleInvoice?.id ?? null)
+          setOpenInvoiceId(samplePayable?.id ?? null)
           setScreen('invoice')
           setModal('payment')
         } else {
@@ -429,6 +446,7 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           if (next === 'newInvoice') {
             setInvoiceFrom('invoices')
             setNewInvoiceClientId(null)
+            setNewInvoiceProjectId(null)
           }
           setScreen(next)
         }
@@ -618,6 +636,9 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
               /* Set when a project raised this invoice: whoever is paying for
                  that project is the one fact the entry point carries. */
               initialClientId={newInvoiceClientId ?? undefined}
+              /* And the project itself, so the work it was raised for is
+                 already ticked rather than asked for again. */
+              initialProjectId={newInvoiceProjectId ?? undefined}
               onOpenProjects={() => setScreen('projects')}
               onSaved={openDetail}
             />

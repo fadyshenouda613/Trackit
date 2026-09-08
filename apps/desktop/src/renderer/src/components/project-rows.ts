@@ -27,6 +27,7 @@ import type {
 } from '@trackit/shared'
 import { hoursLabel } from './client-rows'
 import { dayMonth, longDate } from './local-dates'
+import { plural } from './terms'
 import type { TextTone } from './tone'
 
 export type ProjectFigures = {
@@ -169,7 +170,7 @@ export function dashboardRow(f: ProjectFigures, floorCents: number, runningProje
     } else if (j === 'warning') {
       note = `+${vs}% · marginal`
       noteTone = 'warning'
-    } else if (pct < 50) note = `early · ${f.checklist.open} items open`
+    } else if (pct < 50) note = `early · ${plural(f.checklist.open, 'item')} open`
     else note = `+${vs}% vs floor`
   }
   return {

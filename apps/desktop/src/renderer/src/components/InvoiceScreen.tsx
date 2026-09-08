@@ -1,4 +1,4 @@
-import { useMemo, useState, type JSX } from 'react'
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { BillableProjects } from './BillableProjects'
 import { Icon } from './Icon'
 import { InvoiceLines } from './InvoiceLines'
@@ -38,6 +38,12 @@ type InvoiceScreenProps = {
    * would be asking the freelancer to repeat themselves.
    */
   initialClientId?: Id
+  /**
+   * And the project it was raised from, which opens already ticked: "create an
+   * invoice for this project" is an answer, not a question to ask back. Ignored
+   * if that project is not billable — already invoiced work is not offered.
+   */
+  initialProjectId?: Id
   onOpenProjects: () => void
   /** The draft the store wrote, so the screen it lands on is that record. */
   onSaved: (id: Id) => void
@@ -60,6 +66,7 @@ export function InvoiceScreen({
   isTopmost,
   back,
   initialClientId,
+  initialProjectId,
   onOpenProjects,
   onSaved
 }: InvoiceScreenProps): JSX.Element {
@@ -143,6 +150,22 @@ export function InvoiceScreen({
         : [...current, lineFromProject(project)]
     )
   }
+
+  /*
+   * The tick the entry point already made. It has to wait for the billable list
+   * — until that answers there is no project to tick — and it happens once: a
+   * seed that ran again would put the line back after it was deliberately
+   * unticked. Untouched if the project is not on the list, because delivered
+   * work that is already invoiced is not on offer.
+   */
+  const seeded = useRef(false)
+  useEffect(() => {
+    if (seeded.current || initialProjectId === undefined) return
+    const project = billableList.find((entry) => entry.id === initialProjectId)
+    if (!project) return
+    seeded.current = true
+    toggle(project)
+  }, [initialProjectId, billableList])
 
   const change = (id: Id, patch: Partial<LineDraft>): void => {
     setLines((current) => current.map((line) => (line.id === id ? { ...line, ...patch } : line)))

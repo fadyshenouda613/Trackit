@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 import { dashboardMetrics } from './dashboard-rows'
+import { plural } from './terms'
 import { todayIso } from './local-dates'
 import { useInvoiceFigures } from './use-invoice-figures'
 import { useInvoices } from '../data/use-invoices'
@@ -27,8 +28,8 @@ export function MetricCards(): JSX.Element {
         <span className="metric__value">{m ? m.unbilled : '—'}</span>
         <span className="metric__meta">
           {m
-            ? `${m.unbilledCount} delivered projects${
-                m.oldestDays !== null ? ` · oldest sat ${m.oldestDays} days` : ''
+            ? `${plural(m.unbilledCount, 'delivered project')}${
+                m.oldestDays !== null ? ` · oldest sat ${plural(m.oldestDays, 'day')}` : ''
               }`
             : '—'}
         </span>
@@ -38,13 +39,13 @@ export function MetricCards(): JSX.Element {
         <span className="t-overline metric__label">Outstanding</span>
         <span className="metric__value">{m ? m.outstanding : '—'}</span>
         <div className="metric__meta">
-          <span>{m ? `${m.outstandingCount} invoices` : '—'}</span>
+          <span>{m ? plural(m.outstandingCount, 'invoice') : '—'}</span>
           {m && (
             <>
               <span className="metric__sep">·</span>
               {m.overdue !== null ? (
                 <span style={{ color: 'var(--negative)' }}>
-                  {m.overdue} overdue {m.overdueDays} days
+                  {m.overdue} overdue {plural(m.overdueDays ?? 0, 'day')}
                 </span>
               ) : (
                 <span>Nothing overdue</span>
@@ -59,8 +60,8 @@ export function MetricCards(): JSX.Element {
         <span className="metric__value">{m ? m.paidMonth : '—'}</span>
         <span className="metric__meta">
           {m
-            ? `${m.paidMonthCount} invoices${
-                m.averageDays !== null ? ` · ${m.averageDays} days average to pay` : ''
+            ? `${plural(m.paidMonthCount, 'invoice')}${
+                m.averageDays !== null ? ` · ${plural(m.averageDays, 'day')} average to pay` : ''
               }`
             : '—'}
         </span>

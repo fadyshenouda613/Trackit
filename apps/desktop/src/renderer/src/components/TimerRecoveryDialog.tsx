@@ -36,6 +36,14 @@ const startedAtClock = (iso: string): number => {
   return date.getHours() * 60 + date.getMinutes()
 }
 
+/**
+ * `formatDuration` renders nothing under a minute as an em dash, which is right
+ * in a table column and wrong in a sentence: "has been running for —". In prose
+ * a run too short to round to a minute is still a run.
+ */
+const runLabel = (minutes: number): string =>
+  minutes <= 0 ? 'under a minute' : formatDuration(minutes)
+
 /** Whether the run began on the local day before `nowMs`. */
 function startedYesterday(iso: string, nowMs: number): boolean {
   const started = new Date(iso)
@@ -66,12 +74,17 @@ export function TimerRecoveryDialog({
   nowMs,
   onResolve
 }: TimerRecoveryDialogProps): JSX.Element {
-  const [choice, setChoice] = useState<Choice>('trim')
-  const [trimText, setTrimText] = useState('6:00 PM')
-
   const STARTED = startedAtClock(entry.startedAt)
   const RAN = Math.floor(elapsedSeconds(entry.startedAt, nowMs) / 60)
   const ALREADY_LOGGED = alreadyLoggedMinutes
+
+  /* A run with nothing in it yet cannot be trimmed to anything valid, so the
+     question opens on the answer that is available. */
+  const [choice, setChoice] = useState<Choice>(RAN === 0 ? 'keep' : 'trim')
+  /* The run's own end, not a guess at when the day finished: the dialog opens
+     valid — trimming to it logs the whole run — and editing it down is what
+     makes it a trim. Anything else opens showing an error nobody typed. */
+  const [trimText, setTrimText] = useState(() => formatClock((STARTED + RAN) % 1440))
 
   const parsed = parseClock(trimText)
   const trimmed = parsed === null ? null : clockSpanMinutes(STARTED, parsed)
@@ -91,7 +104,7 @@ export function TimerRecoveryDialog({
 
   const confirmLabel =
     choice === 'keep'
-      ? `Keep ${formatDuration(RAN)}`
+      ? `Keep ${runLabel(RAN)}`
       : choice === 'discard'
         ? 'Discard'
         : trimValid
@@ -101,7 +114,7 @@ export function TimerRecoveryDialog({
   const choices: { key: Choice; label: JSX.Element; note: string }[] = [
     {
       key: 'keep',
-      label: <>Keep all {formatDuration(RAN)}</>,
+      label: <>Keep all {runLabel(RAN)}</>,
       note: 'Logs the whole run, ending now.'
     },
     {
@@ -123,9 +136,10 @@ export function TimerRecoveryDialog({
     {
       key: 'discard',
       label: <>Discard it</>,
-      note: `Nothing is logged. ${projectName} keeps the ${formatDuration(
-        ALREADY_LOGGED
-      )} it already has.`
+      note:
+        ALREADY_LOGGED <= 0
+          ? `Nothing is logged. ${projectName} has nothing logged yet.`
+          : `Nothing is logged. ${projectName} keeps the ${runLabel(ALREADY_LOGGED)} it already has.`
     }
   ]
 
@@ -139,7 +153,7 @@ export function TimerRecoveryDialog({
         <div className="dialog__body">
           <p className="t-body recovery__lede">
             A timer for <strong>{projectName}</strong> has been running for{' '}
-            <strong>{formatDuration(RAN)}</strong>{' '}
+            <strong>{runLabel(RAN)}</strong>{' '}
             {startedYesterday(entry.startedAt, nowMs)
               ? 'since yesterday at '
               : `since ${shortDate(entry.startedAt)} at `}
