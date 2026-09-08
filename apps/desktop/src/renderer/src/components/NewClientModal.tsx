@@ -66,18 +66,26 @@ export function NewClientModal({ onClose, onCreated }: NewClientModalProps): JSX
     })
   }
 
+  /* `submit` closes over the current fields, so the listener reads it through a
+     ref rather than re-subscribing (and refocusing) on every keystroke. */
+  const submitRef = useRef(submit)
+  submitRef.current = submit
+
+  useEffect(() => {
+    dialogRef.current?.querySelector<HTMLInputElement>('input')?.focus()
+  }, [])
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onClose()
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
         event.preventDefault()
-        submit()
+        submitRef.current()
       }
     }
     document.addEventListener('keydown', onKeyDown)
-    dialogRef.current?.querySelector<HTMLInputElement>('input')?.focus()
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose, submit])
+  }, [onClose])
 
   const set =
     <K extends keyof Fields>(key: K) =>
