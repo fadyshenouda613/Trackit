@@ -318,8 +318,14 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   const selectedProject = useProject(selectedProjectId).data ?? null
   /* The record the payment dialog is opened over. The detail screen reads it
      for itself; the shell needs it because the dialog is the shell's. */
-  const openInvoice = useInvoice(openInvoiceId).data ?? null
-  const openInvoicePayments = usePayments(openInvoiceId).data ?? []
+  const openInvoiceQuery = useInvoice(openInvoiceId)
+  const openPaymentsQuery = usePayments(openInvoiceId)
+  const openInvoice = openInvoiceQuery.data ?? null
+  const openInvoicePayments = openPaymentsQuery.data ?? []
+  /* The dialog seeds its amount from the outstanding balance once, when it
+     mounts. Opening it over payments still in flight would seed it from the
+     full total — the right figure for the wrong invoice — so it waits. */
+  const openInvoiceSettled = !openInvoiceQuery.isPending && !openPaymentsQuery.isPending
 
   const activeProjects = projectList.filter((project) => project.status === 'active').length
   /* One composition for the sidebar badge and the Invoices bar: a void, a
@@ -902,7 +908,7 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           initialClientId={newProjectClientId ?? undefined}
         />
       )}
-      {modal === 'payment' && openInvoice && (
+      {modal === 'payment' && openInvoice && openInvoiceSettled && (
         <RecordPaymentModal
           invoice={openInvoice}
           payments={openInvoicePayments}

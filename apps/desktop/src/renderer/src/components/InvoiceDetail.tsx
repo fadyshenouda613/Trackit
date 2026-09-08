@@ -8,7 +8,13 @@ import { groupLines } from './invoices-data'
 import { todayIso } from './local-dates'
 import { TableSkeleton } from './TableSkeleton'
 import { useClient } from '../data/use-clients'
-import { useInvoice, useInvoiceLines, useSendInvoice, useVoidInvoice } from '../data/use-invoices'
+import {
+  useDeleteInvoice,
+  useInvoice,
+  useInvoiceLines,
+  useSendInvoice,
+  useVoidInvoice
+} from '../data/use-invoices'
 import { usePayments } from '../data/use-payments'
 import { useProjects } from '../data/use-projects'
 import { useSettings } from '../data/use-settings'
@@ -57,10 +63,20 @@ export function InvoiceDetail({
 
   const send = useSendInvoice()
   const voidIt = useVoidInvoice()
+  const deleteIt = useDeleteInvoice()
 
   const today = todayIso()
 
-  if (loading || invoice.data === undefined || settings.data === undefined) {
+  /* The whole first paint or none of it: the document, the payments and the
+     rail are three readings of one record, and a sheet with its lines still in
+     flight would state a total nothing under it adds up to. */
+  if (
+    loading ||
+    invoice.data === undefined ||
+    settings.data === undefined ||
+    lines.isPending ||
+    payments.isPending
+  ) {
     return (
       <div className="invoice__body">
         <div className="invoice__work">
@@ -113,6 +129,10 @@ export function InvoiceDetail({
             input: { reason: 'Cancelled before payment', replacedByInvoiceId: null }
           })
         }
+        /* A draft was never issued, so there is nothing to void: it goes, and
+           the screen goes with it — there is no record left to be on. */
+        onDelete={() => deleteIt.mutate(current.id, { onSuccess: onBack })}
+        pending={voidIt.isPending || deleteIt.isPending}
       />
     </div>
   )

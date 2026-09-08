@@ -1,4 +1,4 @@
-import { useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { balanceCents, formatCents, type Invoice } from '@trackit/shared'
 import { toneVar } from './tone'
 import { StatusPill } from './StatusPill'
@@ -13,6 +13,10 @@ type InvoiceActionsProps = {
   onMarkSent: () => void
   onRecordPayment: () => void
   onVoid: () => void
+  /** A draft was never issued, so it is deleted rather than voided. */
+  onDelete: () => void
+  /** Whether that destructive write is in flight, so the confirm can close after it. */
+  pending: boolean
 }
 
 /**
@@ -22,9 +26,15 @@ type InvoiceActionsProps = {
  *
  * One step forward takes the weight, the way a project detail gives its single
  * advancing action the primary button and puts everything else in a quieter
- * register. Voiding is the only destructive thing an invoice can do, so it sits
- * below a rule in the danger colour, and disappears entirely once money has
- * been received in full: you cannot unsay a paid invoice.
+ * register. The destructive action sits below a rule in the danger colour, and
+ * disappears entirely once money has been received in full: you cannot unsay a
+ * paid invoice.
+ *
+ * What that action is follows from whether the invoice was ever issued. A sent
+ * invoice is a document the client holds, so it is voided — numbered, dimmed,
+ * counting towards nothing. A draft is not a document at all; nobody has seen
+ * it, so it is deleted. Offering "void" on a draft would be offering a move the
+ * register refuses.
  */
 export function InvoiceActions({
   invoice,
@@ -32,7 +42,9 @@ export function InvoiceActions({
   today,
   onMarkSent,
   onRecordPayment,
-  onVoid
+  onVoid,
+  onDelete,
+  pending
 }: InvoiceActionsProps): JSX.Element {
   const status = invoice.status
   const symbol = symbolFor(invoice)
@@ -42,6 +54,19 @@ export function InvoiceActions({
 
   const settled = status === 'paid'
   const closed = settled || status === 'void'
+  const draft = status === 'draft'
+
+  /* The confirm closes when the write it asked about lands — including when the
+     store refuses it, which leaves the invoice where it was. Left open, it
+     would sit there inviting the same refused answer again. */
+  const wasPending = useRef(false)
+  useEffect(() => {
+    if (pending) wasPending.current = true
+    else if (wasPending.current) {
+      wasPending.current = false
+      setConfirming(false)
+    }
+  }, [pending])
 
   const aside = (): string => {
     if (status === 'void') return 'Voided. It counts towards nothing.'
@@ -114,15 +139,16 @@ export function InvoiceActions({
           <>
             <div className="inv-acts__rule" />
 
-            {/* Two taps, not a dialog. Voiding is the only destructive thing an
+            {/* Two taps, not a dialog. It is the only destructive thing an
                 invoice can do, and it deserves a pause — but a modal over a
                 document to ask one question is a heavier interruption than the
                 question is worth. */}
             {confirming ? (
               <div className="inv-acts__confirm">
                 <span className="inv-acts__confirm-text">
-                  Void {invoice.number}? It stays on the list, numbered and dimmed,
-                  counting towards nothing.
+                  {draft
+                    ? `Delete ${invoice.number}? The draft is removed from the list; nothing was issued.`
+                    : `Void ${invoice.number}? It stays on the list, numbered and dimmed, counting towards nothing.`}
                 </span>
                 <div className="inv-acts__confirm-row">
                   <button
@@ -135,9 +161,10 @@ export function InvoiceActions({
                   <button
                     type="button"
                     className="button inv-acts__button inv-acts__button--danger"
-                    onClick={onVoid}
+                    disabled={pending}
+                    onClick={draft ? onDelete : onVoid}
                   >
-                    Void it
+                    {draft ? 'Delete it' : 'Void it'}
                   </button>
                 </div>
               </div>
@@ -147,7 +174,7 @@ export function InvoiceActions({
                 className="button inv-acts__button inv-acts__button--danger"
                 onClick={() => setConfirming(true)}
               >
-                Void invoice
+                {draft ? 'Delete draft' : 'Void invoice'}
               </button>
             )}
           </>
