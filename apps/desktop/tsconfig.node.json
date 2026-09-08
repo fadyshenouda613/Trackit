@@ -1,5 +1,5 @@
 {
-  "include": ["electron.vite.config.ts", "src/main/**/*", "src/preload/**/*", "../../packages/shared/src/**/*"],
+  "include": ["electron.vite.config.ts", "tooling/**/*", "src/main/**/*", "src/preload/**/*", "../../packages/shared/src/**/*"],
   "exclude": ["../../packages/shared/src/**/*.test.ts"],
   "compilerOptions": {
     "composite": true,

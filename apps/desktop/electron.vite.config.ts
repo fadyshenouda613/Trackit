@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import type { Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { appIconsPlugin } from './tooling/icons'
 
 /*
  * Dependencies are left as runtime require()s rather than bundled — except
@@ -57,7 +58,8 @@ const checkNativeAddons = (): Plugin => ({
 
 export default defineConfig({
   main: {
-    plugins: [bundleWorkspacePackages(), checkNativeAddons()]
+    /* The icons go to build/, where electron-builder looks for them. */
+    plugins: [bundleWorkspacePackages(), checkNativeAddons(), appIconsPlugin(resolve(__dirname, 'build'))]
   },
   preload: {
     plugins: [bundleWorkspacePackages()]
