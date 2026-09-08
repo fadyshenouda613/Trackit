@@ -82,11 +82,15 @@ export function ProjectsTable({ onOpen, loading = false }: ProjectsTableProps): 
           </div>
 
           {rows.length === 0 ? (
-            <EmptyState
-              variant="panel"
-              title="No active projects"
-              body="Mark a draft active and its hours, budget and rate show up here."
-            />
+            /* Only a read that came back may say there are none; a refused one
+               has already said what happened, as a toast. */
+            projects.isSuccess ? (
+              <EmptyState
+                variant="panel"
+                title="No active projects"
+                body="Mark a draft active and its hours, budget and rate show up here."
+              />
+            ) : null
           ) : (
             rows.map((row) => (
               <div

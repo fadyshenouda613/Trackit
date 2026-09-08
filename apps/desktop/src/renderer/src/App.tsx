@@ -252,10 +252,6 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   const devSeed = useDevSeed()
   const devScenario = useDevTimerScenario()
 
-  /* One tick a second for the whole window: the timer bar's clock and the
-     dashboard's date both read it, and nothing else in here counts. */
-  const nowMs = useNow(1000)
-
   const clientList = clients.data ?? []
   const projectList = projects.data ?? []
   const invoiceList = invoices.data ?? []
@@ -276,6 +272,16 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
      stop, which is what the recovery dialog is for. It is the same row as
      `running`, so everything the bar works out about that row serves it too. */
   const orphan = orphanedTimer.data ?? null
+
+  /*
+   * The shell's own clock. Nothing it feeds is finer than a minute — the
+   * dashboard's date, the budget meter, the recovery dialog's figure — so it
+   * ticks once a minute unless a timer is running, when the recovery dialog
+   * and the logged total want to keep step with the bar. The second hand
+   * belongs to the bar itself, which reads its own clock, so a running timer
+   * re-renders one component a second rather than the whole window.
+   */
+  const nowMs = useNow(running ? 1000 : 60_000)
 
   const runningProject = useProject(running?.projectId ?? null).data ?? null
   const runningClient = useClient(runningProject?.clientId ?? null).data ?? null
@@ -566,13 +572,12 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           deliverable={runningDeliverable?.label ?? ''}
           loggedMinutes={loggedMinutes}
           budgetMinutes={hoursToMinutes(runningProject.budgetedHours)}
-          nowMs={nowMs}
           onStop={() => {
             /* The bar takes the elapsed clock with it when it goes, so this is
                the only place the hours just logged are ever stated. What was
                just logged is this run, not the project's lifetime — and it has
                to be read before the row closes. */
-            const minutes = Math.floor(elapsedSeconds(running.startedAt, nowMs) / 60)
+            const minutes = Math.floor(elapsedSeconds(running.startedAt, Date.now()) / 60)
             const name = runningProject.name
             stopTimer.mutate(undefined, {
               onSuccess: () => pushToast(timerToast(minutes, name))

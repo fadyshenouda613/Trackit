@@ -62,12 +62,18 @@ export function ClientsTable({
       </div>
 
       {rows.length === 0 ? (
-        <EmptyState
-          variant="panel"
-          title="No clients yet"
-          body="Add whoever is paying you; projects, hours and invoices all hang off a client."
-          action={{ label: 'New client', onClick: onNewClient }}
-        />
+        /* "No clients yet" is a fact about the store, so only a read that came
+           back may state it. A refused read has already said so as a toast;
+           repeating it here as an empty register would be a second, wrong
+           answer to the same question. */
+        clients.isSuccess ? (
+          <EmptyState
+            variant="panel"
+            title="No clients yet"
+            body="Add whoever is paying you; projects, hours and invoices all hang off a client."
+            action={{ label: 'New client', onClick: onNewClient }}
+          />
+        ) : null
       ) : (
         rows.map((row) => {
           const selected = row.id === selectedId

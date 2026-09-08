@@ -40,21 +40,37 @@ export function AttentionList({ onOpenProject }: AttentionListProps): JSX.Elemen
     checklists.isPending ||
     paymentsPending
 
-  const now = new Date().toISOString()
-  const today = localDateOf(now)
-
-  const items = anyPending
-    ? []
-    : attentionItems(
-        projectList.map((p) =>
-          projectFigures(p, clients.data ?? [], entries.data ?? [], (checklists.data ?? {})[p.id] ?? [], now)
-        ),
-        invoices.data ?? [],
-        clients.data ?? [],
-        payments,
-        settings.data?.rateFloorCents ?? 0,
-        today
-      )
+  /*
+   * One timestamp for the whole derivation, and one derivation per change to
+   * what it reads. The shell re-renders on a clock of its own, and re-figuring
+   * every project on the dashboard each time it ticks is work nobody asked
+   * for — none of these rows can change without one of these queries changing.
+   */
+  const items = useMemo(() => {
+    if (anyPending) return []
+    const now = new Date().toISOString()
+    const clientList = clients.data ?? []
+    const figures = projectList.map((p) =>
+      projectFigures(p, clientList, entries.data ?? [], (checklists.data ?? {})[p.id] ?? [], now)
+    )
+    return attentionItems(
+      figures,
+      invoices.data ?? [],
+      clientList,
+      payments,
+      settings.data?.rateFloorCents ?? 0,
+      localDateOf(now)
+    )
+  }, [
+    anyPending,
+    projectList,
+    clients.data,
+    entries.data,
+    checklists.data,
+    invoices.data,
+    payments,
+    settings.data
+  ])
 
   return (
     <section className="section">
@@ -65,11 +81,16 @@ export function AttentionList({ onOpenProject }: AttentionListProps): JSX.Elemen
 
       <div className="panel">
         {anyPending ? null : items.length === 0 ? (
-          <EmptyState
-            variant="panel"
-            title="Nothing needs attention"
-            body="Every invoice is inside its terms and every active project is inside its budget and above your floor."
-          />
+          /* "Nothing needs attention" is a conclusion drawn from the projects
+             and the invoices; if either read was refused there is no such
+             conclusion to draw, and the toast has already said why. */
+          projects.isSuccess && invoices.isSuccess ? (
+            <EmptyState
+              variant="panel"
+              title="Nothing needs attention"
+              body="Every invoice is inside its terms and every active project is inside its budget and above your floor."
+            />
+          ) : null
         ) : (
           items.map((item) => (
             <div

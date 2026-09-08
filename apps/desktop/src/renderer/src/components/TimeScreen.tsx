@@ -130,11 +130,15 @@ export function TimeScreen({ isTopmost, loading = false }: TimeScreenProps): JSX
         {pending ? (
           <TableSkeleton block="time-log" />
         ) : loggable.length === 0 ? (
-          <EmptyState
-            variant="panel"
-            title="Nothing to log against"
-            body="Create a project first; hours are always logged to one."
-          />
+          /* Only a read that came back may say there is nothing to log against;
+             a refused one has already said what happened, as a toast. */
+          projectsQuery.isSuccess ? (
+            <EmptyState
+              variant="panel"
+              title="Nothing to log against"
+              body="Create a project first; hours are always logged to one."
+            />
+          ) : null
         ) : (
           <TimeLog
             days={daysOf(week, today)}

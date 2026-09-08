@@ -110,6 +110,13 @@ export function InvoiceScreen({
   )
   const projectInvoices = useProjectInvoices(invoicedIds)
 
+  /* What is on offer only moves when the store does, so it is worked out when
+     the store moves rather than on every keystroke in the rail beside it. */
+  const view = useMemo(
+    () => (client ? billableView(client, projectList, billableList, projectInvoices.data ?? {}) : null),
+    [client, projectList, billableList, projectInvoices.data]
+  )
+
   const today = todayIso()
   /* The invoice is written in the client currency throughout, symbol included;
      before a client is chosen the settings default stands in. */
@@ -229,15 +236,10 @@ export function InvoiceScreen({
               </div>
             </section>
 
-            {client ? (
+            {client && view ? (
               <>
                 <BillableProjects
-                  view={billableView(
-                    client,
-                    projectList,
-                    billableList,
-                    projectInvoices.data ?? {}
-                  )}
+                  view={view}
                   selected={selected}
                   symbol={symbol}
                   onToggle={toggle}

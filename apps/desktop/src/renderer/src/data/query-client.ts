@@ -1,5 +1,8 @@
-import { MutationCache, QueryClient } from '@tanstack/react-query'
+import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 import { ApiFailure } from './result'
+
+/** How long the same message stays silent after it has been reported once. */
+const REPEAT_MS = 5_000
 
 /*
  * One client for the renderer. The store is local SQLite over IPC: there is
@@ -7,20 +10,37 @@ import { ApiFailure } from './result'
  * through our own mutations (and the tray, which tells us). So: no retries,
  * no refetch on focus, and invalidation is the only way data moves.
  *
- * A mutation that fails is reported once, here, as a toast — a screen never
- * has to remember to.
+ * A write that fails is reported once, here, as a toast — a screen never has
+ * to remember to. So is a read: a query that the store refuses used to fail
+ * silently and leave a screen looking merely empty, which is the one thing an
+ * error must never look like.
+ *
+ * Reads are de-duplicated where writes are not, because one broken read is
+ * usually several: a screen mounts a dozen queries against the same store, and
+ * a dozen identical toasts is a stack that hides its own first line.
  */
-export function createQueryClient(onMutationError: (error: ApiFailure) => void): QueryClient {
+export function createQueryClient(onError: (error: ApiFailure) => void): QueryClient {
+  const asFailure = (error: unknown): ApiFailure =>
+    error instanceof ApiFailure ? error : new ApiFailure({ code: 'internal', message: String(error) })
+
+  let lastMessage = ''
+  let lastAt = 0
+
+  const reportOnce = (error: unknown): void => {
+    const failure = asFailure(error)
+    const at = Date.now()
+    if (failure.message === lastMessage && at - lastAt < REPEAT_MS) return
+    lastMessage = failure.message
+    lastAt = at
+    onError(failure)
+  }
+
   return new QueryClient({
     defaultOptions: {
       queries: { retry: false, refetchOnWindowFocus: false, staleTime: 0 },
       mutations: { retry: false }
     },
-    mutationCache: new MutationCache({
-      onError: (error) => {
-        if (error instanceof ApiFailure) onMutationError(error)
-        else onMutationError(new ApiFailure({ code: 'internal', message: String(error) }))
-      }
-    })
+    queryCache: new QueryCache({ onError: reportOnce }),
+    mutationCache: new MutationCache({ onError: (error) => onError(asFailure(error)) })
   })
 }

@@ -97,7 +97,10 @@ export function InvoicesScreen({
 
   const narrowed = status !== ALL || client !== ALL
   const pending = loading || invoices.isPending || register.isPending || clients.isPending || isPending
-  const emptyRegister = !pending && (register.data ?? []).length === 0
+  /* Only a read that came back may say the register is empty. A refused one has
+     already said what happened, as a toast, and drawing "No invoices yet" over
+     it would be a second and wrong answer. */
+  const emptyRegister = !pending && register.isSuccess && (register.data ?? []).length === 0
 
   return (
     <>
@@ -153,7 +156,7 @@ export function InvoicesScreen({
               action={{ label: 'New invoice', onClick: onNewInvoice }}
             />
           </div>
-        ) : (
+        ) : invoices.isSuccess ? (
           <InvoicesTable
             rows={rows}
             clients={clientList}
@@ -161,7 +164,7 @@ export function InvoicesScreen({
             today={today}
             onOpen={onOpen}
           />
-        )}
+        ) : null}
       </div>
     </>
   )

@@ -18,6 +18,8 @@ type InvoiceActionsProps = {
   onDelete: () => void
   /** Whether that destructive write is in flight, so the confirm can close after it. */
   pending: boolean
+  /** Whether the issue is in flight, so it cannot be asked for twice. */
+  sending: boolean
 }
 
 /**
@@ -45,7 +47,8 @@ export function InvoiceActions({
   onRecordPayment,
   onVoid,
   onDelete,
-  pending
+  pending,
+  sending
 }: InvoiceActionsProps): JSX.Element {
   const status = invoice.status
   const symbol = symbolFor(invoice)
@@ -122,7 +125,14 @@ export function InvoiceActions({
         <span className="t-overline rail__title">Actions</span>
 
         {status === 'draft' && (
-          <button type="button" className="button button--primary inv-acts__button" onClick={onMarkSent}>
+          /* Issuing is a one-way move that stamps a date; a second click while
+             the first is still in flight would be asking for it twice. */
+          <button
+            type="button"
+            className="button button--primary inv-acts__button"
+            disabled={sending}
+            onClick={onMarkSent}
+          >
             Mark as sent
           </button>
         )}

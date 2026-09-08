@@ -17,6 +17,7 @@ import {
   projectListFiltersSchema,
   projectTransitionSchema,
   startTimerInputSchema,
+  type Settings,
   timeEntryListFiltersSchema,
   updateChecklistItemInputSchema,
   updateClientInputSchema,
@@ -48,7 +49,9 @@ export function handle<S extends z.ZodType, T>(
   channel: string,
   schema: S,
   run: (input: z.output<S>) => T,
-  after?: () => void
+  /* Given what the call returned, so a hook can act on the new row rather
+     than reading it back out of the database a second time. */
+  after?: (data: T) => void
 ): void {
   ipcMain.handle(channel, (_event, payload: unknown): Result<T> => {
     const parsed = schema.safeParse(payload)
@@ -57,7 +60,7 @@ export function handle<S extends z.ZodType, T>(
     }
     try {
       const data = run(parsed.data)
-      after?.()
+      after?.(data)
       return { ok: true, data }
     } catch (error) {
       return { ok: false, error: toApiError(error) }
@@ -76,6 +79,8 @@ export type DataIpcDeps = {
   bootedAt: string
   /** The tray redraws and the renderer refetches after any change to the clock. */
   onTimerChanged: () => void
+  /** Settings that main acts on — the global shortcut — are rebound from here. */
+  onSettingsChanged: (settings: Settings) => void
 }
 
 export function registerDataIpc(db: Database, deps: DataIpcDeps): void {
@@ -144,7 +149,12 @@ export function registerDataIpc(db: Database, deps: DataIpcDeps): void {
   handle('payments:list', idSchema, (invoiceId) => repo.listPayments(db, invoiceId))
 
   handle('settings:get', z.undefined(), () => repo.getSettings(db))
-  handle('settings:update', updateSettingsInputSchema, (patch) => repo.updateSettings(db, patch))
+  handle(
+    'settings:update',
+    updateSettingsInputSchema,
+    (patch) => repo.updateSettings(db, patch),
+    deps.onSettingsChanged
+  )
 
   handle('sync:pendingCounts', z.undefined(), () => repo.pendingCounts(db))
 }

@@ -41,8 +41,11 @@ export function PrintedInvoice({ invoiceId }: PrintedInvoiceProps): JSX.Element 
   const settings = useSettings()
 
   /* A sheet is either the whole document or nothing: a half-printed invoice
-     with skeleton bars where the money goes is worse than a blank frame. */
-  if (!record || !settings.data) return null
+     with skeleton bars where the money goes is worse than a blank frame. The
+     lines and the client are part of "the whole document" — without them the
+     sheet would print a total with no items under it and terms worked out from
+     a payment window nobody has read yet. */
+  if (!record || !settings.data || lines.isPending || client.isPending) return null
 
   const business = settings.data
   const bill = client.data ?? null

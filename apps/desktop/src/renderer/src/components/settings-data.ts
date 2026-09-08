@@ -76,9 +76,15 @@ export function formatShortcut(accelerator: string, platform: string): string[] 
 
 /* ---- Data ----------------------------------------------------------------- */
 
-/** Where the app would keep its database on each platform. */
+/**
+ * Where the app keeps its database on each platform.
+ *
+ * `userData` follows the package name, not the product name, so the directory
+ * is `@trackit/desktop` — a scope and a folder inside it. This screen states a
+ * real path someone can open, so it states that one.
+ */
 export function dbPathFor(platform: string): string {
-  if (platform === 'darwin') return '~/Library/Application Support/Trackit/trackit.db'
-  if (platform === 'win32') return String.raw`%APPDATA%\Trackit\trackit.db`
-  return '~/.config/Trackit/trackit.db'
+  if (platform === 'darwin') return '~/Library/Application Support/@trackit/desktop/trackit.db'
+  if (platform === 'win32') return String.raw`%APPDATA%\@trackit\desktop\trackit.db`
+  return '~/.config/@trackit/desktop/trackit.db'
 }

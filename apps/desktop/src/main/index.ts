@@ -5,9 +5,9 @@ import { registerDataIpc } from './data-ipc'
 import { openDatabase } from './db'
 import { nowIso } from './db/clock'
 import { registerWindowIpc } from './ipc'
-import { closeOpenEntries, runningTimeEntry } from './repositories'
+import { closeOpenEntries, getSettings, runningTimeEntry } from './repositories'
 import { toggleTimer, trayState } from './timer'
-import { createTray } from './tray'
+import { createTray, type TrayHandle } from './tray'
 import { createMainWindow } from './window'
 
 /**
@@ -41,15 +41,32 @@ app.whenReady().then(async () => {
 
   const bootedAt = nowIso()
 
+  /* The tray is created below, after the window; the closures registered here
+     run only once a channel is called, by which time it exists. Declared up
+     front rather than closed over in its own dead zone. */
+  let tray: TrayHandle | null = null
+
   /* Everything that changes the clock ends here: the tray redraws and every
      window is told to refetch. */
   const broadcastTimer = (): void => {
-    tray.refresh()
+    tray?.refresh()
     for (const window of BrowserWindow.getAllWindows()) window.webContents.send('timer:changed')
   }
 
+  /* The one setting main acts on for itself. The renderer stores it; this is
+     what makes it true of the running app. */
+  let shortcut = getSettings(db).shortcut
+
   registerWindowIpc()
-  registerDataIpc(db, { bootedAt, onTimerChanged: () => broadcastTimer() })
+  registerDataIpc(db, {
+    bootedAt,
+    onTimerChanged: () => broadcastTimer(),
+    onSettingsChanged: (settings) => {
+      if (settings.shortcut === shortcut) return
+      shortcut = settings.shortcut
+      tray?.rebind(shortcut)
+    }
+  })
   if (!app.isPackaged) {
     const { registerDevIpc } = await import('./dev-ipc')
     registerDevIpc(db, { onTimerChanged: () => broadcastTimer() })
@@ -62,10 +79,20 @@ app.whenReady().then(async () => {
   window.on('maximize', emitMaximized)
   window.on('unmaximize', emitMaximized)
 
-  const tray = createTray({
+  tray = createTray({
     getState: () => trayState(db, Date.now()),
+    shortcut,
     onToggle: () => {
-      toggleTimer(db)
+      /* A refused write — two clocks at once, a project that has gone — is a
+         value everywhere else in this app, and the tray has nobody to hand it
+         to. It is logged and the broadcast still happens, so the menu redraws
+         from what the database actually holds rather than from the move it
+         was asked to make. */
+      try {
+        toggleTimer(db)
+      } catch (error) {
+        console.error(`[tray] ${error instanceof Error ? error.message : String(error)}`)
+      }
       broadcastTimer()
     },
     onOpen: () => {
@@ -81,7 +108,7 @@ app.whenReady().then(async () => {
    * live. Nothing is counted here — refresh reads the row and the clock.
    */
   const tick = setInterval(() => {
-    if (runningTimeEntry(db)) tray.refresh()
+    if (runningTimeEntry(db)) tray?.refresh()
   }, 1000)
 
   app.on('before-quit', () => {
@@ -89,7 +116,7 @@ app.whenReady().then(async () => {
     /* A clean quit never leaves a clock running; anything found running at
        the next launch therefore survived a crash and is offered for recovery. */
     closeOpenEntries(db)
-    tray.destroy()
+    tray?.destroy()
     db.close()
   })
 

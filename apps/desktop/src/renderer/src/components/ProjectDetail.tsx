@@ -464,7 +464,7 @@ export function ProjectDetail({
                   </div>
                 )}
 
-                {!notes.isPending && noteRows.length === 0 && !composing ? (
+                {notes.isSuccess && noteRows.length === 0 && !composing ? (
                   <EmptyState
                     variant="panel"
                     title="No notes yet"
@@ -493,11 +493,15 @@ export function ProjectDetail({
             {tab === 'time' && (
               <div className="sessions">
                 {sessions.length === 0 ? (
-                  <EmptyState
-                    variant="panel"
-                    title="No hours logged"
-                    body="Start the timer or add an entry on the Time screen."
-                  />
+                  /* Only a read that came back may say nothing was logged; a
+                     refused one has already said what happened, as a toast. */
+                  time.isSuccess ? (
+                    <EmptyState
+                      variant="panel"
+                      title="No hours logged"
+                      body="Start the timer or add an entry on the Time screen."
+                    />
+                  ) : null
                 ) : (
                   <>
                     {sessions.map((session) => (

@@ -97,6 +97,10 @@ export function useTimerChangedFromMain(): void {
       ledger.timer.onChanged(() => {
         void client.invalidateQueries({ queryKey: keys.time.all })
         void client.invalidateQueries({ queryKey: keys.projects.all })
+        /* A tray start or stop writes a row like any other, so the sidebar's
+           unsynced counts move with it — the same three keys our own writes
+           invalidate. */
+        void client.invalidateQueries({ queryKey: keys.sync.pending })
       }),
     [client]
   )

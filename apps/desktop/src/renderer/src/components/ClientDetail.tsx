@@ -189,7 +189,11 @@ export function ClientDetail({
             </div>
 
             {projectRows.length === 0 ? (
-              <EmptyState variant="panel" title="No projects yet" body="Nothing kicked off for this client yet." />
+              /* Only a read that came back may say there are none; a refused
+                 one has already said what happened, as a toast. */
+              projects.isSuccess ? (
+                <EmptyState variant="panel" title="No projects yet" body="Nothing kicked off for this client yet." />
+              ) : null
             ) : (
               projectRows.map((row) => (
                 <div
@@ -239,11 +243,13 @@ export function ClientDetail({
               </div>
 
               {invoiceRows.length === 0 ? (
-                <EmptyState
-                  variant="panel"
-                  title="No invoices yet"
-                  body="Deliver a project and raise one from it."
-                />
+                invoices.isSuccess ? (
+                  <EmptyState
+                    variant="panel"
+                    title="No invoices yet"
+                    body="Deliver a project and raise one from it."
+                  />
+                ) : null
               ) : (
                 invoiceRows.map((row) => (
                   <div
@@ -307,7 +313,7 @@ export function ClientDetail({
               </div>
             )}
 
-            {!notesPending && noteRows.length === 0 && !composing ? (
+            {!notesPending && notes.isSuccess && noteRows.length === 0 && !composing ? (
               <EmptyState
                 variant="panel"
                 title="No notes"

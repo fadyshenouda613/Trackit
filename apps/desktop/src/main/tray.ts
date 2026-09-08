@@ -11,9 +11,22 @@ type TrayDeps = {
   /** Stop when running, start the last project when not. */
   onToggle: () => void
   onOpen: () => void
+  /** The accelerator from settings, which the freelancer can change. */
+  shortcut: string
 }
 
-const SHORTCUT = 'CommandOrControl+Shift+S'
+export type TrayHandle = {
+  refresh: () => void
+  /**
+   * Bind a different accelerator: the old one goes, the new one is registered
+   * and the menu is rebuilt so the hint beside "Stop timer" matches what
+   * actually fires. False means the system already has that combination — the
+   * setting is still saved, and the menu still shows it, because a hint that
+   * does not fire is a smaller lie than a setting that silently reverts.
+   */
+  rebind: (shortcut: string) => boolean
+  destroy: () => void
+}
 
 /*
  * The tray glyph is the app's own recording dot: filled while a timer runs,
@@ -67,8 +80,20 @@ const idle = dotIcon(false)
  * than no hint. registerAccelerator is off so the menu displays it without
  * binding it a second time.
  */
-export function createTray(deps: TrayDeps): { refresh: () => void; destroy: () => void } {
+export function createTray(deps: TrayDeps): TrayHandle {
   const tray = new Tray(idle)
+  /* The accelerator currently bound. Held here rather than read back from
+     settings, because unregistering needs the string that was registered. */
+  let shortcut = deps.shortcut
+
+  const bind = (accelerator: string): boolean => {
+    if (globalShortcut.register(accelerator, deps.onToggle)) {
+      console.log(`[tray] shortcut bound to ${accelerator}`)
+      return true
+    }
+    console.warn(`[tray] ${accelerator} is already taken; the tray hint will not fire.`)
+    return false
+  }
 
   const build = (): void => {
     const state = deps.getState()
@@ -86,7 +111,7 @@ export function createTray(deps: TrayDeps): { refresh: () => void; destroy: () =
         : [
             {
               label: state.running ? 'Stop timer' : `Start ${state.lastProject}`,
-              accelerator: SHORTCUT,
+              accelerator: shortcut,
               registerAccelerator: false,
               click: deps.onToggle
             }
@@ -119,16 +144,21 @@ export function createTray(deps: TrayDeps): { refresh: () => void; destroy: () =
   // Windows and Linux do not open the context menu on a left click.
   if (process.platform !== 'darwin') tray.on('click', () => tray.popUpContextMenu())
 
-  if (!globalShortcut.register(SHORTCUT, deps.onToggle)) {
-    console.warn(`Trackit: ${SHORTCUT} is already taken; the tray hint will not fire.`)
-  }
-
+  bind(shortcut)
   build()
 
   return {
     refresh: build,
+    rebind: (next: string): boolean => {
+      if (next === shortcut) return true
+      globalShortcut.unregister(shortcut)
+      shortcut = next
+      const bound = bind(shortcut)
+      build()
+      return bound
+    },
     destroy: () => {
-      globalShortcut.unregister(SHORTCUT)
+      globalShortcut.unregister(shortcut)
       tray.destroy()
     }
   }

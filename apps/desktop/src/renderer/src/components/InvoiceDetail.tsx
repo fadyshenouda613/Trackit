@@ -133,6 +133,7 @@ export function InvoiceDetail({
            the screen goes with it — there is no record left to be on. */
         onDelete={() => deleteIt.mutate(current.id, { onSuccess: onBack })}
         pending={voidIt.isPending || deleteIt.isPending}
+        sending={send.isPending}
       />
     </div>
   )

@@ -72,16 +72,20 @@ export function AllProjectsTable({ filters, onOpen, onNewProject }: AllProjectsT
       </div>
 
       {rows.length === 0 ? (
-        <EmptyState
-          variant="panel"
-          title={hasFilters ? 'No projects match those filters' : 'No projects yet'}
-          body={
-            hasFilters
-              ? 'Clear one of them to widen the list.'
-              : 'Price a piece of work and log hours against it; the effective rate falls out.'
-          }
-          action={hasFilters ? undefined : { label: 'New project', onClick: onNewProject }}
-        />
+        /* Only a read that came back may say the list is empty; a refused one
+           has already said what happened, as a toast. */
+        projects.isSuccess ? (
+          <EmptyState
+            variant="panel"
+            title={hasFilters ? 'No projects match those filters' : 'No projects yet'}
+            body={
+              hasFilters
+                ? 'Clear one of them to widen the list.'
+                : 'Price a piece of work and log hours against it; the effective rate falls out.'
+            }
+            action={hasFilters ? undefined : { label: 'New project', onClick: onNewProject }}
+          />
+        ) : null
       ) : (
         rows.map((row) => {
           const draft = row.status === 'draft'

@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 import { TitleBarControls } from './TitleBarControls'
+import { useNow } from './use-now'
 import {
   budgetConsumption,
   elapsedSeconds,
@@ -21,8 +22,6 @@ type TimerBarProps = {
   /** Everything logged to the project so far, this session included. */
   loggedMinutes: number
   budgetMinutes: number
-  /** The shell's one-second tick, so the clock below is a derivation of it. */
-  nowMs: number
   onStop?: () => void
 }
 
@@ -43,9 +42,13 @@ export function TimerBar({
   deliverable,
   loggedMinutes,
   budgetMinutes,
-  nowMs,
   onStop
 }: TimerBarProps): JSX.Element {
+  /* The second hand lives here and nowhere else. The shell above ticks once a
+     minute, which is all its date and its meter need; a clock in a bar is the
+     one thing in this window that has to move every second, so only this
+     component is re-rendered that often. */
+  const nowMs = useNow(1000)
   const budget = budgetConsumption(loggedMinutes, budgetMinutes)
   const over = budget.over
   const percent = Math.min(100, budget.percent ?? 0)
