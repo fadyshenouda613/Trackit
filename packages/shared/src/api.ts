@@ -32,6 +32,7 @@ import type {
   UpdateNoteInput,
   UpdateProjectInput,
   UpdateSettingsInput,
+  UpdateStatus,
   UpdateTimeEntryInput,
   VoidInvoiceInput
 } from './schemas'
@@ -194,6 +195,22 @@ export type LedgerApi = {
      * renderer refetches. Returns an unsubscribe function.
      */
     onChanged: (listener: () => void) => () => void
+  }
+  /**
+   * A newer build of the app, as electron-updater sees it. See
+   * updateStatusSchema for the states; in development it is always 'disabled'.
+   */
+  updates: {
+    status: () => Promise<Result<UpdateStatus>>
+    /** Asks the release feed now. Answers once the check has. */
+    check: () => Promise<Result<UpdateStatus>>
+    /**
+     * Restarts into a 'ready' build, or opens the release page for an
+     * 'available' one. In any other state it does nothing.
+     */
+    install: () => Promise<Result<null>>
+    /** Fires with every move of the status. Returns an unsubscribe function. */
+    onChanged: (listener: (status: UpdateStatus) => void) => () => void
   }
   dev: DevApi
 }

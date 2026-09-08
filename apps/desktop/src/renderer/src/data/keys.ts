@@ -49,6 +49,7 @@ export const keys = {
     list: (invoiceId: Id) => ['payments', invoiceId] as const
   },
   settings: ['settings'] as const,
+  updates: ['updates'] as const,
   sync: {
     pending: ['sync', 'pending'] as const
   }
