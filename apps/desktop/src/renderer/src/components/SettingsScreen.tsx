@@ -1,4 +1,5 @@
 import { useState, type JSX } from 'react'
+import type { UpdateSettingsInput } from '@trackit/shared'
 import { SettingsAccount } from './SettingsAccount'
 import { SettingsAppearance } from './SettingsAppearance'
 import { SettingsBusiness } from './SettingsBusiness'
@@ -7,7 +8,7 @@ import { SettingsInvoicing } from './SettingsInvoicing'
 import { SettingsTracking } from './SettingsTracking'
 import type { SyncState } from './sync-data'
 import { TopBar } from './TopBar'
-import type { Settings } from './settings-data'
+import { useSettings, useUpdateSettings } from '../data/use-settings'
 import type { Theme } from './theme'
 
 type SectionKey = 'business' | 'invoicing' | 'tracking' | 'appearance' | 'account' | 'data'
@@ -22,17 +23,18 @@ const sections: { key: SectionKey; label: string }[] = [
 ]
 
 type SettingsScreenProps = {
-  settings: Settings
-  onChange: (patch: Partial<Settings>) => void
   syncState: SyncState
   isTopmost: boolean
   /** Passed straight through: the account section owns the button, the app owns
       what signing out means. */
   onSignOut: () => void
-  /* Not part of Settings: that is seed data a reload resets, and this is the
-     one preference that outlives the window. Owned by the app, like syncState. */
+  /* Not part of Settings: theme is a preference of this machine, kept in
+     localStorage, and is never written to the settings row. Owned by the app,
+     like syncState. */
   theme: Theme
   onTheme: (theme: Theme) => void
+  /** Forced by the States panel's Data axis, independent of the query's own state. */
+  loading?: boolean
 }
 
 /**
@@ -45,15 +47,19 @@ type SettingsScreenProps = {
  * down a page of addresses and tax rates.
  */
 export function SettingsScreen({
-  settings,
-  onChange,
   syncState,
   isTopmost,
   onSignOut,
   theme,
-  onTheme
+  onTheme,
+  loading = false
 }: SettingsScreenProps): JSX.Element {
   const [section, setSection] = useState<SectionKey>('business')
+  const settingsQuery = useSettings()
+  const update = useUpdateSettings()
+  const settings = settingsQuery.data
+  const pending = loading || settingsQuery.isPending || !settings
+  const onChange = (patch: UpdateSettingsInput): void => update.mutate(patch)
 
   return (
     <>
@@ -84,26 +90,30 @@ export function SettingsScreen({
 
         <div className="settings__pane">
           <div className="settings__inner">
-            {section === 'business' && (
-              <SettingsBusiness settings={settings} onChange={onChange} />
-            )}
-            {section === 'invoicing' && (
-              <SettingsInvoicing settings={settings} onChange={onChange} />
-            )}
-            {section === 'tracking' && (
-              <SettingsTracking settings={settings} onChange={onChange} />
-            )}
-            {section === 'appearance' && (
-              <SettingsAppearance theme={theme} onChange={onTheme} />
-            )}
-            {section === 'account' && (
-              <SettingsAccount
-                settings={settings}
-                syncState={syncState}
-                onSignOut={onSignOut}
-              />
-            )}
+            {/* Appearance and Data need no row from the store, so they are the
+                one pane that still draws while settings is in flight. */}
+            {section === 'appearance' && <SettingsAppearance theme={theme} onChange={onTheme} />}
             {section === 'data' && <SettingsData />}
+            {!pending && (
+              <>
+                {section === 'business' && (
+                  <SettingsBusiness settings={settings} onChange={onChange} />
+                )}
+                {section === 'invoicing' && (
+                  <SettingsInvoicing settings={settings} onChange={onChange} />
+                )}
+                {section === 'tracking' && (
+                  <SettingsTracking settings={settings} onChange={onChange} />
+                )}
+                {section === 'account' && (
+                  <SettingsAccount
+                    settings={settings}
+                    syncState={syncState}
+                    onSignOut={onSignOut}
+                  />
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>

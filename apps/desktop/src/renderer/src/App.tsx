@@ -53,7 +53,7 @@ import {
   readSession,
   writeSession
 } from './components/auth-session'
-import { defaultSettings, type Settings } from './components/settings-data'
+import { dashboardDate } from './components/local-dates'
 import { useInvoiceFigures } from './components/use-invoice-figures'
 import {
   StatePanel,
@@ -164,16 +164,6 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
    */
   const [authView, setAuthView] = useState<AuthView | null>(
     storedSession ? null : navigator.onLine ? 'signIn' : 'offline'
-  )
-
-  /*
-   * Interim, and it goes in Task 19: the Settings screen holds its figures as
-   * typed text and has no writer on the store yet. The rate floor every other
-   * screen is judged against does not come from here; it comes from the
-   * settings row.
-   */
-  const [settingsForm, setSettingsForm] = useState<Settings>(
-    storedSession ? { ...defaultSettings, accountEmail: storedSession.email } : defaultSettings
   )
 
   /*
@@ -332,16 +322,10 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
      draft and a settled invoice are never overdue, whatever their date says. */
   const { summary } = useInvoiceFigures(invoiceList)
 
-  const patchSettings = (change: Partial<Settings>): void =>
-    setSettingsForm((current) => ({ ...current, ...change }))
-
   /** Signing in and signing up both end here: store it, name it, drop the gate. */
   const enter = (email: string, name: string, view: AuthView | null): void => {
     writeSession({ version: 1, email, name })
     updateSettings.mutate({ accountEmail: email })
-    patchSettings({ accountEmail: email })
-    /* Deliberately not patching `person`: that is the name printed on invoices,
-       and the seeded business profile is what every invoice screen renders. */
     setAuthView(view)
   }
 
@@ -619,13 +603,12 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
             /* Also owns its whole header: the sub-nav beside the pane is part
                of the screen, not of the shell. */
             <SettingsScreen
-              settings={settingsForm}
-              onChange={patchSettings}
               syncState={syncState}
               isTopmost={!showTimerBar}
               onSignOut={onSignOut}
               theme={theme}
               onTheme={setTheme}
+              loading={forceLoading}
             />
           ) : screen === 'newInvoice' ? (
             /* Also owns its whole header: the footer acts on the body between. */
@@ -723,12 +706,7 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           ) : (
             <TopBar
               title="Dashboard"
-              meta={new Date(nowMs).toLocaleDateString('en-GB', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-              })}
+              meta={dashboardDate(new Date(nowMs))}
               isTopmost={!showTimerBar}
               actions={
                 isEmpty ? null : (
@@ -782,7 +760,12 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
                   setScreen('project')
                 }}
               />
-              <AttentionList />
+              <AttentionList
+                onOpenProject={(id) => {
+                  setSelectedProjectId(id)
+                  setScreen('project')
+                }}
+              />
             </div>
           )}
 

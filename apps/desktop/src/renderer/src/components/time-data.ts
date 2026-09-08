@@ -38,11 +38,6 @@ const mondayOf = (iso: string): string => {
 export const weekStartFor = (offset: number, today: string): string =>
   addDays(mondayOf(today), offset * 7)
 
-/* Interim: the invoice fixtures and the Settings screen still date themselves
-   against this constant rather than a query — Task 18/19 move them onto the
-   store's own clock. The Time screen itself no longer reads it. */
-export const TODAY = '2026-08-28' // Friday
-
 export type WeekWindow = { offset: number; start: string; from: string; to: string }
 
 /** The list filter for one week: local Monday 00:00 to the next, as UTC ISO. */

@@ -1,22 +1,18 @@
-import type { JSX } from 'react'
-import { projectRows } from './AllProjectsTable'
-import { formatMoney, parseMoney } from '@trackit/shared'
+import { useState, type JSX } from 'react'
+import { formatCents, type Settings, type UpdateSettingsInput } from '@trackit/shared'
+import { formFrom, parseRateFloor, type SettingsForm } from './settings-data'
+import { projectFigures } from './project-rows'
 import { SettingsRow, SettingsSection } from './SettingsRow'
 import { SettingsShortcutField } from './SettingsShortcutField'
-import type { Settings } from './settings-data'
 import { toneVar } from './tone'
+import { useClients } from '../data/use-clients'
+import { useProjects } from '../data/use-projects'
+import { useTimeEntries } from '../data/use-time'
 
 type SettingsTrackingProps = {
   settings: Settings
-  onChange: (patch: Partial<Settings>) => void
+  onChange: (patch: UpdateSettingsInput) => void
 }
-
-/* The effective rates the Projects screen is showing, read back out of the rows
-   it renders rather than restated here — a second copy of these figures would
-   be a second place for them to drift. */
-const ratedProjects = projectRows
-  .map((row) => parseMoney(row.rate.replace('/hr', '')))
-  .filter((rate): rate is number => rate !== null)
 
 /**
  * The floor, and the one screen that explains what it is.
@@ -28,10 +24,20 @@ const ratedProjects = projectRows
  * already have fall below whatever you have just typed.
  */
 export function SettingsTracking({ settings, onChange }: SettingsTrackingProps): JSX.Element {
-  const floor = parseMoney(settings.rateFloor)
+  const [form, setForm] = useState<SettingsForm>(() => formFrom(settings))
+  const projects = useProjects()
+  const clients = useClients()
+  const entries = useTimeEntries()
 
-  const below = floor === null ? null : ratedProjects.filter((rate) => rate < floor).length
-  const share = below === null ? null : below / ratedProjects.length
+  const now = new Date().toISOString()
+  const rated = (projects.data ?? [])
+    .map((p) => projectFigures(p, clients.data ?? [], entries.data ?? [], [], now).rateCents)
+    .filter((rate): rate is number => rate !== null)
+
+  const floorCents = parseRateFloor(form.rateFloor)
+
+  const below = floorCents === null ? null : rated.filter((rate) => rate < floorCents).length
+  const share = below === null ? null : below / rated.length
 
   /* Tone the count the way the app tones any judged figure: some projects under
      the floor is ordinary, most of them under it is the number telling you
@@ -52,8 +58,13 @@ export function SettingsTracking({ settings, onChange }: SettingsTrackingProps):
               id="set-floor"
               type="text"
               className="money-field__input num"
-              value={settings.rateFloor}
-              onChange={(event) => onChange({ rateFloor: event.target.value })}
+              value={form.rateFloor}
+              onChange={(event) => {
+                const rateFloor = event.target.value
+                setForm((current) => ({ ...current, rateFloor }))
+                const parsed = parseRateFloor(rateFloor)
+                if (parsed !== null) onChange({ rateFloorCents: parsed })
+              }}
             />
             <span className="money-field__suffix">/hr</span>
           </div>
@@ -69,9 +80,9 @@ export function SettingsTracking({ settings, onChange }: SettingsTrackingProps):
             <div className="implied__text">
               <span className="t-overline implied__label">What this changes</span>
               <span className="implied__basis">
-                {floor === null
+                {floorCents === null
                   ? 'Enter a rate to see how your projects measure up'
-                  : `Across ${ratedProjects.length} projects with hours logged against a price`}
+                  : `Across ${rated.length} projects with hours logged against a price`}
               </span>
             </div>
 
@@ -80,12 +91,10 @@ export function SettingsTracking({ settings, onChange }: SettingsTrackingProps):
             <div className="implied__figure">
               <span className="implied__rate num" style={{ color: toneVar[tone] }}>
                 {below === null ? '—' : below}
-                {below !== null && (
-                  <span className="implied__unit"> of {ratedProjects.length}</span>
-                )}
+                {below !== null && <span className="implied__unit"> of {rated.length}</span>}
               </span>
               <span className="implied__note">
-                {floor === null ? 'No floor set' : `fall below ${formatMoney(floor)}/hr`}
+                {floorCents === null ? 'No floor set' : `fall below ${formatCents(floorCents)}/hr`}
               </span>
             </div>
           </div>
