@@ -28,3 +28,42 @@ jobs:
       - run: npm run typecheck
 
       - run: npm test
+
+  # The server against a real Postgres: its integration tests, its production
+  # bundle, and the container image the deploy configs point at.
+  server:
+    name: Server integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: trackit
+          POSTGRES_PASSWORD: trackit
+          POSTGRES_DB: trackit
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U trackit -d trackit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+
+      - run: npm run build --workspace @trackit/server
+
+      - run: npm run test:integration --workspace @trackit/server
+        env:
+          DATABASE_URL: postgres://trackit:trackit@localhost:5433/trackit
+
+      - run: docker build -f apps/server/Dockerfile -t trackit-server .

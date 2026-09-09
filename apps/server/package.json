@@ -1,18 +1,43 @@
 {
   "name": "@trackit/server",
   "version": "0.1.0",
-  "description": "Trackit server - scaffold only; Express + PostgreSQL to come",
+  "description": "Trackit server - Express + PostgreSQL: accounts now, sync next",
   "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:integration": "vitest run --config vitest.config.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts"
   },
   "dependencies": {
-    "@trackit/shared": "*"
+    "@trackit/shared": "*",
+    "argon2": "^0.45.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "jose": "^6.2.12",
+    "pg": "^8.23.0",
+    "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "^22.10.0",
-    "typescript": "^5.9.0"
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^7.2.1",
+    "drizzle-kit": "^0.31.10",
+    "esbuild": "^0.28.2",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.0"
   }
 }

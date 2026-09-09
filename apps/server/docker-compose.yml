@@ -1,0 +1,26 @@
+# The Postgres the integration tests and a development server run against.
+#
+#   docker compose up -d        from this directory
+#   npm run test:integration    then, from here or with -w @trackit/server
+#
+# Port 5433 rather than 5432 so it never collides with a Postgres already on
+# the machine. The credentials match test-support.ts and .env.example.
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_USER: trackit
+      POSTGRES_PASSWORD: trackit
+      POSTGRES_DB: trackit
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U trackit -d trackit']
+      interval: 2s
+      timeout: 5s
+      retries: 15
+    volumes:
+      - trackit-postgres:/var/lib/postgresql/data
+
+volumes:
+  trackit-postgres:

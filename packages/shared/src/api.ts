@@ -1,4 +1,6 @@
 import type {
+  AuthStatus,
+  AuthUser,
   ChecklistItem,
   Client,
   ClientListFilters,
@@ -11,6 +13,7 @@ import type {
   Invoice,
   InvoiceLine,
   InvoiceListFilters,
+  LoginInput,
   NewChecklistItemInput,
   NewInvoiceInput,
   NewInvoiceLineInput,
@@ -21,6 +24,7 @@ import type {
   Project,
   ProjectListFilters,
   ProjectTransition,
+  RegisterInput,
   Settings,
   StartTimerInput,
   TimeEntry,
@@ -49,6 +53,15 @@ import type {
  *   invalid_state       the row is not in a state that allows the operation
  *   internal            something the store did not expect
  *   detached            there is no bridge — the renderer is running in a browser
+ *
+ * The four the account calls add. They are the server's refusals, folded
+ * into the same set so a card can state them without reading a status code:
+ *
+ *   unauthorized        the email and password do not match, or the server
+ *                       no longer honours this session
+ *   conflict            the email already has an account
+ *   offline             the server could not be reached at all
+ *   rate_limited        too many attempts from this address; try again later
  */
 export type ApiErrorCode =
   | 'validation'
@@ -59,6 +72,10 @@ export type ApiErrorCode =
   | 'invalid_state'
   | 'internal'
   | 'detached'
+  | 'unauthorized'
+  | 'conflict'
+  | 'offline'
+  | 'rate_limited'
 
 export type ApiError = { code: ApiErrorCode; message: string }
 
@@ -211,6 +228,28 @@ export type LedgerApi = {
     install: () => Promise<Result<null>>
     /** Fires with every move of the status. Returns an unsubscribe function. */
     onChanged: (listener: (status: UpdateStatus) => void) => () => void
+  }
+  /**
+   * The account on this machine. The session lives in the main process — the
+   * refresh token is encrypted with the OS keychain and never reaches the
+   * renderer — so the renderer only ever sees the status and asks for moves.
+   *
+   * None of this gates the data calls above: a signed-out or expired machine
+   * reads and writes its database exactly as a signed-in one does.
+   */
+  auth: {
+    status: () => Promise<Result<AuthStatus>>
+    /** Makes the account and signs in. `conflict` when the email is taken. */
+    register: (input: RegisterInput) => Promise<Result<AuthUser>>
+    /** `unauthorized` for a wrong pair, `offline` when the server cannot be reached. */
+    login: (input: LoginInput) => Promise<Result<AuthUser>>
+    /** Forgets the session here; tells the server if it can be reached. */
+    logout: () => Promise<Result<null>>
+    /**
+     * Fires when the status moves without the renderer asking — a background
+     * refresh finding the session expired, say. Returns an unsubscribe function.
+     */
+    onChanged: (listener: (status: AuthStatus) => void) => () => void
   }
   dev: DevApi
 }
