@@ -36,7 +36,7 @@ export type TimerState = 'off' | 'running' | 'over'
  * because a notice is a condition of a record and not a place: the same
  * project screen is the one that shows it and the one that does not.
  */
-export type NoticeState = 'none' | 'conflict' | 'reorder' | 'update'
+export type NoticeState = 'none' | 'conflict' | 'reorder' | 'update' | 'download'
 
 /**
  * Whether the tables have their rows yet. Loading is the real query state; this
@@ -254,7 +254,9 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
           { value: 'none', label: 'None' },
           { value: 'conflict', label: 'Conflict' },
           { value: 'reorder', label: 'Reorder' },
-          { value: 'update', label: 'Update' }
+          { value: 'update', label: 'Update' },
+          /* The macOS shape of the same notice: a download, not a restart. */
+          { value: 'download', label: 'Download' }
         ]}
       />
 

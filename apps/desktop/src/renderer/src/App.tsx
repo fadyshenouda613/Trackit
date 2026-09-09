@@ -25,7 +25,7 @@ import type { SyncState } from './components/sync-data'
 import { readTheme, resolve, watchSystem, writeTheme, type Theme } from './components/theme'
 import { TableSkeleton } from './components/TableSkeleton'
 import { ToastStack, useToasts } from './components/Toast'
-import { UpdateNotice } from './components/UpdateNotice'
+import { UpdateNotice, type UpdateOffer } from './components/UpdateNotice'
 import {
   deliveredToast,
   errorToast,
@@ -71,6 +71,7 @@ import { usePayments } from './data/use-payments'
 import { useProject, useProjects } from './data/use-projects'
 import { useUpdateSettings } from './data/use-settings'
 import { usePendingCounts } from './data/use-sync'
+import { useInstallUpdate, useUpdateStatus } from './data/use-updates'
 import {
   useDeleteTimeEntry,
   useOrphanedTimer,
@@ -243,6 +244,30 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   /* The tray and the shortcut move the clock behind our back; this is how the
      bar hears about it without a refresh. */
   useTimerChangedFromMain()
+
+  /*
+   * The update notice. Main's status is the source; the panel's Notice lever
+   * stages the two shapes with a sample version so they stay reviewable in a
+   * build that has nothing to update to. "Later" remembers the version it
+   * dismissed, so the same offer does not come back on the next check while
+   * a newer one still does.
+   */
+  const updateStatus = useUpdateStatus()
+  const installUpdate = useInstallUpdate()
+  const [dismissedUpdate, setDismissedUpdate] = useState<string | null>(null)
+  const liveUpdate: UpdateOffer | null =
+    updateStatus.data &&
+    (updateStatus.data.state === 'ready' || updateStatus.data.state === 'available') &&
+    updateStatus.data.version !== dismissedUpdate
+      ? { kind: updateStatus.data.state, version: updateStatus.data.version }
+      : null
+  const stagedUpdate: UpdateOffer | null =
+    notice === 'update'
+      ? { kind: 'ready', version: '1.4' }
+      : notice === 'download'
+        ? { kind: 'available', version: '1.4' }
+        : null
+  const updateOffer = stagedUpdate ?? liveUpdate
 
   const stopTimer = useStopTimer()
   const updateTimeEntry = useUpdateTimeEntry()
@@ -753,9 +778,14 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
             />
           )}
 
-          {notice === 'update' && (
+          {updateOffer && (
             <div className="notice-bar">
-              <UpdateNotice version="1.4" onDismiss={() => setNotice('none')} />
+              <UpdateNotice
+                offer={updateOffer}
+                /* The staged sample has nothing to restart into; it just closes. */
+                onInstall={() => (stagedUpdate ? setNotice('none') : installUpdate.mutate())}
+                onDismiss={() => (stagedUpdate ? setNotice('none') : setDismissedUpdate(updateOffer.version))}
+              />
             </div>
           )}
 

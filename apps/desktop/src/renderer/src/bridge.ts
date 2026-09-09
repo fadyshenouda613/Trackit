@@ -35,6 +35,12 @@ const detached: LedgerApi = {
   timer: {
     onChanged: () => () => undefined
   },
+  updates: {
+    status: () => Promise.resolve({ ok: true, data: { state: 'disabled', reason: 'No bridge' } }),
+    check: () => Promise.resolve({ ok: true, data: { state: 'disabled', reason: 'No bridge' } }),
+    install: () => Promise.resolve(detachedResult),
+    onChanged: () => () => undefined
+  },
   dev: detachedGroup as DevApi
 }
 

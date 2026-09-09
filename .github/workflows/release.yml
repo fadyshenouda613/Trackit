@@ -1,0 +1,64 @@
+# A tag `vX.Y.Z` builds the installers on a Windows and a macOS runner and
+# attaches them to a GitHub Release.
+#
+# Each runner runs `electron-builder --publish always`, which creates the
+# release as a draft on the first upload and adds to it on the second, along
+# with the latest.yml / latest-mac.yml files electron-updater reads. The last
+# job turns the draft into a real release once both have finished, so the
+# updater never sees a release with one platform missing.
+#
+# The tag must match the version in apps/desktop/package.json: electron-builder
+# names its draft release after the version, and the publish job edits the
+# release named after the tag.
+#
+# Builds are unsigned. CSC_IDENTITY_AUTO_DISCOVERY keeps the macOS runner from
+# looking for a certificate that is not there.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Belt and braces: the release should never ship what CI would fail.
+      - run: npm run typecheck
+      - run: npm test
+
+      # electron-vite build (out/ and the icons in build/), then electron-builder.
+      - run: npm run release --workspace @trackit/desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+  publish:
+    name: Publish the release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark the draft as published
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

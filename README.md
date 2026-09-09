@@ -1,5 +1,9 @@
 # Trackit
 
+[![Latest release](https://img.shields.io/github/v/release/fadyshenouda613/New-folder--2-?label=latest%20release)](https://github.com/fadyshenouda613/New-folder--2-/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/fadyshenouda613/New-folder--2-/total?label=downloads)](https://github.com/fadyshenouda613/New-folder--2-/releases/latest)
+[![CI](https://github.com/fadyshenouda613/New-folder--2-/actions/workflows/ci.yml/badge.svg)](https://github.com/fadyshenouda613/New-folder--2-/actions/workflows/ci.yml)
+
 **Freelance time and billing for people who charge a fixed price.**
 
 Trackit is an Electron desktop app that tracks hours against fixed-price
@@ -7,6 +11,53 @@ projects and tells you what you are *actually* earning per hour — then turns
 delivered work into an invoice and follows the money until it lands.
 
 ![Trackit dashboard in dark mode](docs/screenshots/dashboard-dark.jpg)
+
+---
+
+## Install
+
+Installers for every release are on the
+[latest release](https://github.com/fadyshenouda613/New-folder--2-/releases/latest)
+page:
+
+| Platform | File |
+|---|---|
+| Windows 10/11 (x64) | `Trackit-Setup-<version>.exe` — a one-click installer, per user, no admin prompt |
+| macOS (Apple silicon) | `Trackit-<version>-arm64.dmg` |
+| macOS (Intel) | `Trackit-<version>-x64.dmg` |
+
+**The builds are not code-signed**, so each OS shows a warning the first
+time. It is the same warning every unsigned app gets; here is how to get past
+it.
+
+**Windows.** SmartScreen shows *"Windows protected your PC"*. Click **More
+info**, then **Run anyway**. The installer puts the app in
+`%LOCALAPPDATA%Programs	rackit` and adds a Start Menu entry; uninstall it
+from *Settings → Apps* like anything else.
+
+**macOS.** Open the DMG and drag Trackit into *Applications*. The first launch
+is refused with *"Trackit cannot be opened because it is from an unidentified
+developer"* (or *"…Apple could not verify…"* on macOS 15). Either:
+
+- **Control-click** the app in *Applications* and choose **Open**, then **Open**
+  again in the dialog — macOS remembers the choice; or
+- on macOS 15 and later, try to open it once, then go to *System Settings →
+  Privacy & Security*, scroll to the message about Trackit and click **Open
+  Anyway**; or
+- clear the quarantine flag from a terminal:
+  `xattr -dr com.apple.quarantine /Applications/Trackit.app`.
+
+**Where your data lives.** Everything is in one SQLite file in the app's
+per-user data directory — `%APPDATA%Trackit	rackit.db` on Windows,
+`~/Library/Application Support/Trackit/trackit.db` on macOS. Uninstalling
+leaves it in place.
+
+**Updates.** Trackit checks this repository's releases shortly after launch
+and a few times a day. On Windows a newer build downloads in the background
+and a notice offers a restart (a running timer is stopped and logged first).
+On macOS an unsigned app cannot replace itself, so the notice links to the
+download instead; drop the new app over the old one and your data stays
+where it is.
 
 ---
 
@@ -257,8 +308,29 @@ Sign in with any email address and `admin` / `admin`.
 | `npm run typecheck` | Type-check every workspace |
 | `npm run typecheck:node -w @trackit/desktop` | Main and preload only |
 | `npm run typecheck:web -w @trackit/desktop` | Renderer only |
+| `npm run package -w @trackit/desktop` | Build, then produce this platform's installer in `apps/desktop/dist/` |
 
-There is no packaging step (electron-builder or similar) configured yet.
+### Packaging and releases
+
+`npm run package` in the desktop workspace runs the build and then
+[electron-builder](https://www.electron.build/) from
+`apps/desktop/electron-builder.yml`: an NSIS installer on Windows, a DMG (plus
+the zip the updater reads) on macOS. The app icon is not a checked-in asset —
+`apps/desktop/tooling/icons.ts` draws the `.ico` and `.icns` from the same
+geometry as the window icon (`src/main/mark.ts`) at the start of every build.
+better-sqlite3 ships a Node-API prebuild, so nothing is rebuilt against
+Electron; the package unpacks it beside the asar and `require` finds it there.
+
+Releases are cut by tag. Pushing `vX.Y.Z` (matching the version in
+`apps/desktop/package.json`) runs `.github/workflows/release.yml`, which builds
+on a Windows and a macOS runner, attaches the installers and the
+`latest*.yml` feed files to a draft GitHub Release, and publishes it once both
+have uploaded. `.github/workflows/ci.yml` runs the type-checker and the tests
+on every push and pull request.
+
+In-app updates come from [electron-updater](https://www.electron.build/auto-update)
+reading that same release feed (`apps/desktop/src/main/updates.ts`); the
+renderer only ever sees a status value over the bridge.
 
 ### The States panel
 
@@ -273,7 +345,7 @@ corner of the window and you get eight axes:
 | Account | In, Sign in, Sign up, Welcome, Offline |
 | Timer | Stopped, Running, Over budget |
 | Sync | Saved, Syncing, Pending, Failed |
-| Notice | None, Conflict, Reorder, Update |
+| Notice | None, Conflict, Reorder, Update, Download |
 | Data | Ready, Loading |
 | Toast | PDF, Payment, Delivered, Timer *(fires rather than selects)* |
 | Theme | Dark, Light, System |

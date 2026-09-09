@@ -1,0 +1,107 @@
+# electron-builder: an NSIS installer for Windows, a DMG for macOS.
+#
+# Run after `electron-vite build`, which is what puts out/ and build/ in place:
+#   npm run package        (this platform)
+#   npm run package:win
+#   npm run package:mac
+#
+# Builds are unsigned. See the README for the click-through each OS shows.
+
+appId: com.trackit.desktop
+productName: Trackit
+copyright: Copyright © 2026 Fady Shenouda
+
+# What the package.json inside the package says, over the workspace's own.
+# The one-click installer names its directory and the updater's cache after
+# `name`, and Electron names userData after `productName` — without these
+# the installed app would live in Programs\@trackitdesktop and keep its
+# database in %APPDATA%\@trackit\desktop, the development location. So the
+# packaged app is Programs\trackit with its data in %APPDATA%\Trackit (and
+# ~/Library/Application Support/Trackit), while `npm run dev` stays where it
+# was.
+extraMetadata:
+  name: trackit
+  productName: Trackit
+
+directories:
+  # electron-vite writes the icons here at build start (tooling/icons.ts).
+  buildResources: build
+  output: dist
+
+# out/ holds the compiled main, preload and renderer; everything the renderer
+# imports is bundled into it, and everything main requires at run time is in
+# `dependencies` and copied from node_modules by electron-builder itself.
+files:
+  - out/**
+  - package.json
+  # @trackit/shared is a dependency so npm links it, but electron-vite bundles
+  # it into out/ (see externalizeDepsPlugin there); zod is only its dependency.
+  - '!node_modules/@trackit/**'
+  - '!node_modules/zod/**'
+
+# better-sqlite3 is a native addon. Electron cannot dlopen a .node file from
+# inside an asar, so the whole package stays on disk beside it; require()
+# follows the redirect to app.asar.unpacked without knowing it happened.
+asarUnpack:
+  - node_modules/better-sqlite3/**
+
+# Since v12 better-sqlite3 is built against Node-API and ships prebuilds, so
+# the binary that serves Node serves Electron too. Rebuilding against
+# Electron's headers would need a C++ toolchain on every runner for no gain.
+npmRebuild: false
+nodeGypRebuild: false
+buildDependenciesFromSource: false
+
+# Where electron-updater looks: this repository's Releases. electron-builder
+# writes the same coordinates into resources/app-update.yml in the package.
+# Releases are created as drafts so both platforms can attach before anything
+# goes live; release.yml flips the draft once every runner has uploaded.
+publish:
+  provider: github
+  owner: fadyshenouda613
+  repo: New-folder--2-
+  releaseType: draft
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  # Not signed; the runners have no certificate. The icon and the version
+  # resource are still stamped onto the executable.
+  signExecutable: false
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  # The database is in userData; uninstalling the app must not take it.
+  deleteAppDataOnUninstall: false
+  shortcutName: Trackit
+
+mac:
+  # One build per architecture rather than a universal binary: the native
+  # addon is a single-arch file, and the updater feed lists each build.
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    # The zip is not for download; it is what electron-updater reads the
+    # version from (latest-mac.yml). See updates.ts for why it stops there.
+    - target: zip
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.icns
+  category: public.app-category.productivity
+  # Not signed and not notarized.
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}

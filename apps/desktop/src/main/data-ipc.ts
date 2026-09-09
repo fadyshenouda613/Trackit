@@ -48,18 +48,20 @@ export function toApiError(error: unknown): ApiError {
 export function handle<S extends z.ZodType, T>(
   channel: string,
   schema: S,
-  run: (input: z.output<S>) => T,
+  /* Synchronous for every database call; a promise for the few that wait on
+     something outside the process, such as the update feed. */
+  run: (input: z.output<S>) => T | Promise<T>,
   /* Given what the call returned, so a hook can act on the new row rather
      than reading it back out of the database a second time. */
   after?: (data: T) => void
 ): void {
-  ipcMain.handle(channel, (_event, payload: unknown): Result<T> => {
+  ipcMain.handle(channel, async (_event, payload: unknown): Promise<Result<T>> => {
     const parsed = schema.safeParse(payload)
     if (!parsed.success) {
       return { ok: false, error: { code: 'validation', message: z.prettifyError(parsed.error) } }
     }
     try {
-      const data = run(parsed.data)
+      const data = await run(parsed.data)
       after?.(data)
       return { ok: true, data }
     } catch (error) {

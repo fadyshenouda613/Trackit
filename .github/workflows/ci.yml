@@ -1,0 +1,30 @@
+# Every push and pull request: the type-checker and the tests, from the root,
+# the way they run locally. Nothing here needs Electron to start, so an
+# Ubuntu runner is enough — better-sqlite3 ships a Linux prebuild the tests
+# load directly.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    name: Typecheck and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Electron's postinstall downloads a binary the checks never run.
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+
+      - run: npm run typecheck
+
+      - run: npm test

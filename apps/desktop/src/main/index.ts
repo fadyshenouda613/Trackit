@@ -8,6 +8,7 @@ import { registerWindowIpc } from './ipc'
 import { closeOpenEntries, getSettings, runningTimeEntry } from './repositories'
 import { toggleTimer, trayState } from './timer'
 import { createTray, type TrayHandle } from './tray'
+import { createUpdater, registerUpdateIpc } from './updates'
 import { createMainWindow } from './window'
 
 /**
@@ -72,6 +73,17 @@ app.whenReady().then(async () => {
     registerDevIpc(db, { onTimerChanged: () => broadcastTimer() })
   }
 
+  /* Every move of the update status is pushed to the renderer, which shows
+     the notice when there is something to restart into. */
+  const updater = createUpdater({
+    packaged: app.isPackaged,
+    platform: process.platform,
+    onChanged: (status) => {
+      for (const window of BrowserWindow.getAllWindows()) window.webContents.send('updates:changed', status)
+    }
+  })
+  registerUpdateIpc(updater)
+
   const window = createMainWindow()
 
   // Keep the renderer's maximize affordance in sync with the real window state.
@@ -113,6 +125,7 @@ app.whenReady().then(async () => {
 
   app.on('before-quit', () => {
     clearInterval(tick)
+    updater.destroy()
     /* A clean quit never leaves a clock running; anything found running at
        the next launch therefore survived a crash and is offered for recovery. */
     closeOpenEntries(db)
