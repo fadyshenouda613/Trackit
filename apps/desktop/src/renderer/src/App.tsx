@@ -46,13 +46,8 @@ import {
   type Id,
   type ProjectListFilters
 } from '@trackit/shared'
-import {
-  clearSession,
-  hasSeenWelcome,
-  markWelcomeSeen,
-  readSession,
-  writeSession
-} from './components/auth-session'
+import { hasSeenWelcome, markWelcomeSeen, refusalLine } from './components/auth-session'
+import { useAuthStatus, useLogin, useLogout, useRegister } from './data/use-auth'
 import { dashboardDate } from './components/local-dates'
 import { useInvoiceFigures } from './components/use-invoice-figures'
 import {
@@ -94,16 +89,11 @@ const SAMPLE_VOID = 'INV-0137'
 const SAMPLE_PROJECT = 'Brand refresh'
 
 /*
- * Read once, here, rather than in an effect: an effect would paint the sign-in
- * card for a frame before the stored session replaced it, and StrictMode would
- * run it twice. Both initialisers below want the same answer and nothing can
- * change it between them.
+ * Read once, here, rather than in an effect: an effect would paint the wrong
+ * theme for a frame, and theme-boot.js has already stamped data-theme from
+ * this value before the first paint, so starting from anything else would
+ * flip the app on mount.
  */
-const storedSession = readSession()
-
-/* Read here for the same reason, and with an extra one: theme-boot.js has
-   already stamped data-theme from this value before the first paint, so
-   starting from anything else would flip the app on mount. */
 const storedTheme = readTheme()
 
 export function App(): JSX.Element {
@@ -157,17 +147,39 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   const { toasts, push: pushToast, dismiss: dismissToast } = toastQueue
 
   /*
-   * Being signed in is the one thing this app remembers across launches, because
-   * the front door promises an account is only needed the first time. `null`
-   * means the app itself is showing.
+   * Which account card stands in front of the app; `null` means the app
+   * itself. Plain state, so the States panel can force any card — or the app
+   * — whatever the real session is. It starts as the app and is set once
+   * below, when the bridge first says whether anyone is signed in; until
+   * then nothing is painted but the window chrome.
    *
-   * A stored session beats having no connection: the offline card is the first
-   * launch and only the first launch, since the whole promise afterwards is that
-   * the app opens with or without a link.
+   * Being signed in is the one thing this app remembers across launches,
+   * because the front door promises an account is only needed the first
+   * time. The session itself lives in the main process; what the renderer
+   * holds is its status. A stored session beats having no connection: the
+   * offline card is the first launch and only the first launch, since the
+   * whole promise afterwards is that the app opens with or without a link —
+   * and whatever the server thinks of the token, which only sync cares about.
    */
-  const [authView, setAuthView] = useState<AuthView | null>(
-    storedSession ? null : navigator.onLine ? 'signIn' : 'offline'
-  )
+  const [authView, setAuthView] = useState<AuthView | null>(null)
+  const [authKnown, setAuthKnown] = useState(false)
+  const authStatus = useAuthStatus()
+  const login = useLogin()
+  const register = useRegister()
+  const logout = useLogout()
+
+  useEffect(() => {
+    if (authKnown) return
+    if (authStatus.data !== undefined) {
+      setAuthKnown(true)
+      if (authStatus.data.state === 'signedOut') setAuthView(navigator.onLine ? 'signIn' : 'offline')
+    } else if (authStatus.isError) {
+      /* The bridge could not say. The front door is the safer default, and
+         the States panel is still there to get past it. */
+      setAuthKnown(true)
+      setAuthView('signIn')
+    }
+  }, [authKnown, authStatus.data, authStatus.isError])
 
   /*
    * The preference is what is stored and what the main process is told —
@@ -369,25 +381,44 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
      draft and a settled invoice are never overdue, whatever their date says. */
   const { summary } = useInvoiceFigures(invoiceList)
 
-  /** Signing in and signing up both end here: store it, name it, drop the gate. */
-  const enter = (email: string, name: string, view: AuthView | null): void => {
-    writeSession({ version: 1, email, name })
+  /**
+   * Signing in and signing up both end here: the main process has stored
+   * the session by now; what is left is to name the account in Settings and
+   * drop the gate.
+   */
+  const enter = (email: string, view: AuthView | null): void => {
     updateSettings.mutate({ accountEmail: email })
     setAuthView(view)
   }
 
-  const onSignIn = (email: string): void => enter(email, '', null)
+  /* Each answers the card with nothing, or with the sentence to put beneath
+     the field — see refusalLine. */
+  const onSignIn = async (email: string, password: string): Promise<string | null> => {
+    try {
+      const user = await login.mutateAsync({ email, password })
+      enter(user.email, null)
+      return null
+    } catch (error) {
+      return refusalLine(error)
+    }
+  }
 
-  const onSignUp = (name: string, email: string): void => {
-    /* The welcome screen is shown once per machine. Someone who signs out and
-       makes a second account is not on their first run. */
-    const first = !hasSeenWelcome()
-    markWelcomeSeen()
-    enter(email, name, first ? 'welcome' : null)
+  const onSignUp = async (name: string, email: string, password: string): Promise<string | null> => {
+    try {
+      const user = await register.mutateAsync({ name, email, password })
+      /* The welcome screen is shown once per machine. Someone who signs out
+         and makes a second account is not on their first run. */
+      const first = !hasSeenWelcome()
+      markWelcomeSeen()
+      enter(user.email, first ? 'welcome' : null)
+      return null
+    } catch (error) {
+      return refusalLine(error)
+    }
   }
 
   const onSignOut = (): void => {
-    clearSession() // the welcome flag is a separate key, and stays
+    logout.mutate() // the welcome flag is the renderer's own, and stays
     setScreen('dashboard') // so signing back in does not land mid-flow
     setAuthView('signIn')
   }
@@ -529,11 +560,12 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
    * Only the States panel comes along, because it is the way back — the same
    * arrangement the printed invoice uses below.
    */
-  if (authView !== null) {
+  if (authView !== null || !authKnown) {
     return (
       <>
         <AuthScreen
-          view={authView}
+          /* Until the bridge has said who is signed in, only the chrome. */
+          view={authView ?? 'blank'}
           onView={setAuthView}
           onSignIn={onSignIn}
           onSignUp={onSignUp}

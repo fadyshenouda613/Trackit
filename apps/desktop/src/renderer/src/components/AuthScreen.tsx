@@ -1,9 +1,15 @@
 import { useState, type JSX, type ReactNode } from 'react'
+import { PASSWORD_MIN_LENGTH } from '@trackit/shared/schemas'
 import { Logo } from './Logo'
 import { TitleBarControls } from './TitleBarControls'
-import { MIN_PASSWORD, verify } from './auth-session'
 import { toneVar } from './tone'
 import type { AuthView } from '../dev/StatePanel'
+
+/**
+ * What a card gets back from a sign-in or sign-up: nothing when it worked
+ * — the app takes over from there — or the sentence to put beneath the field.
+ */
+export type AuthAttempt = Promise<string | null>
 
 /*
  * The front door, and the two states either side of it.
@@ -127,25 +133,30 @@ function Note({ children, correction }: NoteProps): JSX.Element {
 }
 
 type SignInProps = {
-  onSignIn: (email: string) => void
+  onSignIn: (email: string, password: string) => AuthAttempt
   onSignUp: () => void
 }
 
 function SignInCard({ onSignIn, onSignUp }: SignInProps): JSX.Element {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [rejected, setRejected] = useState(false)
+  /* The refusal, in the card's words, or nothing. */
+  const [refusal, setRefusal] = useState<string | null>(null)
+  /* A trip to the server is in flight. The button says so and nothing else
+     changes: the fields stay editable, because the answer may be "no". */
+  const [busy, setBusy] = useState(false)
 
-  const ready = email.trim() !== '' && password !== ''
+  const ready = email.trim() !== '' && password !== '' && !busy
 
-  const submit = (): void => {
+  const submit = async (): Promise<void> => {
     if (!ready) return
-    if (verify(email, password)) {
-      onSignIn(email.trim())
-    } else {
-      /* The fields stay as they are. Clearing them would make a typo cost the
-         whole entry. */
-      setRejected(true)
+    setBusy(true)
+    try {
+      /* The fields stay as they are on a refusal. Clearing them would make a
+         typo cost the whole entry. */
+      setRefusal(await onSignIn(email.trim(), password))
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -155,14 +166,14 @@ function SignInCard({ onSignIn, onSignUp }: SignInProps): JSX.Element {
       /*
        * The browser must not validate this. Its own bubble is a light-mode
        * tooltip drawn outside the app's type and colour, and this card states
-       * its refusals in grey prose beneath the field like everything else does.
-       * It would also have made the stand-in unusable: `admin` is not an email
-       * address, so constraint validation refused to submit the form at all.
+       * its refusals in grey prose beneath the field like everything else does
+       * — including the one about an address that is not an address, which
+       * the bridge's schema refuses and the card then puts into words.
        */
       noValidate
       onSubmit={(event) => {
         event.preventDefault()
-        submit()
+        void submit()
       }}
     >
       <Masthead />
@@ -178,7 +189,7 @@ function SignInCard({ onSignIn, onSignUp }: SignInProps): JSX.Element {
         autoFocus
         onChange={(next) => {
           setEmail(next)
-          setRejected(false)
+          setRefusal(null)
         }}
       />
       <PasswordField
@@ -187,18 +198,16 @@ function SignInCard({ onSignIn, onSignUp }: SignInProps): JSX.Element {
         value={password}
         onChange={(next) => {
           setPassword(next)
-          setRejected(false)
+          setRefusal(null)
         }}
       />
 
-      <Note correction={rejected}>
-        {rejected
-          ? 'That email and password do not match. Check both and try again.'
-          : 'No account service is connected yet — admin / admin signs you in.'}
+      <Note correction={refusal !== null}>
+        {refusal ?? 'Use the email and password you signed up with, on any machine.'}
       </Note>
 
       <button type="submit" className="auth__submit" disabled={!ready}>
-        Sign in
+        {busy ? 'Signing in…' : 'Sign in'}
       </button>
 
       <span className="auth__switch">
@@ -217,7 +226,7 @@ function SignInCard({ onSignIn, onSignUp }: SignInProps): JSX.Element {
 }
 
 type SignUpProps = {
-  onSignUp: (name: string, email: string) => void
+  onSignUp: (name: string, email: string, password: string) => AuthAttempt
   onSignIn: () => void
 }
 
@@ -225,10 +234,28 @@ function SignUpCard({ onSignUp, onSignIn }: SignUpProps): JSX.Element {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
-  const longEnough = password.length >= MIN_PASSWORD
+  const longEnough = password.length >= PASSWORD_MIN_LENGTH
   const short = password !== '' && !longEnough
-  const ready = name.trim() !== '' && email.trim() !== '' && longEnough
+  const ready = name.trim() !== '' && email.trim() !== '' && longEnough && !busy
+
+  const submit = async (): Promise<void> => {
+    if (!ready) return
+    setBusy(true)
+    try {
+      setRefusal(await onSignUp(name.trim(), email.trim(), password))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /* Anything typed after a refusal is a fresh attempt. */
+  const edit = (set: (value: string) => void) => (value: string) => {
+    set(value)
+    setRefusal(null)
+  }
 
   return (
     <form
@@ -237,7 +264,7 @@ function SignUpCard({ onSignUp, onSignIn }: SignUpProps): JSX.Element {
       noValidate
       onSubmit={(event) => {
         event.preventDefault()
-        if (ready) onSignUp(name.trim(), email.trim())
+        void submit()
       }}
     >
       <Masthead />
@@ -246,23 +273,25 @@ function SignUpCard({ onSignUp, onSignIn }: SignUpProps): JSX.Element {
       <span className="t-overline auth__step">Create an account</span>
 
       {/* Name first: it is the thing the app will call you. */}
-      <Field id="auth-name" label="Name" value={name} autoFocus onChange={setName} />
-      <Field id="auth-email" label="Email" type="email" value={email} onChange={setEmail} />
-      <PasswordField id="auth-password" label="Password" value={password} onChange={setPassword} />
+      <Field id="auth-name" label="Name" value={name} autoFocus onChange={edit(setName)} />
+      <Field id="auth-email" label="Email" type="email" value={email} onChange={edit(setEmail)} />
+      <PasswordField id="auth-password" label="Password" value={password} onChange={edit(setPassword)} />
 
       {/*
        * The one requirement, stated before it is broken and corrected in place
        * afterwards — the primary stays disabled until it is met, which is how
-       * the timer recovery dialog handles a value it cannot accept.
+       * the timer recovery dialog handles a value it cannot accept. A refusal
+       * from the server takes the same line.
        */}
-      <Note correction={short}>
-        {short
-          ? 'That is ' + password.length + ' characters. Use at least ' + MIN_PASSWORD + '.'
-          : 'At least ' + MIN_PASSWORD + ' characters.'}
+      <Note correction={short || refusal !== null}>
+        {refusal ??
+          (short
+            ? 'That is ' + password.length + ' characters. Use at least ' + PASSWORD_MIN_LENGTH + '.'
+            : 'At least ' + PASSWORD_MIN_LENGTH + ' characters.')}
       </Note>
 
       <button type="submit" className="auth__submit" disabled={!ready}>
-        Create account
+        {busy ? 'Creating account…' : 'Create account'}
       </button>
 
       <span className="auth__switch">
@@ -377,10 +406,15 @@ function OfflineCard({ onRetry }: { onRetry: () => boolean }): JSX.Element {
 }
 
 type AuthScreenProps = {
-  view: AuthView
+  /**
+   * Which card, or `blank`: the chrome with nothing on the stage, for the
+   * moment between launch and the bridge saying whether anyone is signed in.
+   * Painting a card there would show the wrong one to everyone who is.
+   */
+  view: AuthView | 'blank'
   onView: (view: AuthView) => void
-  onSignIn: (email: string) => void
-  onSignUp: (name: string, email: string) => void
+  onSignIn: (email: string, password: string) => AuthAttempt
+  onSignUp: (name: string, email: string, password: string) => AuthAttempt
   /** Returns whether there is a connection now, so the card can say either way. */
   onRetry: () => boolean
   /** The welcome card's single action: into the app, on the empty dashboard. */

@@ -18,6 +18,10 @@ const REPEAT_MS = 5_000
  * Reads are de-duplicated where writes are not, because one broken read is
  * usually several: a screen mounts a dozen queries against the same store, and
  * a dozen identical toasts is a stack that hides its own first line.
+ *
+ * A mutation with `meta: { silent: true }` is left to its caller: the
+ * sign-in card states a refusal beneath the field, in its own words, and a
+ * toast on top of that would say the same thing twice.
  */
 export function createQueryClient(onError: (error: ApiFailure) => void): QueryClient {
   const asFailure = (error: unknown): ApiFailure =>
@@ -41,6 +45,11 @@ export function createQueryClient(onError: (error: ApiFailure) => void): QueryCl
       mutations: { retry: false }
     },
     queryCache: new QueryCache({ onError: reportOnce }),
-    mutationCache: new MutationCache({ onError: (error) => onError(asFailure(error)) })
+    mutationCache: new MutationCache({
+      onError: (error, _variables, _context, mutation) => {
+        if (mutation?.meta?.silent === true) return
+        onError(asFailure(error))
+      }
+    })
   })
 }

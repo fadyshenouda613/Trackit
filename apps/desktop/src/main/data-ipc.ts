@@ -29,6 +29,7 @@ import {
   updateTimeEntryInputSchema,
   voidInvoiceInputSchema
 } from '@trackit/shared/schemas'
+import { AuthClientError } from './auth/client'
 import type { Database } from './db'
 import * as repo from './repositories'
 
@@ -40,6 +41,8 @@ import * as repo from './repositories'
 
 export function toApiError(error: unknown): ApiError {
   if (error instanceof repo.RepositoryError) return { code: error.code, message: error.message }
+  // The server's refusals, already folded into the bridge's codes by the auth client.
+  if (error instanceof AuthClientError) return { code: error.code, message: error.message }
   // A merged row that fails its schema — an end before its start, say.
   if (error instanceof z.ZodError) return { code: 'validation', message: z.prettifyError(error) }
   return { code: 'internal', message: error instanceof Error ? error.message : String(error) }
