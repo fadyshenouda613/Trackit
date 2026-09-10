@@ -6,7 +6,7 @@ import { SettingsBusiness } from './SettingsBusiness'
 import { SettingsData } from './SettingsData'
 import { SettingsInvoicing } from './SettingsInvoicing'
 import { SettingsTracking } from './SettingsTracking'
-import type { SyncState } from './sync-data'
+import type { SyncSnapshot } from './sync-data'
 import { TopBar } from './TopBar'
 import { useSettings, useUpdateSettings } from '../data/use-settings'
 import type { Theme } from './theme'
@@ -23,14 +23,15 @@ const sections: { key: SectionKey; label: string }[] = [
 ]
 
 type SettingsScreenProps = {
-  syncState: SyncState
+  sync: SyncSnapshot
+  onSyncNow: () => void
   isTopmost: boolean
   /** Passed straight through: the account section owns the button, the app owns
       what signing out means. */
   onSignOut: () => void
   /* Not part of Settings: theme is a preference of this machine, kept in
      localStorage, and is never written to the settings row. Owned by the app,
-     like syncState. */
+     like the sync snapshot. */
   theme: Theme
   onTheme: (theme: Theme) => void
   /** Forced by the States panel's Data axis, independent of the query's own state. */
@@ -47,7 +48,8 @@ type SettingsScreenProps = {
  * down a page of addresses and tax rates.
  */
 export function SettingsScreen({
-  syncState,
+  sync,
+  onSyncNow,
   isTopmost,
   onSignOut,
   theme,
@@ -108,7 +110,8 @@ export function SettingsScreen({
                 {section === 'account' && (
                   <SettingsAccount
                     settings={settings}
-                    syncState={syncState}
+                    sync={sync}
+                    onSyncNow={onSyncNow}
                     onSignOut={onSignOut}
                   />
                 )}

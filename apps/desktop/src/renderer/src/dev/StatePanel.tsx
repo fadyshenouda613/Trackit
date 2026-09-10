@@ -1,5 +1,5 @@
 import { useState, type JSX } from 'react'
-import type { SyncState } from '../components/sync-data'
+import type { SyncLever } from '../components/sync-data'
 import type { Theme } from '../components/theme'
 import type { ToastKind } from '../components/toast-data'
 
@@ -77,8 +77,9 @@ type StatePanelProps = {
   onAuthView: (view: AuthView | null) => void
   timer: TimerState
   onTimer: (timer: TimerState) => void
-  syncState: SyncState
-  onSyncState: (state: SyncState) => void
+  /** The engine's own status, or one of the four fixtures forced in its place. */
+  syncState: SyncLever
+  onSyncState: (state: SyncLever) => void
   notice: NoticeState
   onNotice: (notice: NoticeState) => void
   data: DataState
@@ -237,6 +238,7 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
         value={props.syncState}
         onChange={props.onSyncState}
         options={[
+          { value: 'live', label: 'Live' },
           { value: 'saved', label: 'Saved' },
           { value: 'syncing', label: 'Syncing' },
           { value: 'pending', label: 'Pending' },
@@ -244,8 +246,8 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
         ]}
       />
 
-      {/* The first two need the project screen to be visible to show anything;
-          the update notice appears on whichever screen you are already on. */}
+      {/* Reorder needs the project screen to be visible to show anything; the
+          conflict and update notices appear on whichever screen you are on. */}
       <OptionRow
         label="Notice"
         value={props.notice}

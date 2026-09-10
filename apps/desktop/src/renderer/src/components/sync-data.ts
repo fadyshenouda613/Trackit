@@ -1,4 +1,10 @@
-import type { PendingKind } from '@trackit/shared'
+import type {
+  PendingKind,
+  SyncEventKind,
+  SyncFailure,
+  SyncStatus,
+  SyncStatusState
+} from '@trackit/shared'
 import type { Tone } from './tone'
 
 /**
@@ -18,9 +24,8 @@ import type { Tone } from './tone'
  * rather than a message handed up from a transport, because every one of them
  * has to be a sentence a person can act on — see failureReasons.
  *
- * Nothing here is connected to anything. There is no sync service behind
- * Trackit yet; these are the shapes the footer will read when there is one,
- * with fixtures so every state stays reachable from the dev panel.
+ * The shapes are the shared schemas' (syncStatusSchema and its parts); this
+ * file adds the words, and the fixtures the dev panel forces.
  */
 
 /**
@@ -29,41 +34,36 @@ import type { Tone } from './tone'
  * pending  work is queued and the last attempt worked — ordinary, not a fault
  * failed   an attempt did not work, and the reason says what to do about it
  */
-export type SyncState = 'saved' | 'syncing' | 'pending' | 'failed'
+export type SyncState = SyncStatusState
 
-/** Why a sync failed, in the user's terms rather than the transport's. */
-export type SyncFailure = 'offline' | 'signedOut' | 'server' | 'tooOld'
+export type { PendingKind, SyncEventKind, SyncFailure }
 
-/**
- * What is waiting. Broken down by kind because "7 changes" is a number and
- * "4 time entries and 2 invoices" is an answer — it says what you would lose,
- * which is the only reason anyone opens this panel.
- *
- * The five buckets are the store's, not this file's: `pendingCountsSchema` in
- * @trackit/shared is what the bridge counts and what the footer is handed, so
- * the kinds are re-exported from there rather than restated here.
- */
-export type { PendingKind }
-
-export type SyncEventKind = 'synced' | 'failed' | 'conflict'
-
+/** One line of the log, with its instant as runtime time. See time-data.ts. */
 export type SyncEvent = {
   id: string
   kind: SyncEventKind
-  /** Epoch ms — runtime time, not a ledger date. See time-data.ts. */
+  /** Epoch ms. */
   at: number
   detail: string
 }
 
-export type SyncSnapshot = {
-  state: SyncState
-  /** Epoch ms of the last attempt that worked. Null on a machine that never has. */
+/**
+ * The status as the footer reads it: the same facts as SyncStatus, with the
+ * instants as epoch ms because that is what the relative-time helpers take.
+ */
+export type SyncSnapshot = Omit<SyncStatus, 'lastSyncedAt' | 'log' | 'revision'> & {
   lastSyncedAt: number | null
-  pending: Partial<Record<PendingKind, number>>
-  /** Set only when state is 'failed'. */
-  failure?: SyncFailure
   log: SyncEvent[]
 }
+
+/** The engine's status as the footer reads it. */
+export const toSnapshot = (status: SyncStatus): SyncSnapshot => ({
+  state: status.state,
+  lastSyncedAt: status.lastSyncedAt === null ? null : Date.parse(status.lastSyncedAt),
+  pending: status.pending,
+  ...(status.failure ? { failure: status.failure } : {}),
+  log: status.log.map((event) => ({ ...event, at: Date.parse(event.at) }))
+})
 
 /**
  * saved is the only positive state. pending is warm rather than red because
@@ -99,6 +99,10 @@ export const failureReasons: Record<SyncFailure, { line: string; hint: string }>
   tooOld: {
     line: 'This version is too old to sync',
     hint: 'Update Trackit to carry on. Your work stays on this machine until you do.'
+  },
+  otherAccount: {
+    line: 'This data belongs to another account',
+    hint: 'It was first synced under a different sign-in. Sign in as that account to sync it; nothing here is lost.'
   }
 }
 
@@ -141,16 +145,17 @@ export function footerLabel(snapshot: SyncSnapshot): string {
 
   if (snapshot.state === 'saved') return 'All changes saved'
   if (snapshot.state === 'syncing') {
-    return `Syncing ${waiting} ${waiting === 1 ? 'change' : 'changes'}`
+    return waiting === 0 ? 'Syncing' : `Syncing ${waiting} ${waiting === 1 ? 'change' : 'changes'}`
   }
   if (snapshot.state === 'pending') return `${waiting} waiting to upload`
   return 'Could not sync'
 }
 
 /* ---- Fixtures -------------------------------------------------------------
- * One snapshot per state, so the dev panel can reach all four. The times are
- * offsets from whenever the app is opened rather than absolute instants, for
- * the reason the header gives: a literal would go stale.
+ * One snapshot per state, so the dev panel can force all four whatever the
+ * engine is doing. The times are offsets from whenever the app is opened
+ * rather than absolute instants, for the reason the header gives: a literal
+ * would go stale.
  */
 
 const MINUTE = 60_000
@@ -168,9 +173,9 @@ const event = (id: string, kind: SyncEventKind, minutesAgo: number, detail: stri
  */
 const recentLog = (): SyncEvent[] => [
   event('e1', 'synced', 3, '6 changes uploaded'),
-  event('e2', 'conflict', 41, 'Brand refresh — kept this machine’s version'),
+  event('e2', 'conflict', 41, 'Brand refresh — edited on two devices; the other version was kept'),
   event('e3', 'synced', 44, '2 changes uploaded'),
-  event('e4', 'conflict', 96, 'Checklist order — both orders merged'),
+  event('e4', 'conflict', 96, 'Logo — moved on two devices; the other position was kept'),
   event('e5', 'synced', 98, '11 changes uploaded')
 ]
 
@@ -207,3 +212,9 @@ export const snapshots: Record<SyncState, SyncSnapshot> = {
     log: [event('f1', 'failed', 2, 'Upload did not go through'), ...recentLog()]
   }
 }
+
+/**
+ * What the panel's Sync lever chooses: the engine's own status, or one of the
+ * four fixtures in its place.
+ */
+export type SyncLever = 'live' | SyncState

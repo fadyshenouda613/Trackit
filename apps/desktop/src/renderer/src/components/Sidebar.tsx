@@ -1,10 +1,9 @@
 import { useRef, useState, type JSX } from 'react'
-import type { PendingCounts } from '@trackit/shared'
 import { Icon, type IconName } from './Icon'
 import { Logo } from './Logo'
 import { SyncPopover } from './SyncPopover'
 import { SyncStatus } from './SyncStatus'
-import { snapshots, type SyncState } from './sync-data'
+import { snapshots, type SyncSnapshot } from './sync-data'
 import { useNow } from './use-now'
 
 export type NavKey = 'dashboard' | 'clients' | 'projects' | 'time' | 'invoices' | 'settings'
@@ -34,11 +33,11 @@ type SidebarProps = {
   /** The figures beside the nav entries, counted by the caller from the store. */
   counts?: Partial<Record<NavKey, string>>
   /**
-   * What this machine has changed and the server has not seen. Real, unlike
-   * the rest of the snapshot: there is no sync service yet, so the state and
-   * its log are still fixtures and only the breakdown is counted.
+   * The engine's status as the footer reads it — or, under the States panel,
+   * one of the fixtures in its place. The app decides which; the sidebar
+   * only draws it.
    */
-  pending?: PendingCounts
+  sync?: SyncSnapshot
   /**
    * The badge on Invoices, which is the number of overdue ones. Counted by the
    * caller from the register rather than typed here, so paying the last late
@@ -47,7 +46,6 @@ type SidebarProps = {
   overdueInvoices?: number
   /** Drives the marker on Time; the Clients frames run no timer. */
   timerRunning?: boolean
-  syncState?: SyncState
   onSyncNow?: () => void
   onNavigate?: (key: NavKey) => void
 }
@@ -56,10 +54,9 @@ export function Sidebar({
   variant = 'populated',
   active = 'dashboard',
   counts = {},
-  pending,
+  sync,
   overdueInvoices = 0,
   timerRunning = false,
-  syncState = 'saved',
   onSyncNow,
   onNavigate
 }: SidebarProps): JSX.Element {
@@ -68,7 +65,7 @@ export function Sidebar({
   const syncButton = useRef<HTMLButtonElement>(null)
   /* Only mounted here, because this is the only place a relative time shows. */
   const now = useNow()
-  const snapshot = { ...snapshots[syncState], pending: pending ?? snapshots[syncState].pending }
+  const snapshot = sync ?? snapshots.saved
 
   return (
     <aside className="sidebar">

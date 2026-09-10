@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { Avatar } from './Avatar'
 import { noteRow } from './client-rows'
-import { RecordConflictNotice } from './ConflictNotice'
 import { EmptyState } from './EmptyState'
 import { Icon } from './Icon'
 import { averageDaysToPay } from './invoices-data'
@@ -117,10 +116,11 @@ type ProjectDetailProps = {
   onBack: () => void
   /** Fires once the project reaches delivered, so the shell can say so. */
   onDelivered?: (project: string) => void
-  /** Whether this project came back from a sync disagreeing with itself. */
-  conflict?: boolean
-  /** The same, for the checklist's order — a separate disagreement. */
-  reorderConflict?: boolean
+  /**
+   * Forces the checklist's reorder notice with sample content, for the States
+   * panel. A real lost move shows it on its own.
+   */
+  reorderSample?: boolean
   /** Rows not in yet. */
   loading?: boolean
 }
@@ -138,11 +138,9 @@ export function ProjectDetail({
   onRecordPayment,
   onBack,
   onDelivered,
-  conflict = false,
-  reorderConflict = false,
+  reorderSample = false,
   loading = false
 }: ProjectDetailProps): JSX.Element | null {
-  const [conflictShown, setConflictShown] = useState(true)
   const [tab, setTab] = useState<Tab>('checklist')
   const [composing, setComposing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -308,12 +306,6 @@ export function ProjectDetail({
         </div>
       </header>
 
-      {/* Above the figures, because it is a caveat on all five of them: two of
-          these numbers are the ones that disagreed. */}
-      {conflict && conflictShown && (
-        <RecordConflictNotice onDismiss={() => setConflictShown(false)} />
-      )}
-
       {/*
        * Five figures on one line. The effective rate is the only one that
        * answers "was this worth doing", so it is the largest and the only one
@@ -406,7 +398,7 @@ export function ProjectDetail({
 
           <div className="panel project__pane" role="tabpanel">
             {tab === 'checklist' && (
-              <ProjectChecklist projectId={projectId} items={items} conflict={reorderConflict} />
+              <ProjectChecklist projectId={projectId} items={items} reorderSample={reorderSample} />
             )}
 
             {tab === 'scope' && (
