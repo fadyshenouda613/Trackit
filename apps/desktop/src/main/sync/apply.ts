@@ -35,7 +35,7 @@ export type ApplyContext = {
 }
 
 export type ApplyResult = {
-  /** Rows whose stored values changed. */
+  /** Rows whose stored values changed. An echo of this machine's own row is not one. */
   applied: number
   conflicts: number
 }
@@ -86,22 +86,27 @@ function applyRow(db: Database, table: LocalSyncTable, row: SyncPullRow, context
 
   if (!wins && !echo) return
 
-  if (wins) {
-    const fields = differingFields(local, incoming)
-    if (fields.length > 0) {
-      recordConflict(db, {
-        table: table.name,
-        rowId: key,
-        kind: table.name === 'checklist_items' && fields.length === 1 && fields[0] === 'sortOrder' ? 'reorder' : 'record',
-        projectId: table.projectIdOf(local),
-        label: describeRow(db, table.name, local),
-        fields,
-        local: wireFields(local, incoming),
-        remote: wireFields(incoming, incoming),
-        detectedAt: context.now
-      })
-      result.conflicts += 1
-    }
+  if (echo) {
+    /* Our own version back from the server: confirmation, not a change. */
+    write(db, table, row, key)
+    return
+  }
+
+  /* The other device's version wins over an edit it never saw. */
+  const fields = differingFields(local, incoming)
+  if (fields.length > 0) {
+    recordConflict(db, {
+      table: table.name,
+      rowId: key,
+      kind: table.name === 'checklist_items' && fields.length === 1 && fields[0] === 'sortOrder' ? 'reorder' : 'record',
+      projectId: table.projectIdOf(local),
+      label: describeRow(db, table.name, local),
+      fields,
+      local: wireFields(local, incoming),
+      remote: wireFields(incoming, incoming),
+      detectedAt: context.now
+    })
+    result.conflicts += 1
   }
 
   write(db, table, row, key)

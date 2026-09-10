@@ -124,7 +124,7 @@ describe('applyChanges: over a pending local edit', () => {
   it('takes its own echo as confirmation: synced, no conflict', () => {
     const client = aClient(db)
     const echo = pulled(client, ME)
-    expect(apply({ clients: [echo] })).toEqual({ applied: 1, conflicts: 0 })
+    expect(apply({ clients: [echo] })).toEqual({ applied: 0, conflicts: 0 })
     expect(rawClient(client.id)).toMatchObject({ name: client.name, sync_state: 'synced' })
     expect(listConflicts(db)).toEqual([])
   })

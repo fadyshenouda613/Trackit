@@ -147,12 +147,12 @@ const EVENTS_KEPT = 50
 export function recordEvent(db: Database, kind: SyncEventKind, detail: string, at: string): void {
   db.prepare('INSERT INTO sync_events (id, kind, at, detail) VALUES (?, ?, ?, ?)').run(randomUUID(), kind, at, detail)
   db.prepare(
-    `DELETE FROM sync_events WHERE id NOT IN (SELECT id FROM sync_events ORDER BY at DESC, id DESC LIMIT ?)`
+    `DELETE FROM sync_events WHERE rowid NOT IN (SELECT rowid FROM sync_events ORDER BY at DESC, rowid DESC LIMIT ?)`
   ).run(EVENTS_KEPT)
 }
 
-/** The latest events, newest first. */
+/** The latest events, newest first; two at the same instant in the order they were written. */
 export const listEvents = (db: Database, limit: number): SyncEvent[] =>
-  (db.prepare('SELECT id, kind, at, detail FROM sync_events ORDER BY at DESC, id DESC LIMIT ?').all(limit) as Row[]).map(
+  (db.prepare('SELECT id, kind, at, detail FROM sync_events ORDER BY at DESC, rowid DESC LIMIT ?').all(limit) as Row[]).map(
     (row) => syncEventSchema.parse(row)
   )
