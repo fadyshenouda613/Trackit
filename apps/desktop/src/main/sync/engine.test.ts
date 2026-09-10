@@ -225,6 +225,8 @@ describe('failures', () => {
     }).sync()
     expect(status.failure).toBe('signedOut')
     expect(transport.calls).toHaveLength(0)
+    /* A standing condition, not an event. */
+    expect(status.log).toEqual([])
   })
 
   it('an expired session is signedOut too', async () => {
@@ -392,7 +394,8 @@ describe('conflicts through the engine', () => {
     }))
     const engine = engineWith({ transport })
     const status = await engine.sync()
-    expect(status.log[0]).toMatchObject({ kind: 'synced' })
+    /* The push was superseded, so nothing counts as uploaded. */
+    expect(status.log[0]).toMatchObject({ kind: 'synced', detail: '1 change received' })
     expect(status.log[1]).toMatchObject({ kind: 'conflict' })
 
     const [conflict] = engine.conflicts()

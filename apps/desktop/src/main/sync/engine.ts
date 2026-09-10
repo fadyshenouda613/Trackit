@@ -163,12 +163,12 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
         const skip = new Set(
           response.rejected.filter((rejection) => rejection.reason === 'missing_parent').map(refKey)
         )
-        markSynced(db, pushed, skip)
+        const uploaded = markSynced(db, pushed, skip)
         setCursor(db, response.cursor)
         setLastSyncedAt(db, at)
         if (accountUserId(db) === null) setAccountUserId(db, userId)
         deps.hooks?.beforeCommit?.()
-        return { ...result, uploaded: pushed.length - skip.size }
+        return { ...result, uploaded }
       })()
     } finally {
       db.pragma('foreign_keys = ON')
@@ -218,7 +218,9 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
       failure = reasonOf(error)
       const message = error instanceof Error ? error.message : String(error)
       log(`sync failed (${failure}): ${message}`)
-      recordEvent(db, 'failed', failureLines[failure], now())
+      /* Being signed out is a standing condition the footer already states,
+         not an event: logging it on every tick would bury the log. */
+      if (failure !== 'signedOut') recordEvent(db, 'failed', failureLines[failure], now())
     } finally {
       running = false
       if (applied > 0 || conflicts > 0) revision += 1

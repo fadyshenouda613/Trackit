@@ -108,6 +108,9 @@ app.whenReady().then(async () => {
    * session is confirmed with the server in the background once the window
    * is up — a failure to reach it changes nothing.
    */
+  /* Declared ahead of the account service, whose status changes drive it. */
+  let sync: ReturnType<typeof createSyncEngine> | null = null
+
   const auth = createAuthService({
     store: createSessionStore(
       join(app.getPath('userData'), 'session.json'),
@@ -121,6 +124,9 @@ app.whenReady().then(async () => {
     client: createAuthClient({ baseUrl: serverUrl() }),
     onChanged: (status) => {
       for (const window of BrowserWindow.getAllWindows()) window.webContents.send('auth:changed', status)
+      /* Signing in is the moment the ledger can start moving: sync at once
+         rather than at the next tick of the interval. */
+      if (status.state === 'signedIn' && status.session === 'active') void sync?.sync()
     }
   })
   registerAuthIpc(auth)
@@ -131,7 +137,7 @@ app.whenReady().then(async () => {
    * confirmed — a launch trigger, then the interval; the renderer asks for
    * the rest (Sync now, the network coming back).
    */
-  const sync = createSyncEngine({
+  sync = createSyncEngine({
     db,
     transport: createSyncClient({ baseUrl: serverUrl() }),
     auth,
@@ -141,9 +147,10 @@ app.whenReady().then(async () => {
     log: (message) => console.warn(`[sync] ${message}`)
   })
   registerSyncIpc(sync)
+  const engine = sync
 
   const window = createMainWindow()
-  void auth.verify().then(() => sync.start())
+  void auth.verify().then(() => engine.start())
 
   // Keep the renderer's maximize affordance in sync with the real window state.
   const emitMaximized = (): void => window.webContents.send('window:maximized-changed', window.isMaximized())
@@ -184,7 +191,7 @@ app.whenReady().then(async () => {
 
   app.on('before-quit', () => {
     clearInterval(tick)
-    sync.stop()
+    engine.stop()
     updater.destroy()
     /* A clean quit never leaves a clock running; anything found running at
        the next launch therefore survived a crash and is offered for recovery. */

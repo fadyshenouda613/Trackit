@@ -66,11 +66,15 @@ export const refKey = (ref: { table: SyncTableName; id: string }): string => `${
 /**
  * Marks pushed rows synced — only where the stored updatedAt is still the
  * one that went up, so an edit made while the request was in flight stays
- * pending and goes up next time. `skip` names the rows the server would not
- * keep for now (a missing parent), which also stay pending.
+ * pending and goes up next time, and a row the pull has just overwritten
+ * with a newer version is left as the pull left it. `skip` names the rows
+ * the server would not keep for now (a missing parent), which also stay
+ * pending. Answers with how many rows it marked: the ones whose version
+ * now stands on the server.
  */
-export function markSynced(db: Database, pushed: PushedRef[], skip: ReadonlySet<string>): void {
+export function markSynced(db: Database, pushed: PushedRef[], skip: ReadonlySet<string>): number {
   const statements = new Map<SyncTableName, ReturnType<Database['prepare']>>()
+  let marked = 0
   for (const ref of pushed) {
     if (skip.has(refKey(ref))) continue
     const table = orderedLocalSyncTables.find((candidate) => candidate.name === ref.table)
@@ -82,6 +86,7 @@ export function markSynced(db: Database, pushed: PushedRef[], skip: ReadonlySet<
       )
       statements.set(ref.table, statement)
     }
-    statement.run({ id: ref.id, updatedAt: ref.updatedAt })
+    marked += statement.run({ id: ref.id, updatedAt: ref.updatedAt }).changes
   }
+  return marked
 }
