@@ -10,9 +10,15 @@
  *
  *   user_id     whose row this is. Every query on a syncable table is scoped
  *               by it; there is no such thing as a row without an owner.
- *   server_seq  a BIGSERIAL, so a client can ask "everything of mine after
- *               sequence N" and get a stable, gap-tolerant answer. Indexed
- *               with user_id because that is the only way it is ever read.
+ *   server_seq  the position of this row's latest write in one sequence
+ *               shared by every table (sync_seq), so a client can ask
+ *               "everything of mine after N" with one number and get a
+ *               stable answer across all ten. Every write — insert or
+ *               update — takes a fresh value. Indexed with user_id because
+ *               that is the only way it is ever read.
+ *   updated_by  the device whose write this version is. Ties on updated_at
+ *               are broken by comparing it. Null for rows from before it
+ *               existed.
  *
  * What is not here: `sync_state`. It says whether the *client's* copy has
  * reached the server, which is a fact about the client. The same goes for
@@ -25,12 +31,13 @@
  */
 import { sql } from 'drizzle-orm'
 import {
-  bigserial,
+  bigint,
   boolean,
   check,
   doublePrecision,
   index,
   integer,
+  pgSequence,
   pgTable,
   text,
   timestamp,
@@ -47,6 +54,12 @@ import {
 } from '@trackit/shared/schemas'
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' })
+
+/** The one sequence every syncable table's server_seq draws from. */
+export const syncSeq = pgSequence('sync_seq')
+
+const nextSeq = sql`nextval('sync_seq')`
+const serverSeq = () => bigint('server_seq', { mode: 'number' }).notNull().default(nextSeq)
 
 /**
  * A shared enum's members as the non-empty tuple Drizzle's `enum` option
@@ -103,13 +116,14 @@ export const refreshTokens = pgTable(
 
 /* ---- Mirrors of the desktop's tables ---------------------------------------- */
 
-/** The columns every syncable row carries here: the four base ones, the owner, the sequence. */
+/** The columns every syncable row carries here: the four base ones, the owner, the sequence, the writer. */
 const syncable = () => ({
   id: uuid('id').primaryKey(),
   userId: uuid('user_id')
     .notNull()
     .references(() => users.id),
-  serverSeq: bigserial('server_seq', { mode: 'number' }).notNull(),
+  serverSeq: serverSeq(),
+  updatedBy: uuid('updated_by'),
   createdAt: at('created_at').notNull(),
   updatedAt: at('updated_at').notNull(),
   deletedAt: at('deleted_at')
@@ -308,7 +322,8 @@ export const settings = pgTable(
     userId: uuid('user_id')
       .primaryKey()
       .references(() => users.id),
-    serverSeq: bigserial('server_seq', { mode: 'number' }).notNull(),
+    serverSeq: serverSeq(),
+    updatedBy: uuid('updated_by'),
     person: text('person').notNull().default(''),
     businessName: text('business_name').notNull().default(''),
     address: text('address').notNull().default(''),
