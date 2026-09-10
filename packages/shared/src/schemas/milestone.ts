@@ -32,6 +32,8 @@ const entity = syncableEntity(milestoneFields)
 export const milestoneSchema = entity.schema
 export const createMilestoneInputSchema = entity.create
 export const updateMilestoneInputSchema = entity.update
+/** The row as it travels to the server. */
+export const milestoneSyncRowSchema = entity.synced
 
 export type Milestone = z.infer<typeof milestoneSchema>
 export type CreateMilestoneInput = z.infer<typeof createMilestoneInputSchema>

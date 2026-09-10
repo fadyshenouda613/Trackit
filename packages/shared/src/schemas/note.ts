@@ -25,6 +25,8 @@ export const noteSchema = entity.schema.refine(ownedByOne, ownership)
 export const createNoteInputSchema = entity.create.refine(ownedByOne, ownership)
 /** A partial cannot prove ownership, so the store checks it after merging. */
 export const updateNoteInputSchema = entity.update
+/** The row as it travels to the server, under the same ownership rule. */
+export const noteSyncRowSchema = entity.synced.refine(ownedByOne, ownership)
 
 export type Note = z.infer<typeof noteSchema>
 export type CreateNoteInput = z.infer<typeof createNoteInputSchema>

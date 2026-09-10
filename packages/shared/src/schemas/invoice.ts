@@ -81,6 +81,8 @@ export const invoiceSchema = entity.schema.superRefine(consistent)
 export const createInvoiceInputSchema = entity.create.superRefine(consistent)
 /** A partial cannot prove consistency, so the store checks it after merging. */
 export const updateInvoiceInputSchema = entity.update
+/** The row as it travels to the server, under the same consistency rule. */
+export const invoiceSyncRowSchema = entity.synced.superRefine(consistent)
 
 export type Invoice = z.infer<typeof invoiceSchema>
 export type CreateInvoiceInput = z.infer<typeof createInvoiceInputSchema>
@@ -104,6 +106,8 @@ const line = syncableEntity(invoiceLineFields)
 export const invoiceLineSchema = line.schema
 export const createInvoiceLineInputSchema = line.create
 export const updateInvoiceLineInputSchema = line.update
+/** The row as it travels to the server. */
+export const invoiceLineSyncRowSchema = line.synced
 
 export type InvoiceLine = z.infer<typeof invoiceLineSchema>
 export type CreateInvoiceLineInput = z.infer<typeof createInvoiceLineInputSchema>

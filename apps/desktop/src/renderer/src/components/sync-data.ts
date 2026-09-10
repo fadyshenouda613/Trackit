@@ -106,13 +106,14 @@ export const failureReasons: Record<SyncFailure, { line: string; hint: string }>
 export const pendingLabels: Record<PendingKind, [one: string, many: string]> = {
   time: ['time entry', 'time entries'],
   projects: ['project', 'projects'],
+  clients: ['client', 'clients'],
   invoices: ['invoice', 'invoices'],
   payments: ['payment', 'payments'],
   settings: ['settings change', 'settings changes']
 }
 
 /** Fixed order, so the breakdown never reshuffles between states. */
-const pendingOrder: PendingKind[] = ['time', 'projects', 'invoices', 'payments', 'settings']
+const pendingOrder: PendingKind[] = ['time', 'projects', 'clients', 'invoices', 'payments', 'settings']
 
 export const pendingTotal = (pending: SyncSnapshot['pending']): number =>
   pendingOrder.reduce((sum, kind) => sum + (pending[kind] ?? 0), 0)

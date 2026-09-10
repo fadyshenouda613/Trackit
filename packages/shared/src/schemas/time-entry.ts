@@ -33,6 +33,8 @@ export const timeEntrySchema = entity.schema.refine(endsAfterStart, ordering)
 export const createTimeEntryInputSchema = entity.create.refine(endsAfterStart, ordering)
 /** A partial may carry only one end, so the store checks the order after merging. */
 export const updateTimeEntryInputSchema = entity.update
+/** The row as it travels to the server, under the same ordering rule. */
+export const timeEntrySyncRowSchema = entity.synced.refine(endsAfterStart, ordering)
 
 export type TimeEntry = z.infer<typeof timeEntrySchema>
 export type CreateTimeEntryInput = z.infer<typeof createTimeEntryInputSchema>

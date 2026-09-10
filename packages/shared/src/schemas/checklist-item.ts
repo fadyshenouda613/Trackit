@@ -23,6 +23,8 @@ const entity = syncableEntity(checklistItemFields)
 export const checklistItemSchema = entity.schema
 export const createChecklistItemInputSchema = entity.create
 export const updateChecklistItemInputSchema = entity.update
+/** The row as it travels to the server. */
+export const checklistItemSyncRowSchema = entity.synced
 
 export type ChecklistItem = z.infer<typeof checklistItemSchema>
 export type CreateChecklistItemInput = z.infer<typeof createChecklistItemInputSchema>

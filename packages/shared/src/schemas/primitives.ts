@@ -75,14 +75,17 @@ export type SyncableBase = z.infer<typeof syncableBaseSchema>
  *   create   what a caller supplies to make one — the fields and the id it
  *            minted; the timestamps and sync state are the store's to set
  *   update   any subset of the fields; the id travels beside it, not in it
+ *   synced   the row as it travels to and from the server — the stored row
+ *            without `syncState`, which is a fact about this machine's copy
  */
-// The return type is left to inference: spelling out three generic ZodObject
+// The return type is left to inference: spelling out four generic ZodObject
 // instantiations by hand would only restate what `extend` and `partial` infer.
 export function syncableEntity<S extends z.ZodRawShape>(fields: S) {
   const fieldsSchema = z.object(fields)
   return {
     schema: syncableBaseSchema.extend(fields),
     create: fieldsSchema.extend({ id: idSchema }),
-    update: fieldsSchema.partial()
+    update: fieldsSchema.partial(),
+    synced: entityBaseSchema.extend(fields)
   }
 }

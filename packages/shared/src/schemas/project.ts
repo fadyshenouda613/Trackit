@@ -51,6 +51,8 @@ const entity = syncableEntity(projectFields)
 export const projectSchema = entity.schema
 export const createProjectInputSchema = entity.create
 export const updateProjectInputSchema = entity.update
+/** The row as it travels to the server. */
+export const projectSyncRowSchema = entity.synced
 
 export type Project = z.infer<typeof projectSchema>
 export type CreateProjectInput = z.infer<typeof createProjectInputSchema>
