@@ -29,7 +29,11 @@ const envSchema = z.object({
   /** 1 behind Railway, Render or any proxy that sets X-Forwarded-For. */
   TRUST_PROXY: z.enum(['0', '1']).default('0'),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
-  AUTH_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(15 * 60)
+  AUTH_RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(15 * 60),
+  /** Rows per page of POST /sync. A client loops while the server says there is more. */
+  SYNC_PAGE_SIZE: z.coerce.number().int().positive().default(500),
+  /** The most a sync body may weigh; a settings logo is a data URL. */
+  SYNC_BODY_LIMIT: z.string().default('8mb')
 })
 
 export type Config = {
@@ -42,6 +46,8 @@ export type Config = {
   corsOrigins: string[]
   trustProxy: boolean
   authRateLimit: { max: number; windowMs: number }
+  syncPageSize: number
+  syncBodyLimit: string
 }
 
 export class ConfigError extends Error {
@@ -72,7 +78,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     authRateLimit: {
       max: raw.AUTH_RATE_LIMIT_MAX,
       windowMs: raw.AUTH_RATE_LIMIT_WINDOW_SECONDS * 1000
-    }
+    },
+    syncPageSize: raw.SYNC_PAGE_SIZE,
+    syncBodyLimit: raw.SYNC_BODY_LIMIT
   }
 }
 

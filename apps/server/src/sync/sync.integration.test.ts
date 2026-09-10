@@ -346,3 +346,62 @@ describe('runSync: under concurrency', () => {
     expect(all.cursor).toBe(cursors[4])
   })
 })
+
+describe('POST /sync', () => {
+  it('needs a bearer token', async () => {
+    const app = appFor(config, db)
+    await signUp(app)
+    const response = await request(app).post('/sync').send(req({}))
+    expect(response.status).toBe(401)
+    expect(response.body.error.code).toBe('unauthorized')
+  })
+
+  it('answers a bad body as a validation failure', async () => {
+    const app = appFor(config, db)
+    const { token } = await signUp(app)
+    const response = await request(app)
+      .post('/sync')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ protocolVersion: 1, deviceId: 'nope', since: 0, changes: {} })
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('validation')
+  })
+
+  it('tells a client on another protocol version to upgrade', async () => {
+    const app = appFor(config, db)
+    const { token } = await signUp(app)
+    const response = await request(app)
+      .post('/sync')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...req({}), protocolVersion: 0 })
+    expect(response.status).toBe(426)
+    expect(response.body.error.code).toBe('upgrade_required')
+  })
+
+  it('syncs, and takes a body far bigger than a sign-up form', async () => {
+    const app = appFor(config, db)
+    const { token } = await signUp(app)
+    /* A settings logo is a data URL; a couple of megabytes is an ordinary PNG. */
+    const logo = `data:image/png;base64,${'A'.repeat(2 * 1024 * 1024)}`
+    const response = await request(app)
+      .post('/sync')
+      .set('Authorization', `Bearer ${token}`)
+      .send(req({ clients: [aClient()], settings: [theSettings({ logo })] }))
+
+    expect(response.status).toBe(200)
+    expect(response.body.rejected).toEqual([])
+    expect(response.body.changes.clients).toHaveLength(1)
+    expect(response.body.changes.settings[0].logo).toBe(logo)
+    expect(response.body.hasMore).toBe(false)
+  })
+
+  it('pages by the configured size', async () => {
+    const app = appFor({ ...config, syncPageSize: 2 }, db)
+    const { token } = await signUp(app)
+    const clients = [1, 2, 3].map((n) => aClient({ id: id(n) }))
+    const first = await request(app).post('/sync').set('Authorization', `Bearer ${token}`).send(req({ clients }))
+    expect(first.status).toBe(200)
+    expect(first.body.hasMore).toBe(true)
+    expect(first.body.changes.clients).toHaveLength(2)
+  })
+})
