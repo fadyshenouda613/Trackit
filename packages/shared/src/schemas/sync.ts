@@ -151,6 +151,21 @@ export const syncRequestSchema = z.object({
 export type SyncRequest = z.infer<typeof syncRequestSchema>
 
 /**
+ * The same request with its rows unread. The server parses the envelope
+ * first and each row on its own, so one row that does not parse is one
+ * rejection rather than a refused batch.
+ */
+export const syncRequestEnvelopeSchema = syncRequestSchema.extend({
+  changes: z.strictObject(
+    Object.fromEntries(SYNC_TABLE_ORDER.map((table) => [table, z.array(z.unknown()).optional()])) as Record<
+      SyncTableName,
+      z.ZodOptional<z.ZodArray<z.ZodUnknown>>
+    >
+  )
+})
+export type SyncRequestEnvelope = z.infer<typeof syncRequestEnvelopeSchema>
+
+/**
  * Why the server kept none of a pushed row. Not a row that lost on
  * `updatedAt` — that one comes back in `changes` as the winner and needs no
  * name here.
