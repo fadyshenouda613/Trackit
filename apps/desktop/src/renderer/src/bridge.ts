@@ -41,6 +41,15 @@ const detached: LedgerApi = {
     install: () => Promise.resolve(detachedResult),
     onChanged: () => () => undefined
   },
+  /* Signed out, and every move refused: without a main process there is no
+     keychain to keep a session in. */
+  auth: {
+    status: () => Promise.resolve({ ok: true, data: { state: 'signedOut' } }),
+    register: () => Promise.resolve(detachedResult),
+    login: () => Promise.resolve(detachedResult),
+    logout: () => Promise.resolve(detachedResult),
+    onChanged: () => () => undefined
+  },
   dev: detachedGroup as DevApi
 }
 

@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 import type { Settings } from '@trackit/shared'
+import { useAuthStatus } from '../data/use-auth'
 import { SettingsRow, SettingsSection } from './SettingsRow'
 import { agoLabel } from './time-data'
 import { failureReasons, footerLabel, pendingTotal, snapshots, type SyncState } from './sync-data'
@@ -32,6 +33,21 @@ export function SettingsAccount({
   const pending = pendingTotal(snapshot.pending)
   const reason = snapshot.failure ? failureReasons[snapshot.failure] : null
 
+  /*
+   * The session as the main process holds it. Expired means the server no
+   * longer honours this machine's token: syncing stops until someone signs
+   * in again, and nothing else does — every screen behind this one reads
+   * and writes the local database exactly as before.
+   */
+  const auth = useAuthStatus().data
+  const signedIn = auth?.state === 'signedIn' ? auth : null
+  const expired = signedIn?.session === 'expired'
+  const sessionHint = expired
+    ? 'Your session has expired. Sign in again to sync; your work here is unaffected.'
+    : signedIn
+      ? 'Signed in on this machine. Syncing uses this account.'
+      : 'Not signed in. Your work stays on this machine until you are.'
+
   return (
     <SettingsSection
       title="Account and sync"
@@ -40,7 +56,9 @@ export function SettingsAccount({
       <div className="settings-facts">
         <div className="settings-facts__cell">
           <span className="t-overline settings-facts__label">Signed in as</span>
-          <span className="settings-facts__value">{settings.accountEmail}</span>
+          <span className="settings-facts__value">
+            {signedIn?.user.email ?? (settings.accountEmail || 'Nobody')}
+          </span>
         </div>
 
         <div className="settings-facts__cell">
@@ -67,10 +85,24 @@ export function SettingsAccount({
            the state alone ("Could not sync") is what you already knew. */
         hint={reason ? reason.hint : footerLabel(snapshot)}
       >
-        {/* Inert: syncing needs a service, and there is none behind this yet. */}
-        <button type="button" className="button" disabled={syncState === 'syncing'}>
+        {/* Inert: syncing needs an engine, and there is none behind this yet.
+            Already refused, though, on the one ground the engine will refuse
+            it too: an expired session has no token to sync with. */}
+        <button type="button" className="button" disabled={syncState === 'syncing' || expired}>
           Sync now
         </button>
+      </SettingsRow>
+
+      <SettingsRow label="Session" hint={sessionHint}>
+        {/* Signing in again is signing out and back in; the button says the
+            half that matters. Otherwise the row is a fact, and has no control. */}
+        {expired ? (
+          <button type="button" className="button" onClick={onSignOut}>
+            Sign in again
+          </button>
+        ) : (
+          <span className="settings-facts__value">{signedIn ? 'Active' : 'None'}</span>
+        )}
       </SettingsRow>
 
       <SettingsRow

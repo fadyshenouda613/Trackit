@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  authStatusSchema,
+  authUserSchema,
   centsSchema,
   checklistItemSchema,
   clientSchema,
@@ -15,14 +17,17 @@ import {
   idSchema,
   invoiceSchema,
   invoiceStatusSchema,
+  loginInputSchema,
   milestoneSchema,
   noteSchema,
+  PASSWORD_MIN_LENGTH,
   paymentMethodLabels,
   paymentMethodSchema,
   paymentSchema,
   pendingCountsSchema,
   projectSchema,
   projectStatusSchema,
+  registerInputSchema,
   settingsSchema,
   startTimerInputSchema,
   timeEntrySchema,
@@ -391,5 +396,33 @@ describe('pendingCountsSchema', () => {
   it('accepts a partial record of the five kinds', () => {
     expect(pendingCountsSchema.parse({ time: 4, invoices: 2 })).toEqual({ time: 4, invoices: 2 })
     expect(pendingCountsSchema.safeParse({ tasks: 1 }).success).toBe(false)
+  })
+})
+
+describe('auth', () => {
+  it('lower-cases and trims the email so one address has one spelling', () => {
+    expect(loginInputSchema.parse({ email: '  Priya@Example.COM ', password: 'x' })).toEqual({
+      email: 'priya@example.com',
+      password: 'x'
+    })
+    expect(loginInputSchema.safeParse({ email: 'admin', password: 'admin' }).success).toBe(false)
+  })
+
+  it('holds sign-up to the stated minimum and sign-in to none', () => {
+    const short = 'a'.repeat(PASSWORD_MIN_LENGTH - 1)
+    expect(registerInputSchema.safeParse({ name: 'Alex', email: 'a@b.co', password: short }).success).toBe(false)
+    expect(registerInputSchema.safeParse({ name: 'Alex', email: 'a@b.co', password: short + 'a' }).success).toBe(true)
+    expect(registerInputSchema.safeParse({ name: ' ', email: 'a@b.co', password: 'longenough' }).success).toBe(false)
+    expect(loginInputSchema.safeParse({ email: 'a@b.co', password: short }).success).toBe(true)
+  })
+
+  it('reads a status as signed out, or signed in with a session state', () => {
+    const user = { id: ID, email: 'a@b.co', name: 'Alex', createdAt: AT }
+    expect(authStatusSchema.safeParse({ state: 'signedOut' }).success).toBe(true)
+    expect(authStatusSchema.safeParse({ state: 'signedIn', user, session: 'expired' }).success).toBe(true)
+    expect(authStatusSchema.safeParse({ state: 'signedIn', user }).success).toBe(false)
+    expect(authStatusSchema.safeParse({ state: 'signedIn', user: { ...user, passwordHash: 'x' }, session: 'active' }).success).toBe(true)
+    /* Never the hash: the parsed value drops anything the schema does not name. */
+    expect(authUserSchema.parse({ ...user, passwordHash: 'x' })).toEqual(user)
   })
 })

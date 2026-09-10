@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+**/dist
+**/out
+apps/desktop/build
+apps/desktop/release
+.git
+docs
+*.log
+**/.env
+**/*.tsbuildinfo

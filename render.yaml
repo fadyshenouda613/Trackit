@@ -1,0 +1,30 @@
+# Render blueprint: one web service from the server's Dockerfile and the
+# Postgres it needs. DATABASE_URL is wired from the database; JWT_SECRET is
+# generated once by Render and kept. TRUST_PROXY is on because Render's
+# proxy sets X-Forwarded-For.
+services:
+  - type: web
+    name: trackit-server
+    runtime: docker
+    dockerfilePath: ./apps/server/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: '4000'
+      - key: TRUST_PROXY
+        value: '1'
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trackit-postgres
+          property: connectionString
+
+databases:
+  - name: trackit-postgres
+    plan: free
+    postgresMajorVersion: '16'

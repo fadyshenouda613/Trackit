@@ -73,4 +73,22 @@ describe('createQueryClient', () => {
 
     expect(onError).toHaveBeenCalledTimes(2)
   })
+
+  it('leaves a silent write to its caller: the sign-in card states its own refusal', () => {
+    const onError = vi.fn()
+    const client = createQueryClient(onError)
+    const failure = new ApiFailure({ code: 'unauthorized', message: 'That email and password do not match' })
+
+    const onMutationError = client.getMutationCache().config.onError as (
+      error: unknown,
+      variables: unknown,
+      context: unknown,
+      mutation: { meta?: Record<string, unknown> }
+    ) => void
+    onMutationError(failure, undefined, undefined, { meta: { silent: true } })
+    expect(onError).not.toHaveBeenCalled()
+
+    onMutationError(failure, undefined, undefined, { meta: {} })
+    expect(onError).toHaveBeenCalledTimes(1)
+  })
 })

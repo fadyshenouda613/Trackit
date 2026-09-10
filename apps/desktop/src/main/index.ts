@@ -1,6 +1,10 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, safeStorage } from 'electron'
+import { registerAuthIpc } from './auth-ipc'
+import { createAuthClient } from './auth/client'
+import { createAuthService } from './auth/service'
+import { createSessionStore } from './auth/session-store'
 import { registerDataIpc } from './data-ipc'
 import { openDatabase } from './db'
 import { nowIso } from './db/clock'
@@ -20,6 +24,16 @@ function databasePath(): string {
   const directory = app.getPath('userData')
   mkdirSync(directory, { recursive: true })
   return join(directory, 'trackit.db')
+}
+
+/**
+ * Where the account server is. An environment variable wins, so a
+ * development build can be pointed anywhere; a packaged build carries the
+ * URL electron-vite inlined from MAIN_VITE_SERVER_URL at build time; and
+ * with neither, the server's own development default.
+ */
+function serverUrl(): string {
+  return process.env.TRACKIT_SERVER_URL ?? import.meta.env.MAIN_VITE_SERVER_URL ?? 'http://127.0.0.1:4000'
 }
 
 app.whenReady().then(async () => {
@@ -84,7 +98,32 @@ app.whenReady().then(async () => {
   })
   registerUpdateIpc(updater)
 
+  /*
+   * The account. The session file sits beside the database; its token is
+   * encrypted with whatever the OS offers. Every move of the status is
+   * pushed to the renderer the way the update status is, and a stored
+   * session is confirmed with the server in the background once the window
+   * is up — a failure to reach it changes nothing.
+   */
+  const auth = createAuthService({
+    store: createSessionStore(
+      join(app.getPath('userData'), 'session.json'),
+      {
+        available: () => safeStorage.isEncryptionAvailable(),
+        encrypt: (plain) => safeStorage.encryptString(plain),
+        decrypt: (blob) => safeStorage.decryptString(blob)
+      },
+      (message) => console.warn(`[auth] ${message}`)
+    ),
+    client: createAuthClient({ baseUrl: serverUrl() }),
+    onChanged: (status) => {
+      for (const window of BrowserWindow.getAllWindows()) window.webContents.send('auth:changed', status)
+    }
+  })
+  registerAuthIpc(auth)
+
   const window = createMainWindow()
+  void auth.verify()
 
   // Keep the renderer's maximize affordance in sync with the real window state.
   const emitMaximized = (): void => window.webContents.send('window:maximized-changed', window.isMaximized())

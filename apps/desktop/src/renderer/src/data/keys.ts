@@ -50,6 +50,7 @@ export const keys = {
   },
   settings: ['settings'] as const,
   updates: ['updates'] as const,
+  auth: ['auth'] as const,
   sync: {
     pending: ['sync', 'pending'] as const
   }

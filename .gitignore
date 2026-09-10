@@ -7,3 +7,8 @@ dist
 CLAUDE.md
 
 apps/desktop/build
+
+# Server secrets. The example is the documentation and stays.
+.env
+.env.*
+!.env.example

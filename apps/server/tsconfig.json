@@ -1,5 +1,5 @@
 {
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "drizzle.config.ts", "vitest.config.ts"],
   "compilerOptions": {
     "composite": true,
     "target": "ES2022",
