@@ -24,7 +24,7 @@ describe('pendingCounts', () => {
     const project = aProject(db, client)
     createChecklistItem(db, { id: id(), projectId: project.id, label: 'Logo', done: false, sortOrder: 1 })
     createNote(db, { id: id(), projectId: project.id, clientId: null, body: 'Kickoff went well', pinned: false })
-    expect(pendingCounts(db)).toEqual({ clients: 1, projects: 3, settings: 1 })
+    expect(pendingCounts(db)).toEqual({ clients: 1, projects: 3 })
   })
 
   it('leaves out buckets with nothing pending and ignores synced rows', () => {

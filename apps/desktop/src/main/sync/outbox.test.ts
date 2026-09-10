@@ -9,8 +9,6 @@ import { collectPending, markSynced } from './outbox'
 let db: Database
 beforeEach(() => {
   db = openMemoryDatabase()
-  /* The migration leaves the settings row pending; these tests start clean. */
-  db.prepare("UPDATE settings SET sync_state = 'synced'").run()
 })
 
 const syncStateOf = (table: string, rowId: string): string =>

@@ -13,8 +13,9 @@
     "build": "npm run build --workspace @trackit/desktop",
     "start": "npm run start --workspace @trackit/desktop",
     "seed": "npm run seed --workspace @trackit/desktop --",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p tests/sync/tsconfig.json",
     "test": "vitest run",
+    "test:sync": "vitest run --config tests/sync/vitest.config.ts",
     "test:watch": "vitest"
   },
   "devDependencies": {

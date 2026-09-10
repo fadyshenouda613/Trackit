@@ -39,3 +39,16 @@ CREATE TABLE sync_events (
   detail TEXT NOT NULL
 );
 CREATE INDEX sync_events_at ON sync_events (at);
+
+-- A settings row nobody has touched has nothing to say. 001 inserted it
+-- pending, which would have every fresh install upload its defaults — and
+-- win, being newer, over the real settings another machine set earlier.
+-- Untouched, it is synced and dated at the epoch, so whatever the account
+-- already holds replaces it; the first edit makes it pending as before.
+UPDATE settings
+SET sync_state = 'synced', updated_at = '1970-01-01T00:00:00.000Z'
+WHERE sync_state = 'pending'
+  AND person = '' AND business_name = '' AND address = '' AND email = '' AND phone = ''
+  AND logo IS NULL AND currency = 'USD' AND tax_rate = 0 AND payment_terms_days = 14
+  AND numbering_scheme = 'INV-0000' AND rate_floor_cents = 0
+  AND shortcut = 'CommandOrControl+Shift+S';

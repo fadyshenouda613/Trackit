@@ -90,4 +90,12 @@ describe('the shipped migrations', () => {
     expect(db.pragma('foreign_keys', { simple: true })).toBe(1)
     expect(db.prepare('SELECT COUNT(*) AS count FROM settings').get()).toEqual({ count: 1 })
   })
+
+  it('leaves a fresh settings row with nothing to upload, dated so the account’s own wins', () => {
+    const db = openMemoryDatabase()
+    expect(db.prepare('SELECT sync_state, updated_at FROM settings').get()).toEqual({
+      sync_state: 'synced',
+      updated_at: '1970-01-01T00:00:00.000Z'
+    })
+  })
 })
