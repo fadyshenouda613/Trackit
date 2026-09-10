@@ -111,6 +111,19 @@ function writeRow<T extends SyncableBase>(db: Database, table: Table<T>, entity:
 }
 
 /**
+ * The `updatedAt` an edit gets: now, or one millisecond past the row's
+ * current stamp when the clock here is behind it. Sync resolves two versions
+ * of a row by the later stamp, so an edit made on top of a version this
+ * machine has seen must always outrank that version — even one written by a
+ * device whose clock runs ahead of ours. Without this, such an edit would be
+ * overwritten by the very row it was made from on the next sync.
+ */
+export function bumpedUpdatedAt(current: string, now: string): string {
+  const floor = Date.parse(current) + 1
+  return Date.parse(now) >= floor ? now : new Date(floor).toISOString()
+}
+
+/**
  * Merges a patch into a live row, re-validates the whole row — which is how a
  * partial that cannot prove an invariant on its own gets checked — and writes
  * it back stamped `updatedAt` and `pending`.
@@ -122,12 +135,13 @@ export function updateRow<T extends SyncableBase>(
   patch: Partial<T>
 ): T {
   const current = requireRow(db, table, id)
-  return writeRow(db, table, { ...current, ...patch, id, updatedAt: nowIso(), syncState: 'pending' })
+  const updatedAt = bumpedUpdatedAt(current.updatedAt, nowIso())
+  return writeRow(db, table, { ...current, ...patch, id, updatedAt, syncState: 'pending' })
 }
 
 /** A soft delete: `deletedAt` set, nothing removed. Deleting twice is a not_found. */
 export function softDeleteRow<T extends SyncableBase>(db: Database, table: Table<T>, id: string): T {
   const current = requireRow(db, table, id)
-  const now = nowIso()
+  const now = bumpedUpdatedAt(current.updatedAt, nowIso())
   return writeRow(db, table, { ...current, deletedAt: now, updatedAt: now, syncState: 'pending' })
 }

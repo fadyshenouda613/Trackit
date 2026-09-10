@@ -46,7 +46,7 @@ describe('runMigrations', () => {
 })
 
 describe('the shipped migrations', () => {
-  it('start at 001_initial and create every table with its foreign-key and updated_at indexes', () => {
+  it('start at 001_initial and create every table, 002 adding what sync keeps, with its foreign-key and updated_at indexes', () => {
     expect(migrations[0]?.name).toBe('001_initial')
 
     const db = openMemoryDatabase()
@@ -65,6 +65,9 @@ describe('the shipped migrations', () => {
       'payments',
       'projects',
       'settings',
+      'sync_conflicts',
+      'sync_events',
+      'sync_meta',
       'time_entries'
     ])
 
@@ -75,7 +78,8 @@ describe('the shipped migrations', () => {
         .map((row) => row.name)
     )
     for (const table of tables) {
-      if (table === 'migrations' || table === 'settings') continue
+      /* The engine's own tables are not entities: no updated_at, no foreign keys. */
+      if (table === 'migrations' || table === 'settings' || table.startsWith('sync_')) continue
       expect(indexes.has(`${table}_updated_at`), `${table}_updated_at`).toBe(true)
       const foreignKeys = db.prepare<[], { from: string }>(`PRAGMA foreign_key_list(${table})`).all()
       for (const key of foreignKeys) {
