@@ -10,6 +10,10 @@ import { z } from 'zod'
  * card can decide what to say without parsing prose. `details` is only ever
  * the field-level issues of a validation failure. A stack trace is never on
  * the wire; in production even the message of an unexpected error is not.
+ *
+ * `upgrade_required` (426) is the one code that is not about the request
+ * but about the client: it speaks a sync protocol version this server does
+ * not.
  */
 
 export type ErrorCode =
@@ -18,6 +22,7 @@ export type ErrorCode =
   | 'conflict'
   | 'not_found'
   | 'rate_limited'
+  | 'upgrade_required'
   | 'internal'
 
 export class AppError extends Error {

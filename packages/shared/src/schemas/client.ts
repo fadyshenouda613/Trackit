@@ -28,6 +28,8 @@ const entity = syncableEntity(clientFields)
 export const clientSchema = entity.schema
 export const createClientInputSchema = entity.create
 export const updateClientInputSchema = entity.update
+/** The row as it travels to the server. */
+export const clientSyncRowSchema = entity.synced
 
 export type Client = z.infer<typeof clientSchema>
 export type CreateClientInput = z.infer<typeof createClientInputSchema>

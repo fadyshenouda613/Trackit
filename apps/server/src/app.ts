@@ -4,6 +4,7 @@ import helmet from 'helmet'
 import { sql } from 'drizzle-orm'
 import { authRouter } from './auth/router'
 import type { AuthDeps } from './auth/service'
+import { syncRouter } from './sync/router'
 import type { Config } from './config'
 import type { Db } from './db'
 import { errorHandler, notFoundHandler } from './errors'
@@ -44,7 +45,20 @@ export function createApp(options: AppOptions): Express {
       maxAge: 600
     })
   )
-  /* Nothing this API takes is bigger than a sign-up form. */
+  const deps: AuthDeps = {
+    db,
+    jwtSecret: config.jwtSecret,
+    accessTokenTtlSeconds: config.accessTokenTtlSeconds,
+    refreshTokenTtlDays: config.refreshTokenTtlDays,
+    now: options.now ?? (() => new Date())
+  }
+
+  /* Mounted ahead of the small body parser below, because a sync body can
+     carry a logo; the route brings its own parser with its own limit, and
+     the general one steps aside from a body that is already read. */
+  app.use('/sync', syncRouter({ deps, pageSize: config.syncPageSize, bodyLimit: config.syncBodyLimit }))
+
+  /* Nothing else this API takes is bigger than a sign-up form. */
   app.use(express.json({ limit: '32kb' }))
 
   app.get('/health', (_req, res) => {
@@ -55,13 +69,6 @@ export function createApp(options: AppOptions): Express {
     res.json({ ok: true })
   })
 
-  const deps: AuthDeps = {
-    db,
-    jwtSecret: config.jwtSecret,
-    accessTokenTtlSeconds: config.accessTokenTtlSeconds,
-    refreshTokenTtlDays: config.refreshTokenTtlDays,
-    now: options.now ?? (() => new Date())
-  }
   app.use('/auth', authRouter({ deps, rateLimit: config.authRateLimit }))
 
   app.use(notFoundHandler)

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type JSX } from 'react'
-import { ReorderConflictNotice } from './ConflictNotice'
+import { ReorderConflictNotice, sampleReorderConflicts } from './ConflictNotice'
 import { Icon } from './Icon'
 import { Meter } from './Meter'
 import {
@@ -12,6 +12,7 @@ import {
   type Id
 } from '@trackit/shared'
 import type { DragState } from './reorder'
+import { useConflicts, useResolveConflict } from '../data/use-sync'
 import {
   useCreateChecklistItem,
   useDeleteChecklistItem,
@@ -21,16 +22,32 @@ import {
 type ProjectChecklistProps = {
   projectId: Id
   items: ChecklistItem[]
-  /** Whether this list came back from a sync ordered two different ways. */
-  conflict?: boolean
+  /** Forces the reorder notice with sample content, for the States panel. */
+  reorderSample?: boolean
 }
 
 export function ProjectChecklist({
   projectId,
   items,
-  conflict = false
+  reorderSample = false
 }: ProjectChecklistProps): JSX.Element {
-  const [conflictShown, setConflictShown] = useState(true)
+  /* Moves on this list that lost to another device's. The sample stands in
+     for them under the panel, and is dismissed locally since it is nobody's. */
+  const [sampleShown, setSampleShown] = useState(true)
+  const conflicts = useConflicts()
+  const resolve = useResolveConflict()
+  const lostMoves = useMemo(
+    () => (conflicts.data ?? []).filter((conflict) => conflict.kind === 'reorder' && conflict.projectId === projectId),
+    [conflicts.data, projectId]
+  )
+  const shownMoves = reorderSample && sampleShown ? sampleReorderConflicts : lostMoves
+  const settleMoves = (resolution: 'keepTheirs' | 'restoreMine'): void => {
+    if (reorderSample && sampleShown) {
+      setSampleShown(false)
+      return
+    }
+    for (const conflict of lostMoves) resolve.mutate({ id: conflict.id, resolution })
+  }
   const [drag, setDrag] = useState<DragState | null>(null)
   const [grabbed, setGrabbed] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
@@ -120,8 +137,12 @@ export function ProjectChecklist({
   return (
     <div className="checklist">
       {/* Above the summary, because the count and the order are what changed. */}
-      {conflict && conflictShown && (
-        <ReorderConflictNotice onDismiss={() => setConflictShown(false)} />
+      {shownMoves.length > 0 && (
+        <ReorderConflictNotice
+          conflicts={shownMoves}
+          onKeepTheirs={() => settleMoves('keepTheirs')}
+          onRestoreMine={() => settleMoves('restoreMine')}
+        />
       )}
 
       <div className="checklist__summary">

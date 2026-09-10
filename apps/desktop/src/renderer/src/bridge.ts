@@ -1,4 +1,5 @@
 import type { DataApi, DevApi, LedgerApi, Result } from '@trackit/shared/api'
+import type { SyncStatus } from '@trackit/shared/schemas'
 
 /**
  * The preload bridge, with a no-op stand-in for when the renderer is opened
@@ -21,6 +22,8 @@ const detachedGroup = new Proxy(
 )
 const detachedData = new Proxy({}, { get: () => detachedGroup }) as DataApi
 
+const detachedSync: SyncStatus = { state: 'saved', lastSyncedAt: null, pending: {}, log: [], revision: 0 }
+
 const detached: LedgerApi = {
   platform: 'win32',
   window: {
@@ -40,6 +43,14 @@ const detached: LedgerApi = {
     check: () => Promise.resolve({ ok: true, data: { state: 'disabled', reason: 'No bridge' } }),
     install: () => Promise.resolve(detachedResult),
     onChanged: () => () => undefined
+  },
+  /* Nothing to sync with: saved, with nothing waiting and no history. */
+  sync: {
+    status: () => Promise.resolve({ ok: true, data: detachedSync }),
+    now: () => Promise.resolve({ ok: true, data: detachedSync }),
+    onChanged: () => () => undefined,
+    conflicts: () => Promise.resolve({ ok: true, data: [] }),
+    resolveConflict: () => Promise.resolve(detachedResult)
   },
   /* Signed out, and every move refused: without a main process there is no
      keychain to keep a session in. */

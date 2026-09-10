@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { DataApi, LedgerApi, Result } from '@trackit/shared/api'
-import type { AuthStatus, UpdateStatus } from '@trackit/shared/schemas'
+import type { AuthStatus, SyncStatus, UpdateStatus } from '@trackit/shared/schemas'
 
 /*
  * One entry per channel, each the mirror of a handler in main/data-ipc.ts.
@@ -117,6 +117,17 @@ const api: LedgerApi = {
       ipcRenderer.on('updates:changed', handler)
       return () => ipcRenderer.removeListener('updates:changed', handler)
     }
+  },
+  sync: {
+    status: () => ipcRenderer.invoke('sync:status'),
+    now: () => ipcRenderer.invoke('sync:now'),
+    onChanged: (listener) => {
+      const handler = (_event: unknown, status: SyncStatus): void => listener(status)
+      ipcRenderer.on('sync:changed', handler)
+      return () => ipcRenderer.removeListener('sync:changed', handler)
+    },
+    conflicts: () => ipcRenderer.invoke('sync:conflicts'),
+    resolveConflict: (id, resolution) => ipcRenderer.invoke('sync:resolveConflict', { id, resolution })
   },
   auth: {
     status: () => ipcRenderer.invoke('auth:status'),

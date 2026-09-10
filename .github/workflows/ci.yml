@@ -66,4 +66,9 @@ jobs:
         env:
           DATABASE_URL: postgres://trackit:trackit@localhost:5433/trackit
 
+      # Two devices, one server: the sync engine's acceptance suite.
+      - run: npm run test:sync
+        env:
+          DATABASE_URL: postgres://trackit:trackit@localhost:5433/trackit
+
       - run: docker build -f apps/server/Dockerfile -t trackit-server .

@@ -2,6 +2,7 @@ import type { Database } from 'better-sqlite3'
 import { settingsSchema, type Settings, type UpdateSettingsInput } from '@trackit/shared/schemas'
 import { nowIso } from '../db/clock'
 import { fromColumns, toColumns, type Row } from '../db/rows'
+import { bumpedUpdatedAt } from './table'
 
 /*
  * One row, put there by the first migration and never deleted. It has an id
@@ -18,10 +19,11 @@ export function getSettings(db: Database): Settings {
 
 /** Merges and re-validates the whole row, then stamps it changed. */
 export function updateSettings(db: Database, patch: UpdateSettingsInput): Settings {
+  const current = getSettings(db)
   const merged = settingsSchema.parse({
-    ...getSettings(db),
+    ...current,
     ...patch,
-    updatedAt: nowIso(),
+    updatedAt: bumpedUpdatedAt(current.updatedAt, nowIso()),
     syncState: 'pending'
   })
   const row = toColumns(merged)

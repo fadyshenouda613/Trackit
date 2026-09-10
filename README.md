@@ -314,24 +314,41 @@ account at all.
 | `npm run typecheck:web -w @trackit/desktop` | Renderer only |
 | `npm run package -w @trackit/desktop` | Build, then produce this platform's installer in `apps/desktop/dist/` |
 
-### Accounts and the server
+### Accounts, the server and sync
 
 `apps/server` is an Express 5 + PostgreSQL service (Drizzle ORM) that holds
-accounts today and will hold the sync engine next. The desktop's sign-in and
-sign-up cards call it; nothing else does yet. Your work never leaves the
-machine until sync exists, and an account is never needed to read or write
-it — an expired session only stops syncing.
+accounts and the synced ledger. The desktop's sign-in and sign-up cards call
+it, and so does the sync engine in the main process. An account is never
+needed to read or write your work — an expired session only stops syncing.
 
 ```bash
 cd apps/server
 docker compose up -d                 # Postgres 16 on port 5433
 cp .env.example .env                 # then set JWT_SECRET (32+ characters)
 npm run dev                          # tsx watch, http://localhost:4000
-npm run test:integration             # the auth routes against that Postgres
+npm run test:integration             # the auth and sync routes against that Postgres
+npm run test:sync                    # from the root: two devices, one server (see tests/sync)
 ```
 
+**Sync** is one route, `POST /sync`: the desktop sends the rows it has changed
+with the cursor it last received, and gets back every row of the account's
+after that cursor, one page at a time. The same row changed on two machines
+is settled by the later `updatedAt` (ties by device id), on the server and on
+every client alike; the machine whose edit lost is shown a notice with its
+version one click away. A crash in the middle of a sync loses nothing — pushed
+rows stay pending until the answer is applied in one transaction with the
+cursor. The design is in
+`docs/superpowers/specs/2026-09-10-sync-engine-design.md`; the acceptance
+suite that exercises it, two real engines against the real server, is
+`tests/sync/`.
+
+The engine runs at launch, every minute, when the network comes back, when
+you sign in, and from **Sync now**. The sidebar footer is its status: *All
+changes saved*, *Syncing*, *N waiting to upload*, or *Could not sync* with the
+reason in the popover behind it.
+
 Routes: `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`,
-`GET /auth/me`, and `/health`. Passwords are argon2id hashes. An access token
+`GET /auth/me`, `POST /sync`, and `/health`. Passwords are argon2id hashes. An access token
 is a 15-minute JWT; the refresh token that earns the next one is rotated on
 every use, stored only as a hash, and revoking one revokes its whole family —
 so a refresh token that turns up twice signs that session out everywhere.
@@ -415,6 +432,7 @@ apps/
 │       │   ├── window.ts              Frameless BrowserWindow, per-theme background fill
 │       │   ├── ipc.ts                 Window controls + nativeTheme sync
 │       │   ├── tray.ts                Tray icon, menu, global shortcut
+│       │   ├── sync/                  The sync engine: outbox, apply, conflicts, transport
 │       │   └── icon.ts                App icon, rasterized from Logo.tsx's geometry
 │       ├── preload/index.ts         contextBridge → window.ledger
 │       └── renderer/
@@ -437,8 +455,9 @@ apps/
         ├── app.ts                   The Express app: helmet, cors, routes, error handler
         ├── config.ts                Every environment variable, checked once
         ├── errors.ts                One error shape for every failure
-        ├── db/schema.ts             The SQLite tables mirrored, plus user_id and server_seq
-        └── auth/                    Argon2 accounts, JWT access, rotating refresh tokens
+        ├── db/schema.ts             The SQLite tables mirrored, plus user_id, server_seq, updated_by
+        ├── auth/                    Argon2 accounts, JWT access, rotating refresh tokens
+        └── sync/                    POST /sync: the conflict rule and the paged pull
 packages/
 └── shared/                        @trackit/shared — what desktop and server agree on
     └── src/

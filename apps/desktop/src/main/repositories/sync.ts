@@ -1,10 +1,15 @@
 import type { Database } from 'better-sqlite3'
 import type { PendingCounts, PendingKind } from '@trackit/shared/schemas'
 
-/** Which tables feed which bucket on the sync popover. */
+/**
+ * Which tables feed which bucket on the sync popover. Every syncable table
+ * is in exactly one, so nothing can wait uncounted; a project's checklist,
+ * milestones and notes count as changes to the project.
+ */
 const BUCKETS: Record<PendingKind, string[]> = {
   time: ['time_entries'],
-  projects: ['projects'],
+  projects: ['projects', 'checklist_items', 'milestones', 'notes'],
+  clients: ['clients'],
   invoices: ['invoices', 'invoice_lines'],
   payments: ['payments'],
   settings: ['settings']

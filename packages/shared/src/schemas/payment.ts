@@ -44,6 +44,8 @@ const entity = syncableEntity(paymentFields)
 export const paymentSchema = entity.schema
 export const createPaymentInputSchema = entity.create
 export const updatePaymentInputSchema = entity.update
+/** The row as it travels to the server. */
+export const paymentSyncRowSchema = entity.synced
 
 export type Payment = z.infer<typeof paymentSchema>
 export type CreatePaymentInput = z.infer<typeof createPaymentInputSchema>

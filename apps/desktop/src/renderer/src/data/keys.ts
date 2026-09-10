@@ -52,6 +52,8 @@ export const keys = {
   updates: ['updates'] as const,
   auth: ['auth'] as const,
   sync: {
-    pending: ['sync', 'pending'] as const
+    pending: ['sync', 'pending'] as const,
+    status: ['sync', 'status'] as const,
+    conflicts: ['sync', 'conflicts'] as const
   }
 }

@@ -3,14 +3,14 @@ import type { Settings } from '@trackit/shared'
 import { useAuthStatus } from '../data/use-auth'
 import { SettingsRow, SettingsSection } from './SettingsRow'
 import { agoLabel } from './time-data'
-import { failureReasons, footerLabel, pendingTotal, snapshots, type SyncState } from './sync-data'
-import { syncTones } from './sync-data'
+import { failureReasons, footerLabel, pendingTotal, syncTones, type SyncSnapshot } from './sync-data'
 import { toneVar } from './tone'
 import { useNow } from './use-now'
 
 type SettingsAccountProps = {
   settings: Settings
-  syncState: SyncState
+  sync: SyncSnapshot
+  onSyncNow: () => void
   onSignOut: () => void
 }
 
@@ -25,11 +25,11 @@ type SettingsAccountProps = {
  */
 export function SettingsAccount({
   settings,
-  syncState,
+  sync: snapshot,
+  onSyncNow,
   onSignOut
 }: SettingsAccountProps): JSX.Element {
   const now = useNow()
-  const snapshot = snapshots[syncState]
   const pending = pendingTotal(snapshot.pending)
   const reason = snapshot.failure ? failureReasons[snapshot.failure] : null
 
@@ -72,7 +72,7 @@ export function SettingsAccount({
           <span className="t-overline settings-facts__label">Pending changes</span>
           <span
             className="settings-facts__value num"
-            style={{ color: toneVar[syncTones[syncState]] }}
+            style={{ color: toneVar[syncTones[snapshot.state]] }}
           >
             {pending === 0 ? 'None' : pending}
           </span>
@@ -85,11 +85,15 @@ export function SettingsAccount({
            the state alone ("Could not sync") is what you already knew. */
         hint={reason ? reason.hint : footerLabel(snapshot)}
       >
-        {/* Inert: syncing needs an engine, and there is none behind this yet.
-            Already refused, though, on the one ground the engine will refuse
-            it too: an expired session has no token to sync with. */}
-        <button type="button" className="button" disabled={syncState === 'syncing' || expired}>
-          Sync now
+        {/* Refused while one runs, and on the one ground the engine would
+            refuse it too: an expired session has no token to sync with. */}
+        <button
+          type="button"
+          className="button"
+          disabled={snapshot.state === 'syncing' || expired}
+          onClick={onSyncNow}
+        >
+          {snapshot.state === 'syncing' ? 'Syncing…' : 'Sync now'}
         </button>
       </SettingsRow>
 

@@ -60,3 +60,14 @@ export const updateSettingsInputSchema = settingsSchema
   .omit({ updatedAt: true, syncState: true })
   .partial()
 export type UpdateSettingsInput = z.infer<typeof updateSettingsInputSchema>
+
+/**
+ * The row as it travels to the server: no id (the account is the key), no
+ * sync state, and neither of the two preferences that belong to the machine.
+ */
+export const settingsSyncRowSchema = settingsSchema.omit({
+  theme: true,
+  accountEmail: true,
+  syncState: true
+})
+export type SettingsSyncRow = z.infer<typeof settingsSyncRowSchema>

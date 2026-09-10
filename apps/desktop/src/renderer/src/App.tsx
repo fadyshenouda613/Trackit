@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { useEffect, useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { isDesktop, ledger } from './bridge'
 import { AllProjectsTable } from './components/AllProjectsTable'
 import { AttentionList } from './components/AttentionList'
@@ -21,7 +21,8 @@ import { ProjectsToolbar } from './components/ProjectsToolbar'
 import { RecordPaymentModal } from './components/RecordPaymentModal'
 import { SettingsScreen } from './components/SettingsScreen'
 import { Sidebar, type NavKey } from './components/Sidebar'
-import type { SyncState } from './components/sync-data'
+import { snapshots, toSnapshot, type SyncLever, type SyncSnapshot } from './components/sync-data'
+import { RecordConflictNotice, sampleRecordConflict } from './components/ConflictNotice'
 import { readTheme, resolve, watchSystem, writeTheme, type Theme } from './components/theme'
 import { TableSkeleton } from './components/TableSkeleton'
 import { ToastStack, useToasts } from './components/Toast'
@@ -65,7 +66,7 @@ import { useInvoice, useInvoices } from './data/use-invoices'
 import { usePayments } from './data/use-payments'
 import { useProject, useProjects } from './data/use-projects'
 import { useUpdateSettings } from './data/use-settings'
-import { usePendingCounts } from './data/use-sync'
+import { useConflicts, useResolveConflict, useSyncNow, useSyncStatus } from './data/use-sync'
 import { useInstallUpdate, useUpdateStatus } from './data/use-updates'
 import {
   useDeleteTimeEntry,
@@ -132,7 +133,8 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
      and names it in the breadcrumb rather than always claiming to come from the
      dashboard. */
   const [invoiceFrom, setInvoiceFrom] = useState<Screen>('dashboard')
-  const [syncState, setSyncState] = useState<SyncState>('saved')
+  /* The panel's Sync lever: the engine's own status, or a fixture in its place. */
+  const [syncLever, setSyncLever] = useState<SyncLever>('live')
   const [notice, setNotice] = useState<NoticeState>('none')
   /*
    * The Data axis. Loading is a real query state now; this only forces it, so
@@ -252,7 +254,6 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   const invoices = useInvoices()
   const runningTimer = useRunningTimer()
   const orphanedTimer = useOrphanedTimer()
-  const pendingCounts = usePendingCounts()
   /* The tray and the shortcut move the clock behind our back; this is how the
      bar hears about it without a refresh. */
   useTimerChangedFromMain()
@@ -266,6 +267,46 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
    */
   const updateStatus = useUpdateStatus()
   const installUpdate = useInstallUpdate()
+
+  /*
+   * The sync footer. Main's status is the source, kept current by its pushes;
+   * the panel's Sync lever forces one of the four fixtures over it so every
+   * state stays reviewable whatever the engine is doing.
+   */
+  const syncStatus = useSyncStatus()
+  const syncNow = useSyncNow()
+  const liveSync: SyncSnapshot = syncStatus.data ? toSnapshot(syncStatus.data) : { ...snapshots.saved, log: [] }
+  const syncSnapshot: SyncSnapshot = syncLever === 'live' ? liveSync : snapshots[syncLever]
+
+  /*
+   * The network coming back is one of the engine's four triggers, and the
+   * renderer is the only process that hears about it.
+   */
+  const syncNowRef = useRef(syncNow.mutate)
+  syncNowRef.current = syncNow.mutate
+  useEffect(() => {
+    const onOnline = (): void => syncNowRef.current()
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [])
+
+  /*
+   * A local edit that lost to another device's. The newest is shown in the
+   * notice bar, whatever the screen, because the record can be a client or
+   * an invoice as well as a project; the panel's Notice lever stages a sample
+   * in its place, dismissed locally since it is nobody's.
+   */
+  const conflicts = useConflicts()
+  const resolveConflict = useResolveConflict()
+  const liveConflict = (conflicts.data ?? []).find((conflict) => conflict.kind === 'record') ?? null
+  const shownConflict = notice === 'conflict' ? sampleRecordConflict : liveConflict
+  const settleConflict = (resolution: 'keepTheirs' | 'restoreMine'): void => {
+    if (notice === 'conflict') {
+      setNotice('none')
+      return
+    }
+    if (liveConflict) resolveConflict.mutate({ id: liveConflict.id, resolution })
+  }
   const [dismissedUpdate, setDismissedUpdate] = useState<string | null>(null)
   const liveUpdate: UpdateOffer | null =
     updateStatus.data &&
@@ -433,16 +474,20 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   }
 
   /*
-   * Sync now, with nothing behind it. There is no service to ask, so this
-   * walks the states the real one would: a moment in flight, then saved. It is
-   * a stand-in and reads like one — it always succeeds — but a button in a
-   * panel about syncing that does nothing at all would make the whole panel
-   * hard to believe.
+   * Sync now. Under a forced state the button walks the fixture through
+   * syncing and back, so the panel's states still read as a sequence; live,
+   * it asks the engine, whose status pushes do the rest.
    */
   const onSyncNow = (): void => {
-    if (syncState === 'syncing') return
-    setSyncState('syncing')
-    window.setTimeout(() => setSyncState('saved'), 1400)
+    if (syncLever !== 'live') {
+      if (syncLever === 'syncing') return
+      const back = syncLever
+      setSyncLever('syncing')
+      window.setTimeout(() => setSyncLever(back === 'failed' ? 'saved' : back), 1400)
+      return
+    }
+    if (syncSnapshot.state === 'syncing') return
+    syncNow.mutate()
   }
 
   const onCreateInvoice = (): void => {
@@ -527,13 +572,13 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           devScenario.mutate(next)
         }
       }}
-      syncState={syncState}
-      onSyncState={setSyncState}
+      syncState={syncLever}
+      onSyncState={setSyncLever}
       notice={notice}
       onNotice={(next) => {
-        /* The two conflict notices live on the project screen, so choosing one
+        /* The reorder notice lives on the project checklist, so choosing it
            from anywhere else has to take you where it can be seen. */
-        if (next === 'conflict' || next === 'reorder') setScreen('project')
+        if (next === 'reorder') setScreen('project')
         setNotice(next)
       }}
       data={forceLoading ? 'loading' : 'ready'}
@@ -662,10 +707,9 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
           /* One real count on every screen: the artboards' per-screen figures
              were fixtures of their own frames. */
           counts={{ clients: String(clientList.length), projects: String(activeProjects) }}
-          pending={pendingCounts.data ?? {}}
+          sync={syncSnapshot}
           overdueInvoices={summary.overdueCount}
           timerRunning={running !== null}
-          syncState={syncState}
           onSyncNow={onSyncNow}
           onNavigate={onNavigate}
         />
@@ -683,7 +727,8 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
             /* Also owns its whole header: the sub-nav beside the pane is part
                of the screen, not of the shell. */
             <SettingsScreen
-              syncState={syncState}
+              sync={syncSnapshot}
+              onSyncNow={onSyncNow}
               isTopmost={!showTimerBar}
               onSignOut={onSignOut}
               theme={theme}
@@ -808,6 +853,17 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
                 )
               }
             />
+          )}
+
+          {shownConflict && (
+            <div className="notice-bar">
+              <RecordConflictNotice
+                key={shownConflict.id}
+                conflict={shownConflict}
+                onKeepTheirs={() => settleConflict('keepTheirs')}
+                onRestoreMine={() => settleConflict('restoreMine')}
+              />
+            </div>
           )}
 
           {updateOffer && (
@@ -954,8 +1010,7 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
                   setModal('payment')
                 }}
                 onBack={() => setScreen('projects')}
-                conflict={notice === 'conflict'}
-                reorderConflict={notice === 'reorder'}
+                reorderSample={notice === 'reorder'}
                 onDelivered={(project) => pushToast(deliveredToast(project))}
                 loading={forceLoading}
               />
