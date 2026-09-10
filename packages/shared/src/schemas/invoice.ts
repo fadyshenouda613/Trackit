@@ -27,8 +27,17 @@ export type InvoiceStatus = z.infer<typeof invoiceStatusSchema>
 
 const invoiceFields = {
   clientId: idSchema,
-  /** "INV-0150" — produced by the numbering scheme at issue, editable on the draft. */
+  /**
+   * "INV-0150" — issued by the server under the numbering scheme, so two
+   * machines can never mint the same one. A draft raised while the server
+   * could not be reached carries the number the local scheme produced and
+   * says so below; the sync engine replaces it on the first sync through.
+   */
   number: z.string().trim().min(1),
+  /** True while the number is the local scheme's guess, not the server's word. */
+  numberProvisional: z.boolean(),
+  /** When a PDF of this invoice was last rendered. Null until the first one. */
+  pdfGeneratedAt: timestampSchema.nullable(),
   status: invoiceStatusSchema,
   /** Written in the client's currency throughout, symbol included. */
   currency: currencyCodeSchema,
@@ -140,13 +149,13 @@ export type NewInvoiceLineInput = z.infer<typeof newInvoiceLineInputSchema>
 /**
  * What raising an invoice takes. Everything else on the row is the store's:
  * the status starts at draft, the dates are set at issue, the totals are
- * summed from the lines, and a number or currency left out is taken from the
- * numbering scheme and the client.
+ * summed from the lines, a currency left out is the client's, and the
+ * number is issued — by the server when it can be reached, provisionally
+ * by the local scheme when it cannot. It is never typed.
  */
 export const newInvoiceInputSchema = z.object({
   id: idSchema,
   clientId: idSchema,
-  number: z.string().trim().min(1).optional(),
   currency: currencyCodeSchema.optional(),
   taxRate: z.number().min(0).max(100),
   notes: z.string().default(''),

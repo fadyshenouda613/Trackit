@@ -15,10 +15,14 @@ import {
   createProjectInputSchema,
   createTimeEntryInputSchema,
   idSchema,
+  invoicePdfSchema,
   invoiceSchema,
   invoiceStatusSchema,
   loginInputSchema,
   milestoneSchema,
+  mintInvoiceNumberInputSchema,
+  mintedInvoiceNumberSchema,
+  newInvoiceInputSchema,
   noteSchema,
   PASSWORD_MIN_LENGTH,
   paymentMethodLabels,
@@ -257,8 +261,31 @@ describe('invoice', () => {
     notes: '',
     voidedAt: null,
     voidReason: null,
-    replacedByInvoiceId: null
+    replacedByInvoiceId: null,
+    numberProvisional: false,
+    pdfGeneratedAt: null
   }
+
+  it('carries whether the number is provisional and when a PDF was last made', () => {
+    expect(invoiceSchema.safeParse({ ...base, ...sent, numberProvisional: true, pdfGeneratedAt: AT }).success).toBe(true)
+    const { numberProvisional: _flag, ...withoutFlag } = sent
+    expect(invoiceSchema.safeParse({ ...base, ...withoutFlag }).success).toBe(false)
+    expect(invoiceSchema.safeParse({ ...base, ...sent, pdfGeneratedAt: 'yesterday' }).success).toBe(false)
+  })
+
+  it('takes no number when an invoice is raised: the store or the server issues it', () => {
+    const raised = { id: ID, clientId: OTHER, taxRate: 0, notes: '', lines: [{ id: ID, projectId: OTHER, sortOrder: 1 }] }
+    expect(newInvoiceInputSchema.safeParse(raised).success).toBe(true)
+    const withNumber = newInvoiceInputSchema.safeParse({ ...raised, number: 'INV-0001' })
+    expect(withNumber.success && 'number' in withNumber.data).toBe(false)
+  })
+
+  it('mints only under a scheme that can count', () => {
+    expect(mintInvoiceNumberInputSchema.safeParse({ scheme: 'INV-0000' }).success).toBe(true)
+    expect(mintInvoiceNumberInputSchema.safeParse({ scheme: 'INV-' }).success).toBe(false)
+    expect(mintedInvoiceNumberSchema.safeParse({ invoiceId: ID, number: 'INV-0001' }).success).toBe(true)
+    expect(invoicePdfSchema.safeParse({ invoiceId: ID, path: 'C:\\x\\INV-0001.pdf', generatedAt: AT, cached: false }).success).toBe(true)
+  })
 
   it('parses a sent invoice, a draft and a void', () => {
     expect(invoiceSchema.safeParse({ ...base, ...sent }).success).toBe(true)

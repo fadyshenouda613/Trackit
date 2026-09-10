@@ -49,7 +49,8 @@ import {
 export const invoicesTable = defineTable<Invoice>({
   name: 'invoices',
   label: 'invoice',
-  schema: invoiceSchema
+  schema: invoiceSchema,
+  booleans: ['numberProvisional']
 })
 
 export const invoiceLinesTable = defineTable<InvoiceLine>({
@@ -248,7 +249,11 @@ function flipProjects(db: Database, invoiceId: string, from: Project['status'][]
   }
 }
 
-/** The next number under the numbering scheme, past every number ever used. */
+/**
+ * The next number under the numbering scheme, past every number ever used
+ * on this machine. This is the provisional number: what a draft carries
+ * until the server, which counts across every machine, has issued one.
+ */
 export function nextNumber(db: Database): string {
   const scheme = getSettings(db).numberingScheme
   const used = db
@@ -262,12 +267,35 @@ export function nextNumber(db: Database): string {
   return number
 }
 
+/** The live drafts still carrying a number the local scheme guessed. */
+export const listProvisionalInvoices = (db: Database): Invoice[] =>
+  selectRows(
+    invoicesTable,
+    db.prepare(
+      `SELECT * FROM invoices
+       WHERE number_provisional = 1 AND deleted_at IS NULL
+       ORDER BY created_at, id`
+    )
+  )
+
+/**
+ * The number an invoice is created under. The server's, when the caller
+ * could reach it; otherwise the local scheme's, flagged so the sync engine
+ * knows to replace it.
+ */
+export type InvoiceNumbering = { number: string; numberProvisional: boolean }
+
 /* ---- Writing ---------------------------------------------------------------- */
 
-/** A draft with its lines. The number and currency default from the scheme and the client. */
-export function createInvoice(db: Database, input: NewInvoiceInput): Invoice {
+/**
+ * A draft with its lines. The currency defaults from the client; the number
+ * is whatever the caller was issued, or — with nothing handed in — the local
+ * scheme's provisional guess.
+ */
+export function createInvoice(db: Database, input: NewInvoiceInput, numbering?: InvoiceNumbering): Invoice {
   return db.transaction(() => {
     const client = requireRow(db, clientsTable, input.clientId)
+    const issued = numbering ?? { number: nextNumber(db), numberProvisional: true }
 
     const seen = new Set<string>()
     const lines = input.lines.map((line) => {
@@ -283,7 +311,9 @@ export function createInvoice(db: Database, input: NewInvoiceInput): Invoice {
     const invoice = createRow(db, invoicesTable, {
       id: input.id,
       clientId: input.clientId,
-      number: input.number ?? nextNumber(db),
+      number: issued.number,
+      numberProvisional: issued.numberProvisional,
+      pdfGeneratedAt: null,
       status: 'draft',
       currency: input.currency ?? client.currency,
       issuedAt: null,
@@ -300,11 +330,11 @@ export function createInvoice(db: Database, input: NewInvoiceInput): Invoice {
   })()
 }
 
-/** On a draft: the number, notes, tax rate, currency or client. Everything else is derived. */
+/** On a draft: the notes, tax rate, currency or client. Everything else is derived, and the number is issued. */
 export function updateInvoice(db: Database, id: string, patch: UpdateInvoiceInput): Invoice {
   return db.transaction(() => {
     requireDraft(db, id)
-    const editable = new Set(['number', 'notes', 'taxRate', 'currency', 'clientId'])
+    const editable = new Set(['notes', 'taxRate', 'currency', 'clientId'])
     for (const [key, value] of Object.entries(patch)) {
       if (value !== undefined && !editable.has(key)) {
         throw new RepositoryError('invalid_state', `${key} is set by the store, not edited`)
@@ -314,6 +344,18 @@ export function updateInvoice(db: Database, id: string, patch: UpdateInvoiceInpu
     return patch.taxRate === undefined ? updated : retotal(db, id)
   })()
 }
+
+/**
+ * The server's number in place of the provisional one. An ordinary edit —
+ * stamped and pending — so the row goes up with its final number and any
+ * other device holding the draft takes it on the next pull.
+ */
+export const assignInvoiceNumber = (db: Database, id: string, number: string): Invoice =>
+  updateRow(db, invoicesTable, id, { number, numberProvisional: false })
+
+/** When a PDF of the invoice was made. Any status: a draft prints as readily as a sent one. */
+export const markPdfGenerated = (db: Database, id: string, at: string): Invoice =>
+  updateRow(db, invoicesTable, id, { pdfGeneratedAt: at })
 
 /** Drafts only: an issued invoice is voided, never deleted. The lines go with it, which frees their projects. */
 export function deleteInvoice(db: Database, id: string): Invoice {

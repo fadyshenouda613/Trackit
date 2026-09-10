@@ -267,6 +267,8 @@ export function seedDatabase(db: Database): SeedSummary {
         id: invoiceId(fixture.number),
         clientId: clientId(fixture.client),
         number: fixture.number,
+        numberProvisional: fixture.provisional ?? false,
+        pdfGeneratedAt: null,
         status,
         currency: client.currency,
         issuedAt,
