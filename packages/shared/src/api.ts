@@ -4,6 +4,7 @@ import type {
   ChecklistItem,
   Client,
   ClientListFilters,
+  ConflictResolution,
   CreateClientInput,
   CreateNoteInput,
   CreatePaymentInput,
@@ -27,6 +28,8 @@ import type {
   RegisterInput,
   Settings,
   StartTimerInput,
+  SyncConflict,
+  SyncStatus,
   TimeEntry,
   TimeEntryListFilters,
   UpdateChecklistItemInput,
@@ -228,6 +231,26 @@ export type LedgerApi = {
     install: () => Promise<Result<null>>
     /** Fires with every move of the status. Returns an unsubscribe function. */
     onChanged: (listener: (status: UpdateStatus) => void) => () => void
+  }
+  /**
+   * The sync engine, which lives in the main process and runs on its own:
+   * at launch, on an interval, and whenever asked. The renderer reads its
+   * status the way it reads the update and account statuses — once, then
+   * kept current by pushes — and asks for the two things a person can do:
+   * sync now, and settle a conflict.
+   *
+   * `status.revision` moves whenever a sync changed local data, which is the
+   * renderer's cue to refetch everything it holds.
+   */
+  sync: {
+    status: () => Promise<Result<SyncStatus>>
+    /** Runs a sync — after the one in flight, if any — and answers with the status after it. */
+    now: () => Promise<Result<SyncStatus>>
+    /** Fires on every move of the status. Returns an unsubscribe function. */
+    onChanged: (listener: (status: SyncStatus) => void) => () => void
+    /** Local edits that lost to another device's, newest first, until settled. */
+    conflicts: () => Promise<Result<SyncConflict[]>>
+    resolveConflict: (id: Id, resolution: ConflictResolution) => Promise<Result<null>>
   }
   /**
    * The account on this machine. The session lives in the main process — the

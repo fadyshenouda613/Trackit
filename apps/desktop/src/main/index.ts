@@ -10,6 +10,9 @@ import { openDatabase } from './db'
 import { nowIso } from './db/clock'
 import { registerWindowIpc } from './ipc'
 import { closeOpenEntries, getSettings, runningTimeEntry } from './repositories'
+import { createSyncClient } from './sync/client'
+import { createSyncEngine } from './sync/engine'
+import { registerSyncIpc } from './sync-ipc'
 import { toggleTimer, trayState } from './timer'
 import { createTray, type TrayHandle } from './tray'
 import { createUpdater, registerUpdateIpc } from './updates'
@@ -122,8 +125,25 @@ app.whenReady().then(async () => {
   })
   registerAuthIpc(auth)
 
+  /*
+   * The sync engine. Every move of its status is pushed the way the others
+   * are. It starts once the window is up and the session has been
+   * confirmed — a launch trigger, then the interval; the renderer asks for
+   * the rest (Sync now, the network coming back).
+   */
+  const sync = createSyncEngine({
+    db,
+    transport: createSyncClient({ baseUrl: serverUrl() }),
+    auth,
+    onChanged: (status) => {
+      for (const window of BrowserWindow.getAllWindows()) window.webContents.send('sync:changed', status)
+    },
+    log: (message) => console.warn(`[sync] ${message}`)
+  })
+  registerSyncIpc(sync)
+
   const window = createMainWindow()
-  void auth.verify()
+  void auth.verify().then(() => sync.start())
 
   // Keep the renderer's maximize affordance in sync with the real window state.
   const emitMaximized = (): void => window.webContents.send('window:maximized-changed', window.isMaximized())
@@ -164,6 +184,7 @@ app.whenReady().then(async () => {
 
   app.on('before-quit', () => {
     clearInterval(tick)
+    sync.stop()
     updater.destroy()
     /* A clean quit never leaves a clock running; anything found running at
        the next launch therefore survived a crash and is offered for recovery. */
