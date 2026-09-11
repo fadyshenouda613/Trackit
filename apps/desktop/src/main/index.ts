@@ -9,9 +9,13 @@ import { registerDataIpc } from './data-ipc'
 import { openDatabase } from './db'
 import { nowIso } from './db/clock'
 import { registerWindowIpc } from './ipc'
+import { createPdfClient } from './pdf/client'
+import { createPdfService } from './pdf/service'
+import { registerPdfIpc } from './pdf-ipc'
 import { closeOpenEntries, getSettings, runningTimeEntry } from './repositories'
 import { createSyncClient } from './sync/client'
 import { createSyncEngine } from './sync/engine'
+import { numberForNewInvoice } from './sync/numbers'
 import { registerSyncIpc } from './sync-ipc'
 import { toggleTimer, trayState } from './timer'
 import { createTray, type TrayHandle } from './tray'
@@ -76,15 +80,6 @@ app.whenReady().then(async () => {
   let shortcut = getSettings(db).shortcut
 
   registerWindowIpc()
-  registerDataIpc(db, {
-    bootedAt,
-    onTimerChanged: () => broadcastTimer(),
-    onSettingsChanged: (settings) => {
-      if (settings.shortcut === shortcut) return
-      shortcut = settings.shortcut
-      tray?.rebind(shortcut)
-    }
-  })
   if (!app.isPackaged) {
     const { registerDevIpc } = await import('./dev-ipc')
     registerDevIpc(db, { onTimerChanged: () => broadcastTimer() })
@@ -137,9 +132,10 @@ app.whenReady().then(async () => {
    * confirmed — a launch trigger, then the interval; the renderer asks for
    * the rest (Sync now, the network coming back).
    */
+  const transport = createSyncClient({ baseUrl: serverUrl() })
   sync = createSyncEngine({
     db,
-    transport: createSyncClient({ baseUrl: serverUrl() }),
+    transport,
     auth,
     onChanged: (status) => {
       for (const window of BrowserWindow.getAllWindows()) window.webContents.send('sync:changed', status)
@@ -148,6 +144,39 @@ app.whenReady().then(async () => {
   })
   registerSyncIpc(sync)
   const engine = sync
+
+  /*
+   * The data channels come after the account and the engine because one of
+   * them needs both: raising a draft asks the server for its number first,
+   * through the same transport the engine uses, and falls back to a
+   * provisional one when the server cannot be asked.
+   */
+  registerDataIpc(db, {
+    bootedAt,
+    onTimerChanged: () => broadcastTimer(),
+    onSettingsChanged: (settings) => {
+      if (settings.shortcut === shortcut) return
+      shortcut = settings.shortcut
+      tray?.rebind(shortcut)
+    },
+    numbering: (invoiceId) =>
+      numberForNewInvoice(
+        db,
+        { transport, accessToken: () => auth.accessToken(), status: () => auth.status() },
+        invoiceId
+      )
+  })
+
+  /* The PDF of an invoice: rendered by the server, kept beside the database. */
+  registerPdfIpc(
+    createPdfService({
+      db,
+      transport: createPdfClient({ baseUrl: serverUrl() }),
+      accessToken: () => auth.accessToken(),
+      sync: () => engine.sync(),
+      cacheDir: join(app.getPath('userData'), 'invoice-pdfs')
+    })
+  )
 
   const window = createMainWindow()
   void auth.verify().then(() => engine.start())

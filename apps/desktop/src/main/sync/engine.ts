@@ -16,6 +16,7 @@ import { applyChanges } from './apply'
 import { SyncClientError, type SyncTransport } from './client'
 import { listConflicts, listEvents, recordEvent, resolveConflict } from './conflicts'
 import { accountUserId, cursor, deviceId, lastSyncedAt, setAccountUserId, setCursor, setLastSyncedAt } from './meta'
+import { assignServerNumbers } from './numbers'
 import { collectPending, markSynced, refKey } from './outbox'
 
 /*
@@ -32,6 +33,10 @@ import { collectPending, markSynced, refKey } from './outbox'
  * The loop goes on while the server has another page or the outbox had
  * more than a page. Two runs never overlap: a request during a run is a
  * promise of one more run after it.
+ *
+ * Before the first round trip, the drafts raised while the server was out
+ * of reach take their numbers from it (see numbers.ts), so no provisional
+ * number ever goes up.
  *
  * No Electron in here. The database, the transport and the account are
  * handed in, which is what lets the two-device suite drive two of these
@@ -126,18 +131,21 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
 
   const emit = (): void => deps.onChanged(status())
 
-  /** One request, with one retry after a refresh when the token was refused. */
-  const exchange = async (request: SyncRequest): Promise<SyncResponse> => {
+  /** One call with a token, and one retry after a refresh when the token was refused. */
+  const withToken = async <T>(call: (accessToken: string) => Promise<T>): Promise<T> => {
     const token = await auth.accessToken()
     try {
-      return await transport.push(token, request)
+      return await call(token)
     } catch (error) {
       if (!(error instanceof SyncClientError) || error.code !== 'unauthorized') throw error
       await auth.verify()
       const fresh = await auth.accessToken()
-      return transport.push(fresh, request)
+      return call(fresh)
     }
   }
+
+  const exchange = (request: SyncRequest): Promise<SyncResponse> =>
+    withToken((token) => transport.push(token, request))
 
   /**
    * The apply transaction. Foreign keys are off for its duration because a
@@ -189,6 +197,9 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
       if (bound !== null && bound !== account.user.id) {
         throw new SyncFailed('otherAccount', 'This data was first synced under another account')
       }
+
+      /* Drafts numbered here become edits, and go up in the loop below. */
+      await assignServerNumbers(db, withToken, transport, now)
 
       for (;;) {
         const outbox = collectPending(db, pageSize)

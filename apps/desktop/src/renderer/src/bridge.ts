@@ -52,6 +52,12 @@ const detached: LedgerApi = {
     conflicts: () => Promise.resolve({ ok: true, data: [] }),
     resolveConflict: () => Promise.resolve(detachedResult)
   },
+  /* No server to render from and no disk to keep the file on. */
+  pdf: {
+    generate: () => Promise.resolve(detachedResult),
+    reveal: () => Promise.resolve(detachedResult),
+    saveAs: () => Promise.resolve(detachedResult)
+  },
   /* Signed out, and every move refused: without a main process there is no
      keychain to keep a session in. */
   auth: {

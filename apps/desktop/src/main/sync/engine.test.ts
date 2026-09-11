@@ -3,6 +3,8 @@ import type { AuthStatus, SyncRequest, SyncResponse, SyncStatus } from '@trackit
 import { AuthClientError } from '../auth/client'
 import { openMemoryDatabase, type Database } from '../db'
 import { getClient, updateClient } from '../repositories/clients'
+import { createInvoice, deleteInvoice, getInvoice } from '../repositories/invoices'
+import { updateSettings } from '../repositories/settings'
 import { aClient, aProject, id } from '../repositories/test-support'
 import { SyncClientError } from './client'
 import { createSyncEngine, type SyncEngine, type SyncEngineDeps } from './engine'
@@ -26,18 +28,36 @@ const signedIn: AuthStatus = {
 
 type Script = (request: SyncRequest) => SyncResponse | Promise<SyncResponse>
 
-/** A transport that answers each call from a list of scripts, in order, and remembers what it saw. */
+type Mint = (invoiceId: string, scheme: string) => string
+
+/**
+ * A transport that answers each call from a list of scripts, in order, and
+ * remembers what it saw. `mint` is what the server says to a draft asking
+ * for its number; by default nothing asks.
+ */
 function scripted(...scripts: Script[]) {
   const calls: SyncRequest[] = []
+  const mints: { invoiceId: string; scheme: string }[] = []
   let index = 0
+  let mint: Mint = () => {
+    throw new Error('no mint script')
+  }
   return {
     calls,
+    mints,
+    minting: (script: Mint) => {
+      mint = script
+    },
     push: async (_token: string, request: SyncRequest): Promise<SyncResponse> => {
       calls.push(request)
       const script = scripts[Math.min(index, scripts.length - 1)]
       index += 1
       if (!script) throw new Error('no script')
       return script(request)
+    },
+    mintNumber: async (_token: string, invoiceId: string, scheme: string) => {
+      mints.push({ invoiceId, scheme })
+      return { invoiceId, number: mint(invoiceId, scheme) }
     }
   }
 }
@@ -406,5 +426,95 @@ describe('conflicts through the engine', () => {
     expect(engine.status().revision).toBe(revision + 1)
     expect(getClient(db, client.id)?.name).toBe('Mine')
     expect(engine.status().state).toBe('pending')
+  })
+})
+
+describe('provisional numbers', () => {
+  const draftFor = (): ReturnType<typeof createInvoice> => {
+    const project = aProject(db, client!, 'delivered')
+    return createInvoice(db, {
+      id: id(),
+      clientId: client!.id,
+      taxRate: 0,
+      notes: '',
+      lines: [{ id: id(), projectId: project.id, milestoneId: null, sortOrder: 1 }]
+    })
+  }
+  let client: ReturnType<typeof aClient> | null = null
+
+  beforeEach(() => {
+    client = aClient(db)
+    updateSettings(db, { numberingScheme: 'INV-0000' })
+  })
+
+  it('takes the server number before the draft goes up, and says so', async () => {
+    const draft = draftFor()
+    expect(draft).toMatchObject({ number: 'INV-0001', numberProvisional: true })
+    const transport = scripted(acceptAll(9))
+    transport.minting(() => 'INV-0151')
+    const engine = engineWith({ transport })
+
+    const status = await engine.sync()
+    expect(transport.mints).toEqual([{ invoiceId: draft.id, scheme: 'INV-0000' }])
+    const pushed = transport.calls[0]?.changes.invoices?.[0]
+    expect(pushed).toMatchObject({ id: draft.id, number: 'INV-0151', numberProvisional: false })
+    expect(getInvoice(db, draft.id)).toMatchObject({ number: 'INV-0151', numberProvisional: false, syncState: 'synced' })
+    expect(status.state).toBe('saved')
+    expect(status.log.map((event) => event.detail)).toContain('Draft INV-0001 is now INV-0151')
+  })
+
+  it('notes when the server confirmed the guess', async () => {
+    draftFor()
+    const transport = scripted(acceptAll(9))
+    transport.minting(() => 'INV-0001')
+    const status = await engineWith({ transport }).sync()
+    expect(status.log.map((event) => event.detail)).toContain('Draft INV-0001 kept its number')
+  })
+
+  it('leaves a deleted draft alone and an issued number alone', async () => {
+    const gone = draftFor()
+    deleteInvoice(db, gone.id)
+    const issued = createInvoice(
+      db,
+      { id: id(), clientId: client!.id, taxRate: 0, notes: '', lines: [{ id: id(), projectId: aProject(db, client!, 'delivered').id, milestoneId: null, sortOrder: 1 }] },
+      { number: 'INV-0150', numberProvisional: false }
+    )
+    const transport = scripted(acceptAll(9))
+    await engineWith({ transport }).sync()
+    expect(transport.mints).toEqual([])
+    expect(getInvoice(db, issued.id)?.number).toBe('INV-0150')
+  })
+
+  it('fails the run when the mint fails, and keeps the draft provisional for next time', async () => {
+    const draft = draftFor()
+    const transport = scripted(acceptAll(9))
+    transport.minting(() => {
+      throw new SyncClientError('internal', 'The server answered 500')
+    })
+    const status = await engineWith({ transport }).sync()
+    expect(status).toMatchObject({ state: 'failed', failure: 'server' })
+    expect(transport.calls).toHaveLength(0)
+    expect(getInvoice(db, draft.id)).toMatchObject({ number: 'INV-0001', numberProvisional: true })
+  })
+
+  it('retries the mint once after a refresh when the token was refused', async () => {
+    const draft = draftFor()
+    const transport = scripted(acceptAll(9))
+    let refused = false
+    transport.minting(() => {
+      if (!refused) {
+        refused = true
+        throw new SyncClientError('unauthorized', 'stale')
+      }
+      return 'INV-0042'
+    })
+    const verify = vi.fn(async () => undefined)
+    const status = await engineWith({
+      transport,
+      auth: { status: () => signedIn, accessToken: async () => 'token', verify }
+    }).sync()
+    expect(verify).toHaveBeenCalledTimes(1)
+    expect(status.state).toBe('saved')
+    expect(getInvoice(db, draft.id)?.number).toBe('INV-0042')
   })
 })

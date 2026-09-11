@@ -129,6 +129,11 @@ const api: LedgerApi = {
     conflicts: () => ipcRenderer.invoke('sync:conflicts'),
     resolveConflict: (id, resolution) => ipcRenderer.invoke('sync:resolveConflict', { id, resolution })
   },
+  pdf: {
+    generate: (invoiceId) => ipcRenderer.invoke('pdf:generate', invoiceId),
+    reveal: (invoiceId) => ipcRenderer.invoke('pdf:reveal', invoiceId),
+    saveAs: (invoiceId) => ipcRenderer.invoke('pdf:saveAs', invoiceId)
+  },
   auth: {
     status: () => ipcRenderer.invoke('auth:status'),
     register: (input) => ipcRenderer.invoke('auth:register', input),
