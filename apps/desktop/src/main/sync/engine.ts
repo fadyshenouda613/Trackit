@@ -190,6 +190,7 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
     let conflicts = 0
     let uploaded = 0
     let dropped = 0
+    let numbered = 0
     try {
       const account = auth.status()
       if (account.state !== 'signedIn') throw new SyncFailed('signedOut', 'Not signed in')
@@ -199,7 +200,7 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
       }
 
       /* Drafts numbered here become edits, and go up in the loop below. */
-      await assignServerNumbers(db, withToken, transport, now)
+      numbered = await assignServerNumbers(db, withToken, transport, now)
 
       for (;;) {
         const outbox = collectPending(db, pageSize)
@@ -234,7 +235,10 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
       if (failure !== 'signedOut') recordEvent(db, 'failed', failureLines[failure], now())
     } finally {
       running = false
-      if (applied > 0 || conflicts > 0) revision += 1
+      /* A swapped number is a local change the renderer has to hear about,
+         even though nothing came down: the draft it is showing is now called
+         something else. */
+      if (applied > 0 || conflicts > 0 || numbered > 0) revision += 1
       emit()
     }
   }

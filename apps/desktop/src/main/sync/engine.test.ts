@@ -461,6 +461,9 @@ describe('provisional numbers', () => {
     expect(getInvoice(db, draft.id)).toMatchObject({ number: 'INV-0151', numberProvisional: false, syncState: 'synced' })
     expect(status.state).toBe('saved')
     expect(status.log.map((event) => event.detail)).toContain('Draft INV-0001 is now INV-0151')
+    /* Nothing came down, but the draft on screen is now called something
+       else: the revision moves so the renderer refetches. */
+    expect(status.revision).toBe(1)
   })
 
   it('notes when the server confirmed the guess', async () => {

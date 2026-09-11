@@ -184,6 +184,19 @@ the app's chrome:
 
 ![Printed invoice](docs/screenshots/printed-invoice.jpg)
 
+**Download PDF** asks the server for that same sheet as a file. The server
+renders it from its copy of the invoice with a headless browser, so the
+desktop syncs first, streams the answer into its cache, stamps the invoice
+with when the PDF was made, and offers *Show in folder* and *Save as…* on the
+toast. With no connection or no session the button is disabled and says why —
+the PDF is made on the server.
+
+**Invoice numbers are issued by the server**, so two machines can never mint
+the same one. A draft raised while the server can be reached takes its number
+at once; a draft raised offline holds the number the local scheme guessed,
+marked *Provisional* wherever it is shown, and takes the server's number on
+the first sync through. The swap is noted in the sync log.
+
 ### Settings
 
 ![Business profile settings](docs/screenshots/settings-business-dark.jpg)
@@ -326,7 +339,7 @@ cd apps/server
 docker compose up -d                 # Postgres 16 on port 5433
 cp .env.example .env                 # then set JWT_SECRET (32+ characters)
 npm run dev                          # tsx watch, http://localhost:4000
-npm run test:integration             # the auth and sync routes against that Postgres
+npm run test:integration             # the auth, sync and invoice routes against that Postgres
 npm run test:sync                    # from the root: two devices, one server (see tests/sync)
 ```
 
@@ -397,15 +410,16 @@ renderer only ever sees a status value over the bridge.
 Because there is no data layer, some states are unreachable by navigating —
 the empty account, a failed sync, an orphaned timer, a void invoice, a loading
 skeleton. A dev panel covers all of them. Click **States** in the bottom-right
-corner of the window and you get eight axes:
+corner of the window and you get nine axes:
 
 | Axis | Options |
 |---|---|
-| Screen | 17, including every dialog and the printed invoice |
+| Screen | 18, including every dialog, a draft with a provisional number and the printed invoice |
 | Account | In, Sign in, Sign up, Welcome, Offline |
 | Timer | Stopped, Running, Over budget |
 | Sync | Saved, Syncing, Pending, Failed |
 | Notice | None, Conflict, Reorder, Update, Download |
+| Connection | Live, Offline *(disables Download PDF with its reason)* |
 | Data | Ready, Loading |
 | Toast | PDF, Payment, Delivered, Timer *(fires rather than selects)* |
 | Theme | Dark, Light, System |
