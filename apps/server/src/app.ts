@@ -4,6 +4,8 @@ import helmet from 'helmet'
 import { sql } from 'drizzle-orm'
 import { authRouter } from './auth/router'
 import type { AuthDeps } from './auth/service'
+import type { PdfRenderer } from './invoices/pdf'
+import { invoicesRouter } from './invoices/router'
 import { syncRouter } from './sync/router'
 import type { Config } from './config'
 import type { Db } from './db'
@@ -18,6 +20,8 @@ export type AppOptions = {
   config: Config
   db: Db
   log: Logger
+  /** Prints invoices. Owned by the caller, which closes it on shutdown. */
+  pdf: PdfRenderer
   /** The clock the auth service uses; the tests hand in their own. */
   now?: () => Date
 }
@@ -70,6 +74,7 @@ export function createApp(options: AppOptions): Express {
   })
 
   app.use('/auth', authRouter({ deps, rateLimit: config.authRateLimit }))
+  app.use('/invoices', invoicesRouter({ deps, pdf: options.pdf }))
 
   app.use(notFoundHandler)
   app.use(

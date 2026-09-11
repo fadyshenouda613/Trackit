@@ -266,12 +266,35 @@ export const invoices = pgTable(
     notes: text('notes').notNull().default(''),
     voidedAt: at('voided_at'),
     voidReason: text('void_reason'),
-    replacedByInvoiceId: uuid('replaced_by_invoice_id').references((): AnyPgColumn => invoices.id)
+    replacedByInvoiceId: uuid('replaced_by_invoice_id').references((): AnyPgColumn => invoices.id),
+    /** A draft's number the local scheme guessed offline. Never true here for long: the engine swaps it before the row goes up. */
+    numberProvisional: boolean('number_provisional').notNull().default(false),
+    pdfGeneratedAt: at('pdf_generated_at')
   },
   (table) => [
     index('invoices_user_seq').on(table.userId, table.serverSeq),
     index('invoices_client_id').on(table.clientId).where(live)
   ]
+)
+
+/**
+ * The numbers the server has handed out, one per invoice, whether or not
+ * that invoice has been uploaded yet. Not a syncable table: it is the
+ * server's own ledger of what it promised, which is what makes the mint
+ * idempotent (the same invoice asks twice, gets the same answer) and what
+ * stops a number going out twice between the promise and the upload.
+ */
+export const invoiceNumbers = pgTable(
+  'invoice_numbers',
+  {
+    invoiceId: uuid('invoice_id').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    number: text('number').notNull(),
+    reservedAt: at('reserved_at').notNull()
+  },
+  (table) => [uniqueIndex('invoice_numbers_user_number').on(table.userId, table.number)]
 )
 
 export const invoiceLines = pgTable(

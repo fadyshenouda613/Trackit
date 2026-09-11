@@ -12,11 +12,15 @@
 # time. Without it npm runs its implicit `node-gyp rebuild` for every
 # package with a binding.gyp, and better-sqlite3, which the desktop pins and
 # drizzle-orm lists as an optional peer, reaches this tree through the
-# shared lockfile and fails to compile on an image with no Python.
+# shared lockfile and fails to compile on an image with no Python. It also
+# stops Puppeteer downloading its own Chrome: the runtime image carries
+# Alpine's Chromium instead, and PUPPETEER_EXECUTABLE_PATH points at it.
+# The container has no user namespaces for Chromium's sandbox, hence the
+# two flags in PDF_BROWSER_ARGS.
 
 FROM node:22-alpine AS build
 WORKDIR /repo
-ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
+ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 PUPPETEER_SKIP_DOWNLOAD=1
 COPY package.json package-lock.json ./
 COPY apps/server/package.json apps/server/
 COPY apps/desktop/package.json apps/desktop/
@@ -29,7 +33,10 @@ RUN npm run build --workspace @trackit/server
 FROM node:22-alpine
 ENV NODE_ENV=production
 WORKDIR /repo
-ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
+ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1 PUPPETEER_SKIP_DOWNLOAD=1
+RUN apk add --no-cache chromium nss freetype harfbuzz ca-certificates ttf-freefont
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    PDF_BROWSER_ARGS=--no-sandbox,--disable-setuid-sandbox
 COPY package.json package-lock.json ./
 COPY apps/server/package.json apps/server/
 COPY apps/desktop/package.json apps/desktop/

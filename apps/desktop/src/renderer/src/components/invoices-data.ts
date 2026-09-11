@@ -1,4 +1,4 @@
-import { SORT_ORDER_STEP, balanceCents, daysBetween, formatCents, overdueDays, overdueJudgement, paidCents, subtotalCents, symbolOf, bySortOrder } from '@trackit/shared'
+import { SORT_ORDER_STEP, balanceCents, daysBetween, formatCents, groupInvoiceLines, overdueDays, overdueJudgement, paidCents, subtotalCents, symbolOf, type InvoiceLineGroup } from '@trackit/shared'
 import type { Client, CurrencyCode, Id, Invoice, InvoiceLine, InvoiceStatus, NewInvoiceInput, Project } from '@trackit/shared'
 import { dateLabel, localDateOf } from './local-dates'
 import type { PaymentsByInvoice } from './client-rows'
@@ -14,19 +14,10 @@ export const overdueDaysOf = (invoice: Invoice, today: string): number | null =>
 export const overdueToneOf = overdueJudgement
 export const overdueLabel = (days: number): string => `${days}d overdue`
 
-export type LineGroup = { key: string; project: string; lines: InvoiceLine[]; totalCents: number }
-/** Lines grouped by the project they were ticked from, in line order; hand-typed lines form one group. */
-export function groupLines(lines: InvoiceLine[], projects: Project[]): LineGroup[] {
-  const groups = new Map<string, LineGroup>()
-  for (const line of [...lines].sort(bySortOrder)) {
-    const key = line.projectId ?? 'manual'
-    const group = groups.get(key) ?? { key, project: projects.find((p) => p.id === line.projectId)?.name ?? 'Other', lines: [], totalCents: 0 }
-    group.lines.push(line)
-    group.totalCents += line.amountCents
-    groups.set(key, group)
-  }
-  return [...groups.values()]
-}
+export type LineGroup = InvoiceLineGroup<InvoiceLine>
+/** Lines grouped by the project they were ticked from, in line order; hand-typed lines form one group. The grouping is the shared one, so the server's PDF sums the same groups. */
+export const groupLines = (lines: InvoiceLine[], projects: Project[]): LineGroup[] =>
+  groupInvoiceLines(lines, (projectId) => projects.find((p) => p.id === projectId)?.name)
 
 export type InvoiceRow = { id: Id; number: string; client: string; issued: string; due: string; late: number | null; total: string; paid: string | null; status: InvoiceStatus; quiet: boolean; voided: boolean }
 export function invoiceRow(i: Invoice, clients: Client[], payments: PaymentsByInvoice, today: string): InvoiceRow {

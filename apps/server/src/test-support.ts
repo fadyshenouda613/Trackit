@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import { createApp, type Logger } from './app'
 import { loadConfig, type Config } from './config'
 import { connect, migrate, type DbHandle } from './db'
+import { createPdfRenderer, type PdfRenderer } from './invoices/pdf'
 
 /*
  * What every integration test starts from: a configuration pointed at the
@@ -42,5 +43,18 @@ export async function openTestDb(config: Config): Promise<TestDb> {
   }
 }
 
+/*
+ * One browser for a whole test file, launched only if a test asks for a
+ * PDF, and closed by that file's afterAll through closeTestPdf — a browser
+ * left open keeps the worker alive past the run.
+ */
+let pdf: PdfRenderer | null = null
+export const testPdf = (): PdfRenderer => (pdf ??= createPdfRenderer())
+export const closeTestPdf = async (): Promise<void> => {
+  const open = pdf
+  pdf = null
+  await open?.close()
+}
+
 export const appFor = (config: Config, handle: DbHandle, now?: () => Date) =>
-  createApp({ config, db: handle.db, log: silentLog, now })
+  createApp({ config, db: handle.db, log: silentLog, pdf: testPdf(), now })

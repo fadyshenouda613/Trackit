@@ -15,6 +15,13 @@
       "when": 1789011453137,
       "tag": "0001_sync",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789084817172,
+      "tag": "0002_invoice_numbers",
+      "breakpoints": true
     }
   ]
 }
