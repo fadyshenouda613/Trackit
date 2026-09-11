@@ -72,9 +72,6 @@ export function InvoiceScreen({
 }: InvoiceScreenProps): JSX.Element {
   const [clientId, setClientId] = useState<Id | ''>(initialClientId ?? '')
   const [lines, setLines] = useState<LineDraft[]>([])
-  /* Null until the field is touched: the number the scheme produces is what it
-     shows, and typing over it is what makes it the freelancer's. */
-  const [typedNumber, setTypedNumber] = useState<string | null>(null)
   const [typedTaxRate, setTypedTaxRate] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
 
@@ -123,7 +120,10 @@ export function InvoiceScreen({
   const currency = client?.currency ?? settings.data?.currency ?? 'USD'
   const symbol = symbolOf(currency)
 
-  const suggested = settings.data
+  /* What the scheme expects the next number to be. Shown, not typed: the
+     server issues the number when the draft is saved, and this is only the
+     likeliest answer — the one a draft raised offline holds until it syncs. */
+  const expectedNumber = settings.data
     ? (nextInvoiceNumber(
         settings.data.numberingScheme,
         nextInvoiceSequence(
@@ -133,7 +133,6 @@ export function InvoiceScreen({
         new Date()
       ) ?? '')
     : ''
-  const number = typedNumber ?? suggested
   const defaultTaxRate = settings.data && settings.data.taxRate > 0 ? String(settings.data.taxRate) : ''
   const taxRate = typedTaxRate ?? defaultTaxRate
 
@@ -192,7 +191,7 @@ export function InvoiceScreen({
 
   const save = (): void => {
     if (!ready || create.isPending) return
-    create.mutate(toNewInvoiceInput({ clientId, number, currency, taxRate, notes, lines }), {
+    create.mutate(toNewInvoiceInput({ clientId, currency, taxRate, notes, lines }), {
       onSuccess: (invoice) => onSaved(invoice.id)
     })
   }
@@ -269,8 +268,7 @@ export function InvoiceScreen({
           </div>
 
           <InvoiceRail
-            number={number}
-            onNumber={setTypedNumber}
+            expectedNumber={expectedNumber}
             issue={shortDate(today)}
             due={client ? shortDate(addDays(today, client.paymentTermsDays)) : '—'}
             terms={client ? termsLabel(client.paymentTermsDays) : null}

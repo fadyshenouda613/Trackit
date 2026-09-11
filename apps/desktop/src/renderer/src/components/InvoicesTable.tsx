@@ -75,7 +75,10 @@ export function InvoicesTable({
               }
             }}
           >
-            <span className="invoices__number">{row.number}</span>
+            <span className="invoices__number">
+              {row.number}
+              {row.provisional && <Pill>Provisional</Pill>}
+            </span>
 
             <span className="invoices__client truncate">{row.client}</span>
 

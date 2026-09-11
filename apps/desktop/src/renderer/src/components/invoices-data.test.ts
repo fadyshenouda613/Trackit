@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Client, Invoice, InvoiceLine, Payment, Project } from '@trackit/shared'
+import type { AuthStatus, Client, Invoice, InvoiceLine, Payment, Project } from '@trackit/shared'
 import {
   averageDaysToPay,
   billableView,
@@ -9,6 +9,7 @@ import {
   lineFromProject,
   newLine,
   overdueDaysOf,
+  pdfAvailability,
   summarise,
   toNewInvoiceInput
 } from './invoices-data'
@@ -21,6 +22,8 @@ const invoice = (over: Partial<Invoice> = {}): Invoice => ({
   id: 'i1',
   clientId: 'c1',
   number: 'INV-0001',
+  numberProvisional: false,
+  pdfGeneratedAt: null,
   status: 'sent',
   currency: 'USD',
   issuedAt: '2026-08-01T00:00:00.000Z',
@@ -191,7 +194,6 @@ describe('the create-invoice draft model', () => {
   it('toNewInvoiceInput numbers the lines and reads the tax rate off the field', () => {
     const input = toNewInvoiceInput({
       clientId: 'c1',
-      number: '  INV-0150  ',
       currency: 'GBP',
       taxRate: ' 8.5 ',
       notes: 'Thanks',
@@ -200,7 +202,8 @@ describe('the create-invoice draft model', () => {
         { id: 'l2', label: 'By hand', amountCents: 900, projectId: null }
       ]
     })
-    expect(input.number).toBe('INV-0150')
+    /* No number travels: the store or the server issues it. */
+    expect('number' in input).toBe(false)
     expect(input.currency).toBe('GBP')
     expect(input.taxRate).toBe(8.5)
     expect(input.lines.map((l) => [l.label, l.sortOrder])).toEqual([
@@ -210,17 +213,48 @@ describe('the create-invoice draft model', () => {
     expect(input.lines[0].milestoneId).toBeNull()
   })
 
-  it('toNewInvoiceInput leaves the number out when the field is empty, and refuses an unreadable rate', () => {
+  it('toNewInvoiceInput refuses an unreadable rate', () => {
     const input = toNewInvoiceInput({
       clientId: 'c1',
-      number: '   ',
       currency: 'USD',
       taxRate: 'abc',
       notes: '',
       lines: [newLine('A')]
     })
-    expect(input.number).toBeUndefined()
     expect(input.taxRate).toBe(0)
+  })
+})
+
+describe('pdfAvailability', () => {
+  const signedIn: AuthStatus = {
+    state: 'signedIn',
+    user: { id: 'u1', email: 'alex@trackit.studio', name: 'Alex', createdAt: '2026-01-01T00:00:00.000Z' },
+    session: 'active'
+  }
+
+  it('is available online and signed in, and says why otherwise', () => {
+    expect(pdfAvailability({ online: true, auth: signedIn })).toEqual({ ok: true })
+    expect(pdfAvailability({ online: false, auth: signedIn })).toEqual({
+      ok: false,
+      reason: 'No connection. The PDF is made on the server.'
+    })
+    expect(pdfAvailability({ online: true, auth: { state: 'signedOut' } })).toEqual({
+      ok: false,
+      reason: 'Sign in to make a PDF.'
+    })
+    expect(pdfAvailability({ online: true, auth: { ...signedIn, session: 'expired' } })).toEqual({
+      ok: false,
+      reason: 'Your session has expired. Sign in again to make a PDF.'
+    })
+  })
+
+  it('is unavailable until the account status is known, without a reason to show', () => {
+    expect(pdfAvailability({ online: true, auth: undefined })).toEqual({ ok: false, reason: null })
+  })
+
+  it('puts the connection first: offline is the reason whatever the account says', () => {
+    expect(pdfAvailability({ online: false, auth: { state: 'signedOut' } }).ok).toBe(false)
+    expect((pdfAvailability({ online: false, auth: { state: 'signedOut' } }) as { reason: string }).reason).toMatch(/connection/)
   })
 })
 

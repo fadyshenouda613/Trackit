@@ -5596,3 +5596,25 @@ button.filter-dropdown {
 .skeleton__row:hover {
   background: transparent;
 }
+
+/* The one line under a disabled Download PDF: why it cannot be pressed. */
+.inv-acts__hint {
+  margin-top: -4px;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--text-tertiary);
+}
+
+/* A provisional number carries its mark beside it, in the app face rather
+   than the number face: it is a status, not part of the number. */
+.doc__number .pill,
+.invoices__number .pill {
+  margin-left: var(--s-6);
+  vertical-align: middle;
+  font-family: var(--font-sans);
+}
+
+.toast__actions {
+  display: flex;
+  gap: var(--s-12);
+}

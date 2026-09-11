@@ -1,5 +1,5 @@
 import { SORT_ORDER_STEP, balanceCents, daysBetween, formatCents, groupInvoiceLines, overdueDays, overdueJudgement, paidCents, subtotalCents, symbolOf, type InvoiceLineGroup } from '@trackit/shared'
-import type { Client, CurrencyCode, Id, Invoice, InvoiceLine, InvoiceStatus, NewInvoiceInput, Project } from '@trackit/shared'
+import type { AuthStatus, Client, CurrencyCode, Id, Invoice, InvoiceLine, InvoiceStatus, NewInvoiceInput, Project } from '@trackit/shared'
 import { dateLabel, localDateOf } from './local-dates'
 import type { PaymentsByInvoice } from './client-rows'
 
@@ -19,12 +19,12 @@ export type LineGroup = InvoiceLineGroup<InvoiceLine>
 export const groupLines = (lines: InvoiceLine[], projects: Project[]): LineGroup[] =>
   groupInvoiceLines(lines, (projectId) => projects.find((p) => p.id === projectId)?.name)
 
-export type InvoiceRow = { id: Id; number: string; client: string; issued: string; due: string; late: number | null; total: string; paid: string | null; status: InvoiceStatus; quiet: boolean; voided: boolean }
+export type InvoiceRow = { id: Id; number: string; provisional: boolean; client: string; issued: string; due: string; late: number | null; total: string; paid: string | null; status: InvoiceStatus; quiet: boolean; voided: boolean }
 export function invoiceRow(i: Invoice, clients: Client[], payments: PaymentsByInvoice, today: string): InvoiceRow {
   const symbol = symbolFor(i)
   const paid = paidOf(i, payments)
   return {
-    id: i.id, number: i.number, client: clientOf(i, clients)?.company ?? '—', issued: dateLabel(i.issuedAt), due: dateLabel(i.dueAt),
+    id: i.id, number: i.number, provisional: i.numberProvisional, client: clientOf(i, clients)?.company ?? '—', issued: dateLabel(i.issuedAt), due: dateLabel(i.dueAt),
     late: overdueDaysOf(i, today), total: formatCents(i.totalCents, symbol), paid: paid > 0 ? formatCents(paid, symbol) : null,
     status: i.status, quiet: i.status === 'draft' || i.status === 'void', voided: i.status === 'void'
   }
@@ -100,10 +100,10 @@ export function billableView(
  * The draft as the store takes it. The label and amount travel with every
  * line, project-ticked ones included: what the client is told they are paying
  * for is the freelancer's words at this moment, not the project's name later.
+ * No number travels: the server issues it, or the store guesses one until it can.
  */
 export function toNewInvoiceInput(a: {
   clientId: Id
-  number: string
   currency: CurrencyCode
   taxRate: string
   notes: string
@@ -113,7 +113,6 @@ export function toNewInvoiceInput(a: {
   return {
     id: crypto.randomUUID(),
     clientId: a.clientId,
-    number: a.number.trim() || undefined,
     currency: a.currency,
     taxRate: Number.isFinite(rate) && rate >= 0 && rate <= 100 ? rate : 0,
     notes: a.notes,
@@ -126,4 +125,20 @@ export function toNewInvoiceInput(a: {
       sortOrder: (i + 1) * SORT_ORDER_STEP
     }))
   }
+}
+
+/**
+ * Whether "Download PDF" can be pressed, and if not, the one line the rail
+ * shows under it. The PDF is made on the server, so the two things it needs
+ * are a link and a session; the link comes first because without one the
+ * account cannot be checked either. `reason: null` is the moment before the
+ * bridge has said who is signed in — disabled, but with nothing to explain.
+ */
+export type PdfAvailability = { ok: true } | { ok: false; reason: string | null }
+export function pdfAvailability(a: { online: boolean; auth: AuthStatus | undefined }): PdfAvailability {
+  if (!a.online) return { ok: false, reason: 'No connection. The PDF is made on the server.' }
+  if (a.auth === undefined) return { ok: false, reason: null }
+  if (a.auth.state === 'signedOut') return { ok: false, reason: 'Sign in to make a PDF.' }
+  if (a.auth.session === 'expired') return { ok: false, reason: 'Your session has expired. Sign in again to make a PDF.' }
+  return { ok: true }
 }

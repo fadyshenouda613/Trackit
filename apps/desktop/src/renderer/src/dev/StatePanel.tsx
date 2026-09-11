@@ -49,6 +49,13 @@ export type DataState = 'ready' | 'loading'
 export type Modal = null | 'client' | 'project' | 'payment'
 
 /**
+ * Whether the machine is treated as having a link. `live` is whatever the
+ * browser reports; `offline` forces the states that depend on a connection —
+ * the PDF button's refusal — so they stay reviewable on a connected machine.
+ */
+export type ConnectionLever = 'live' | 'offline'
+
+/**
  * Everything the Screen row can ask for. Wider than `Screen` because some of
  * its entries are not places: `empty` and `seed` are what the database holds,
  * the dialogs are states of a screen, and `recovery` is a condition the app
@@ -62,6 +69,7 @@ type ScreenChoice =
   | 'newProject'
   | 'recovery'
   | 'voidInvoice'
+  | 'provisionalInvoice'
   | 'payment'
 
 /** `in` is the way back to the app; the rest map straight to an `AuthView`. */
@@ -82,6 +90,8 @@ type StatePanelProps = {
   onSyncState: (state: SyncLever) => void
   notice: NoticeState
   onNotice: (notice: NoticeState) => void
+  connection: ConnectionLever
+  onConnection: (connection: ConnectionLever) => void
   data: DataState
   onData: (data: DataState) => void
   /* A toast is an event, not a state: there is nothing to switch to, only
@@ -194,6 +204,7 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
           { value: 'invoices', label: 'Invoices' },
           { value: 'invoice', label: 'Invoice' },
           { value: 'voidInvoice', label: 'Void invoice' },
+          { value: 'provisionalInvoice', label: 'Provisional draft' },
           { value: 'payment', label: 'Record payment' },
           { value: 'settings', label: 'Settings' },
           { value: 'printed', label: 'Printed invoice' }
@@ -259,6 +270,18 @@ export function StatePanel(props: StatePanelProps): JSX.Element {
           { value: 'update', label: 'Update' },
           /* The macOS shape of the same notice: a download, not a restart. */
           { value: 'download', label: 'Download' }
+        ]}
+      />
+
+      {/* The PDF is made on the server: forcing offline shows the button's
+          refusal without pulling the cable. */}
+      <OptionRow
+        label="Connection"
+        value={props.connection}
+        onChange={props.onConnection}
+        options={[
+          { value: 'live', label: 'Live' },
+          { value: 'offline', label: 'Offline' }
         ]}
       />
 

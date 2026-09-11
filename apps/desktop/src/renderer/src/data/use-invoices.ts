@@ -83,3 +83,25 @@ export function useDeleteInvoice() {
     onSuccess: invalidate
   })
 }
+
+/**
+ * The PDF. Main syncs first and stamps the invoice after, so the invoice
+ * and everything a sync may have touched are stale once it answers; the
+ * sync status push covers the rest, and the invoice's own queries are
+ * refetched here at once.
+ */
+export function useGeneratePdf() {
+  const invalidate = useInvalidateInvoices()
+  return useMutation({
+    mutationFn: (id: Id) => call(() => ledger.pdf.generate(id)),
+    onSuccess: invalidate
+  })
+}
+
+/** Show the cached file in the file manager. A refusal — no file here — is a toast. */
+export const useRevealPdf = () =>
+  useMutation({ mutationFn: (id: Id) => call(() => ledger.pdf.reveal(id)) })
+
+/** The save dialog over the cached file. Cancelling answers null and is not an error. */
+export const useSavePdfAs = () =>
+  useMutation({ mutationFn: (id: Id) => call(() => ledger.pdf.saveAs(id)) })
