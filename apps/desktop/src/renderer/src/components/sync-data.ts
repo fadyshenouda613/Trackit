@@ -90,7 +90,7 @@ export const failureReasons: Record<SyncFailure, { line: string; hint: string }>
   },
   signedOut: {
     line: 'Signed out on this machine',
-    hint: 'Your work is still here. Sign in again from Settings and it will upload.'
+    hint: 'Your work is kept on this machine under your account. Sign in again from Settings to see it and upload it.'
   },
   server: {
     line: 'Trackit did not answer',

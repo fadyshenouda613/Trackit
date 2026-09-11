@@ -521,3 +521,61 @@ describe('provisional numbers', () => {
     expect(getInvoice(db, draft.id)?.number).toBe('INV-0042')
   })
 })
+
+describe('switching the file underneath', () => {
+  it('idle resolves at once when nothing is running', async () => {
+    const engine = engineWith({ transport: scripted(acceptAll(1)) })
+    let settled = false
+    void engine.idle().then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(true)
+  })
+
+  it('idle waits for the run in flight and the one queued behind it', async () => {
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const transport = scripted(async (request) => {
+      await gate
+      return acceptAll(1)(request)
+    })
+    const engine = engineWith({ transport })
+
+    const first = engine.sync()
+    const second = engine.sync()
+    let settled = false
+    const idle = engine.idle().then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    release()
+    await Promise.all([first, second, idle])
+    expect(settled).toBe(true)
+    expect(transport.calls).toHaveLength(2)
+    /* Once idle, a sync is a fresh run, not one the switch was waiting on. */
+    expect(engine.status().state).toBe('saved')
+  })
+
+  it('reset forgets the failure, bumps the revision so screens refetch, and says so', async () => {
+    aClient(db)
+    const engine = engineWith({
+      transport: scripted(() => {
+        throw new SyncClientError('offline', 'down')
+      })
+    })
+    const failed = await engine.sync()
+    expect(failed).toMatchObject({ state: 'failed', failure: 'offline' })
+
+    statuses.length = 0
+    engine.reset()
+    expect(statuses).toHaveLength(1)
+    expect(statuses[0]).toMatchObject({ state: 'pending' })
+    expect(statuses[0]?.failure).toBeUndefined()
+    expect(statuses[0]?.revision).toBe(failed.revision + 1)
+  })
+})

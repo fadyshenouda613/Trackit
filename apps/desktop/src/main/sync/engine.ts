@@ -78,6 +78,17 @@ export type SyncEngine = {
   /** The launch trigger and the interval. */
   start: () => void
   stop: () => void
+  /**
+   * Resolves once no run is in flight or queued. The wiring waits on this
+   * before swapping the database underneath, so no run ever straddles two
+   * files; a run asked for after it resolves is a fresh one on the new file.
+   */
+  idle: () => Promise<void>
+  /**
+   * For the moment after a swap: the failure belonged to the old file, and
+   * every screen has to refetch, so the revision moves and the status goes out.
+   */
+  reset: () => void
   conflicts: () => SyncConflict[]
   resolveConflict: (id: string, resolution: ConflictResolution) => void
 }
@@ -270,6 +281,16 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
     stop: () => {
       if (timer) clearInterval(timer)
       timer = null
+    },
+    idle: async () => {
+      /* A queued run replaces `current` in a callback registered before this
+         one, so the loop sees it and waits again. */
+      while (current) await current.catch(() => undefined)
+    },
+    reset: () => {
+      failure = undefined
+      revision += 1
+      emit()
     },
     conflicts: () => listConflicts(db),
     resolveConflict: (id, resolution) => {

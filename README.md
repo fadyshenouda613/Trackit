@@ -47,10 +47,13 @@ developer"* (or *"…Apple could not verify…"* on macOS 15). Either:
 - clear the quarantine flag from a terminal:
   `xattr -dr com.apple.quarantine /Applications/Trackit.app`.
 
-**Where your data lives.** Everything is in one SQLite file in the app's
-per-user data directory — `%APPDATA%Trackit	rackit.db` on Windows,
-`~/Library/Application Support/Trackit/trackit.db` on macOS. Uninstalling
-leaves it in place.
+**Where your data lives.** Everything is in SQLite files in the app's
+per-user data directory — `%APPDATA%\Trackit` on Windows,
+`~/Library/Application Support/Trackit` on macOS. Signed out, Trackit works
+on `trackit.db`; each account that signs in gets its own `trackit-<id>.db`
+beside it, so two people sharing a machine never see each other's ledger.
+The first account to sign in takes over `trackit.db`, so nothing made before
+signing up is left behind. Uninstalling leaves the files in place.
 
 **Updates.** Trackit checks this repository's releases shortly after launch
 and a few times a day. On Windows a newer build downloads in the background
