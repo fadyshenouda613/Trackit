@@ -53,6 +53,37 @@ describe('collectPending', () => {
     expect(collectPending(db, 3).more).toBe(false)
   })
 
+  it('says there is more when the cap is spent before a later table is reached', () => {
+    const client = aClient(db)
+    const project = aProject(db, client)
+
+    /* The cap fills on clients; projects is never queried for rows, only asked
+       whether anything waits — which is what makes the next page happen. */
+    const outbox = collectPending(db, 1)
+    expect(outbox.pushed).toEqual([{ table: 'clients', id: client.id, updatedAt: client.updatedAt }])
+    expect(outbox.changes).not.toHaveProperty('projects')
+    expect(outbox.more).toBe(true)
+
+    db.prepare("UPDATE projects SET sync_state = 'synced' WHERE id = ?").run(project.id)
+    expect(collectPending(db, 1).more).toBe(false)
+  })
+
+  it('sends the oldest edit first within a table, so a backlog goes up in the order it was made', () => {
+    const newest = aClient(db, { id: id(), name: 'Newest' })
+    const oldest = aClient(db, { id: id(), name: 'Oldest' })
+    const middle = aClient(db, { id: id(), name: 'Middle' })
+    const stamp = (rowId: string, at: string): void => {
+      db.prepare('UPDATE clients SET updated_at = ? WHERE id = ?').run(at, rowId)
+    }
+    stamp(oldest.id, '2026-09-10T09:00:00.000Z')
+    stamp(middle.id, '2026-09-10T09:01:00.000Z')
+    stamp(newest.id, '2026-09-10T09:02:00.000Z')
+
+    const outbox = collectPending(db, 2)
+    expect(outbox.changes.clients?.map((row) => row.name)).toEqual(['Oldest', 'Middle'])
+    expect(outbox.more).toBe(true)
+  })
+
   it('sends the settings row without the machine-local fields, and remembers it by an empty id', () => {
     const settings = updateSettings(db, { person: 'Alex', theme: 'dark', accountEmail: 'alex@trackit.studio' })
     const outbox = collectPending(db, 500)
@@ -102,5 +133,19 @@ describe('markSynced', () => {
     const outbox = collectPending(db, 500)
     markSynced(db, outbox.pushed, new Set())
     expect((db.prepare('SELECT sync_state FROM settings').get() as { sync_state: string }).sync_state).toBe('synced')
+  })
+
+  it('counts only the rows it marked, so an edit in flight or a skip is not reported as uploaded', () => {
+    const client = aClient(db)
+    const project = aProject(db, client)
+    updateSettings(db, { person: 'Alex' })
+    const outbox = collectPending(db, 500)
+    expect(outbox.pushed).toHaveLength(3)
+
+    updateClient(db, client.id, { name: 'Edited meanwhile' })
+    const marked = markSynced(db, outbox.pushed, new Set([`projects:${project.id}`]))
+    expect(marked).toBe(1)
+    expect(syncStateOf('clients', client.id)).toBe('pending')
+    expect(syncStateOf('projects', project.id)).toBe('pending')
   })
 })

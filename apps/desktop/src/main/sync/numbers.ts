@@ -59,7 +59,9 @@ export async function assignServerNumbers(
   db: Database,
   request: (call: (accessToken: string) => Promise<{ number: string }>) => Promise<{ number: string }>,
   transport: SyncTransport,
-  now: () => string
+  now: () => string,
+  /** Called after each draft is numbered, so a caller knows what landed even when a later mint throws. */
+  onNumbered: () => void = () => undefined
 ): Promise<number> {
   const drafts = listProvisionalInvoices(db)
   if (drafts.length === 0) return 0
@@ -67,6 +69,7 @@ export async function assignServerNumbers(
   for (const draft of drafts) {
     const minted = await request((token) => transport.mintNumber(token, draft.id, scheme))
     assignInvoiceNumber(db, draft.id, minted.number)
+    onNumbered()
     recordEvent(
       db,
       'synced',

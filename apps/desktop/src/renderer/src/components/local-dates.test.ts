@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { addDays } from '@trackit/shared'
 import { atLocal, dateLabel, localDateOf, localMinutesOf, parseShortDate, todayIso } from './local-dates'
 
 /*
@@ -62,5 +63,50 @@ describe('dateLabel', () => {
 describe('todayIso', () => {
   it('names the local calendar day, not the UTC one', () => {
     expect(todayIso(new Date(2026, 8, 8, 12))).toBe('2026-09-08')
+  })
+
+  it('holds from the first second of the local day to the last', () => {
+    expect(todayIso(new Date(2026, 8, 8, 0, 0, 1))).toBe('2026-09-08')
+    expect(todayIso(new Date(2026, 8, 8, 23, 59, 59))).toBe('2026-09-08')
+  })
+})
+
+/*
+ * The DST proof, in whatever zone this runs: every day of the year is walked
+ * and the pair has to agree on each one. Midday and the last minute are used
+ * rather than midnight, because a zone that springs forward at 00:00 has a
+ * day with no midnight at all, and that is a fact about the zone, not the
+ * code. The gap test is where a skipped or repeated hour would show.
+ */
+describe('the local day grid across a whole year', () => {
+  const days: string[] = []
+  for (let day = '2026-01-01'; day < '2027-01-01'; day = addDays(day, 1)) days.push(day)
+
+  it('round-trips midday and the last minute of every day of 2026, DST days included', () => {
+    expect(days).toHaveLength(365)
+    for (const day of days) {
+      for (const minutes of [720, 1439]) {
+        const iso = atLocal(day, minutes)
+        expect(localDateOf(iso)).toBe(day)
+        expect(localMinutesOf(iso)).toBe(minutes)
+      }
+    }
+  })
+
+  it('wraps a span past midnight onto the next day, every day of the year', () => {
+    for (const day of days) {
+      const wrapped = atLocal(day, 1440 + 720)
+      expect(localDateOf(wrapped)).toBe(addDays(day, 1))
+      expect(localMinutesOf(wrapped)).toBe(720)
+    }
+  })
+
+  it('keeps consecutive local midnights 24 hours apart, except the DST days at 23 or 25', () => {
+    const gaps = days.map(
+      (day) => (Date.parse(atLocal(addDays(day, 1), 0)) - Date.parse(atLocal(day, 0))) / 3_600_000
+    )
+    for (const gap of gaps) expect([23, 24, 25]).toContain(gap)
+    expect(gaps.filter((gap) => gap !== 24).length).toBeLessThanOrEqual(2)
+    expect(gaps.reduce((sum, gap) => sum + gap, 0)).toBe(365 * 24)
   })
 })

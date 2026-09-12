@@ -15,9 +15,9 @@ const BUCKETS: Record<PendingKind, string[]> = {
   settings: ['settings']
 }
 
+/* Tombstones count: a delete that has not gone up waits like any other row. */
 const countPending = (db: Database, table: string): number => {
-  const live = table === 'settings' ? '' : ' AND deleted_at IS NULL'
-  const row = db.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE sync_state = 'pending'${live}`).get() as { count: number }
+  const row = db.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE sync_state = 'pending'`).get() as { count: number }
   return row.count
 }
 

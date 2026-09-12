@@ -184,12 +184,15 @@ function requireDraft(db: Database, id: string): Invoice {
 }
 
 /**
- * The project a line may bill: not spoken for, and delivered. The invoice is
- * checked first because it is the more useful answer — a project that is
- * invoiced or paid is so *because* it is on one.
+ * The project a line may bill: this client's, not spoken for, and delivered.
+ * The invoice is checked before delivery because it is the more useful
+ * answer — a project that is invoiced or paid is so *because* it is on one.
  */
-function billableProject(db: Database, projectId: string): Project {
+function billableProject(db: Database, projectId: string, clientId: string): Project {
   const project = requireRow(db, projectsTable, projectId)
+  if (project.clientId !== clientId) {
+    throw new RepositoryError('not_billable', `${project.name} belongs to another client`)
+  }
   const existing = invoiceForProject(db, projectId)
   if (existing) {
     throw new RepositoryError('already_billed', `${project.name} is already on ${existing.number}`)
@@ -205,7 +208,12 @@ function billableProject(db: Database, projectId: string): Project {
  * line without a label or amount takes the project's name and price now, and
  * keeps them whatever happens to the project later.
  */
-function resolveLine(db: Database, invoiceId: string, line: NewInvoiceLineInput): CreateFields<InvoiceLine> {
+function resolveLine(
+  db: Database,
+  invoiceId: string,
+  clientId: string,
+  line: NewInvoiceLineInput
+): CreateFields<InvoiceLine> {
   const base = {
     id: line.id,
     invoiceId,
@@ -217,7 +225,7 @@ function resolveLine(db: Database, invoiceId: string, line: NewInvoiceLineInput)
     // The schema has already insisted on both for a hand-typed line.
     return { ...base, label: line.label ?? '', amountCents: line.amountCents ?? 0 }
   }
-  const project = billableProject(db, line.projectId)
+  const project = billableProject(db, line.projectId, clientId)
   return {
     ...base,
     label: line.label ?? project.name,
@@ -305,7 +313,7 @@ export function createInvoice(db: Database, input: NewInvoiceInput, numbering?: 
         }
         seen.add(line.projectId)
       }
-      return resolveLine(db, input.id, line)
+      return resolveLine(db, input.id, input.clientId, line)
     })
 
     const invoice = createRow(db, invoicesTable, {
@@ -368,8 +376,8 @@ export function deleteInvoice(db: Database, id: string): Invoice {
 
 export function addInvoiceLine(db: Database, invoiceId: string, line: NewInvoiceLineInput): InvoiceLine {
   return db.transaction(() => {
-    requireDraft(db, invoiceId)
-    const created = createRow(db, invoiceLinesTable, resolveLine(db, invoiceId, line))
+    const draft = requireDraft(db, invoiceId)
+    const created = createRow(db, invoiceLinesTable, resolveLine(db, invoiceId, draft.clientId, line))
     retotal(db, invoiceId)
     return created
   })()
@@ -474,6 +482,9 @@ export function voidInvoice(db: Database, id: string, input: VoidInvoiceInput): 
     }
     if (invoice.status === 'draft') {
       throw new RepositoryError('invalid_state', `${invoice.number} was never issued; delete the draft instead`)
+    }
+    if (input.replacedByInvoiceId === id) {
+      throw new RepositoryError('invalid_state', `${invoice.number} cannot replace itself`)
     }
     if (input.replacedByInvoiceId !== null) requireRow(db, invoicesTable, input.replacedByInvoiceId)
 

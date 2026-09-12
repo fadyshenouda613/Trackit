@@ -22,6 +22,7 @@ import { Clock, createDevice, expectSameLedger, ledgerOf, serverNumbers, serverR
  *   4. a long-offline client, and a second machine hydrating from nothing
  *   5. a crash in the middle of a sync, and recovery
  *   6. two drafts raised offline with the same provisional number
+ *   7. an edit made while its row's push is in flight
  *
  * The clock is stepped by hand between edits (see Clock in the harness),
  * so which edit is newer is a fact of the scenario and not of the machine.
@@ -604,5 +605,45 @@ describe('6. two drafts raised offline with the same provisional number', () => 
     /* The tombstone went up as it was, provisional guess and all; B's draft took the first real number. */
     expect(getInvoice(b.db, kept.id)).toMatchObject({ number: 'INV-0001', numberProvisional: false })
     expect(await serverNumbers(server)).toEqual(['INV-0001'])
+  })
+})
+
+/* ---- 7. An edit while the push is in flight ------------------------------------ */
+
+describe('7. an edit made while its row’s push is in flight', () => {
+  it('the version that went up stands on the server; the edit goes up next time and both devices take it', async () => {
+    const { a, b } = await twoDevicesInStep()
+    const client = aClient(a)
+    await a.sync()
+    await b.sync()
+
+    clock.tick()
+    updateClient(a.db, client.id, { name: 'First' })
+
+    /* The server has answered; before A applies the answer, the same row is edited again. */
+    const editing = a.restart({
+      hooks: {
+        beforeApply: () => {
+          clock.tick()
+          updateClient(a.db, client.id, { name: 'Second' })
+        }
+      }
+    })
+    const status = await editing.sync()
+    expect(status.state).toBe('pending')
+    expect(status.pending).toEqual({ clients: 1 })
+    expect(getClient(a.db, client.id)).toMatchObject({ name: 'Second', syncState: 'pending' })
+    expect((await serverRows(server, 'clients'))[0]?.['name']).toBe('First')
+
+    /* B sees the first version; A's next run sends the second and B follows. No conflict anywhere: nothing lost. */
+    await b.sync()
+    expect(getClient(b.db, client.id)?.name).toBe('First')
+    const quiet = a.restart()
+    await quiet.sync()
+    await b.sync()
+    expectSameLedger(quiet, b)
+    expect(getClient(b.db, client.id)?.name).toBe('Second')
+    expect(quiet.engine.conflicts()).toEqual([])
+    expect(b.engine.conflicts()).toEqual([])
   })
 })

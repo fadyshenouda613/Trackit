@@ -28,6 +28,26 @@ describe('totals', () => {
     expect(taxCents(600000, 0)).toBe(0)
   })
 
+  it('rounds half up, and on the subtotal rather than line by line', () => {
+    /* 12.5 cents goes to 13, not to the even 12. */
+    expect(taxCents(125, 10)).toBe(13)
+    expect(taxCents(115, 10)).toBe(12)
+    expect(taxCents(1, 50)).toBe(1)
+    /* Three lines of a cent at 50%: 1.5 on the subtotal is 2; line by line it would be 3. */
+    expect(invoiceTotals([{ amountCents: 1 }, { amountCents: 1 }, { amountCents: 1 }], 50)).toEqual({
+      subtotalCents: 3,
+      taxCents: 2,
+      totalCents: 5
+    })
+  })
+
+  it('is not moved by a rate floating point cannot hold exactly', () => {
+    expect(taxCents(100, 7.1)).toBe(7)
+    expect(taxCents(1000, 8.5)).toBe(85)
+    expect(taxCents(3, 33.3)).toBe(1)
+    expect(taxCents(100_000_000, 100)).toBe(100_000_000)
+  })
+
   it('snapshots the three figures together', () => {
     expect(invoiceTotals([{ amountCents: 600000 }], 20)).toEqual({
       subtotalCents: 600000,
@@ -68,6 +88,7 @@ describe('dueDateOf', () => {
   it('is the issue date plus the terms, as a date', () => {
     expect(dueDateOf('2026-08-24T00:00:00.000Z', 14)).toBe('2026-09-07')
     expect(dueDateOf('2026-08-22', 0)).toBe('2026-08-22')
+    expect(dueDateOf('2026-12-25T00:00:00.000Z', 14)).toBe('2027-01-08')
   })
 })
 
@@ -75,6 +96,7 @@ describe('overdueDays', () => {
   it('reads "24 days overdue" and "6 days" off the attention list', () => {
     expect(overdueDays('2026-08-04', TODAY)).toBe(24)
     expect(overdueDays('2026-08-22', TODAY)).toBe(6)
+    expect(overdueDays('2026-08-27', TODAY)).toBe(1)
   })
 
   it('is null on the due date, before it, and with no due date', () => {

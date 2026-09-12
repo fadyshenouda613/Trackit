@@ -74,4 +74,38 @@ describe('createSyncClient', () => {
     const crashed = createSyncClient({ baseUrl: 'http://server.test', fetch: respond(502, 'Bad Gateway') })
     expect((await failWith(crashed)).code).toBe('internal')
   })
+
+  it('refuses a page naming a table this build does not know, rather than applying the rest', async () => {
+    const newer = createSyncClient({
+      baseUrl: 'http://server.test',
+      fetch: respond(200, { ...ok, changes: { widgets: [] } })
+    })
+    expect((await failWith(newer)).code).toBe('internal')
+  })
+
+  it('maps a code it does not know to internal, never to one that means something', async () => {
+    const odd = createSyncClient({
+      baseUrl: 'http://server.test',
+      fetch: respond(418, { error: { code: 'teapot', message: 'short and stout' } })
+    })
+    const error = await failWith(odd)
+    expect(error.code).toBe('internal')
+    expect(error.message).toBe('short and stout')
+  })
+
+  it('asks for an invoice number at the invoice’s own path, with the scheme, and reads the answer', async () => {
+    let seen: { url: string; body: unknown } | null = null
+    const fetchImpl: typeof fetch = async (url, init) => {
+      seen = { url: String(url), body: JSON.parse(String(init?.body)) }
+      return new Response(JSON.stringify({ invoiceId: request.deviceId, number: 'INV-0042' }), { status: 200 })
+    }
+    const client = createSyncClient({ baseUrl: 'http://server.test', fetch: fetchImpl })
+    const minted = await client.mintNumber('the-token', request.deviceId, 'INV-0000')
+    expect(minted).toEqual({ invoiceId: request.deviceId, number: 'INV-0042' })
+    expect(seen!.url).toBe(`http://server.test/invoices/${request.deviceId}/number`)
+    expect(seen!.body).toEqual({ scheme: 'INV-0000' })
+
+    const unreadable = createSyncClient({ baseUrl: 'http://server.test', fetch: respond(200, { number: 42 }) })
+    await expect(unreadable.mintNumber('t', request.deviceId, 'INV-0000')).rejects.toMatchObject({ code: 'internal' })
+  })
 })

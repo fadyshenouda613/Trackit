@@ -3,6 +3,7 @@ import type { SyncPullChanges, SyncPullRow } from '@trackit/shared/schemas'
 import { openMemoryDatabase, type Database } from '../db'
 import { createChecklistItem, listChecklistItems, updateChecklistItem } from '../repositories/checklist-items'
 import { deleteClient, getClient, updateClient } from '../repositories/clients'
+import { createInvoice, listInvoiceLines } from '../repositories/invoices'
 import { getSettings, updateSettings } from '../repositories/settings'
 import { aClient, aProject, id } from '../repositories/test-support'
 import { applyChanges } from './apply'
@@ -55,6 +56,34 @@ describe('applyChanges: rows this machine has never seen', () => {
     expect(rawClient(client.id)['deleted_at']).toBe(client.deletedAt)
     expect(getClient(db, client.id)).toBeNull()
   })
+
+  it('applies parent tables first whatever order the page lists them in', () => {
+    const other = openMemoryDatabase()
+    const client = aClient(other)
+    const project = aProject(other, client, 'delivered')
+    const invoice = createInvoice(other, {
+      id: id(),
+      clientId: client.id,
+      taxRate: 0,
+      notes: '',
+      lines: [{ id: id(), projectId: project.id, milestoneId: null, sortOrder: 1 }]
+    })
+    const [line] = listInvoiceLines(other, invoice.id)
+
+    /* Foreign keys are on in this database, so a line written before its
+       invoice, or an invoice before its client, would be refused by SQLite.
+       The page is built child-first on purpose: the order has to come from
+       SYNC_TABLE_ORDER, not from the shape of the object. */
+    expect(db.pragma('foreign_keys', { simple: true })).toBe(1)
+    const result = apply({
+      invoice_lines: [pulled(line!)],
+      invoices: [pulled(invoice)],
+      projects: [pulled(project)],
+      clients: [pulled(client)]
+    })
+    expect(result).toEqual({ applied: 4, conflicts: 0 })
+    expect(listInvoiceLines(db, invoice.id).map((entry) => entry.id)).toEqual([line!.id])
+  })
 })
 
 describe('applyChanges: over a row the server already gave us', () => {
@@ -84,6 +113,28 @@ describe('applyChanges: over a row the server already gave us', () => {
     expect(apply(changes)).toEqual({ applied: 0, conflicts: 0 })
     expect(rawClient(client.id)).toEqual(after)
     expect(listConflicts(db)).toEqual([])
+  })
+
+  it('takes the server’s word at an equal instant: a synced copy has no edit to defend', () => {
+    const client = aClient(db)
+    markSynced('clients', client.id)
+    /* Same updatedAt, different content, from a lesser device id. A pending
+       row would win this tie; a synced one does not compete. */
+    const lesser = '00000000-0000-4000-8000-000000000000'
+    const result = apply({ clients: [pulled(client, lesser, { name: 'What the server holds' })] })
+    expect(result).toEqual({ applied: 1, conflicts: 0 })
+    expect(getClient(db, client.id)?.name).toBe('What the server holds')
+    expect(listConflicts(db)).toEqual([])
+  })
+
+  it('a remote delete over a synced row lands silently', () => {
+    const client = aClient(db)
+    markSynced('clients', client.id)
+    const gone = later(client.updatedAt)
+    const result = apply({ clients: [pulled(client, OTHER, { deletedAt: gone, updatedAt: gone })] })
+    expect(result).toEqual({ applied: 1, conflicts: 0 })
+    expect(getClient(db, client.id)).toBeNull()
+    expect(rawClient(client.id)).toMatchObject({ deleted_at: gone, sync_state: 'synced' })
   })
 })
 
@@ -147,6 +198,25 @@ describe('applyChanges: over a pending local edit', () => {
     expect(apply({ clients: [same] })).toEqual({ applied: 1, conflicts: 0 })
     expect(rawClient(client.id)['sync_state']).toBe('synced')
   })
+
+  it('a version with no device of record never wins a tie against a pending edit', () => {
+    const client = aClient(db)
+    const unsigned = pulled(client, null, { name: 'Written before devices had ids' })
+    expect(apply({ clients: [unsigned] })).toEqual({ applied: 0, conflicts: 0 })
+    expect(rawClient(client.id)).toMatchObject({ name: client.name, sync_state: 'pending' })
+    expect(listConflicts(db)).toEqual([])
+  })
+
+  it('applying the page that caused a conflict again records nothing twice', () => {
+    const client = aClient(db)
+    const mine = updateClient(db, client.id, { name: 'My name' })
+    const changes = { clients: [pulled(client, OTHER, { name: 'Their name', updatedAt: later(mine.updatedAt) })] }
+    expect(apply(changes)).toEqual({ applied: 1, conflicts: 1 })
+    /* What a relaunch after a crash between the commit and the cursor write
+       would do: the same page, over a row that is now synced at that version. */
+    expect(apply(changes)).toEqual({ applied: 0, conflicts: 0 })
+    expect(listConflicts(db)).toHaveLength(1)
+  })
 })
 
 describe('applyChanges: deletes', () => {
@@ -171,6 +241,36 @@ describe('applyChanges: deletes', () => {
     expect(getClient(db, client.id)?.name).toBe('Edited there')
     const [conflict] = listConflicts(db)
     expect(conflict).toMatchObject({ kind: 'record', localDeletedAt: mine.deletedAt, remoteDeletedAt: null })
+  })
+
+  it('a local delete that loses to a later remote edit keeps the local tombstone’s time on the conflict', () => {
+    const client = aClient(db)
+    markSynced('clients', client.id)
+    const mine = deleteClient(db, client.id)
+    const theirsAt = later(mine.updatedAt)
+    apply({ clients: [pulled(client, OTHER, { name: 'Edited there', updatedAt: theirsAt })] })
+    /* The row now carries the remote version outright: alive, at their time, synced. */
+    expect(rawClient(client.id)).toMatchObject({ deleted_at: null, updated_at: theirsAt, sync_state: 'synced' })
+    expect(listConflicts(db)[0]?.fields).toEqual(expect.arrayContaining(['deletedAt', 'name']))
+  })
+
+  /*
+   * BUG (apply.ts:96-110): two devices deleting the same row is not a
+   * disagreement, but differingFields() counts `deletedAt` like any other
+   * field, so the device whose tombstone is older is told "edited on two
+   * devices; the other version was kept" about a row both sides removed —
+   * and offered a Restore that would restore its own delete.
+   */
+  it('a delete on both sides is not a conflict: the row is gone, and nobody is told', () => {
+    const client = aClient(db)
+    markSynced('clients', client.id)
+    const mine = deleteClient(db, client.id)
+    const theirsAt = later(mine.updatedAt)
+    const result = apply({ clients: [pulled(client, OTHER, { deletedAt: theirsAt, updatedAt: theirsAt })] })
+    expect(getClient(db, client.id)).toBeNull()
+    expect(rawClient(client.id)['sync_state']).toBe('synced')
+    expect(result.conflicts).toBe(0)
+    expect(listConflicts(db)).toEqual([])
   })
 })
 

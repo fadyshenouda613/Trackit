@@ -92,9 +92,13 @@ function applyRow(db: Database, table: LocalSyncTable, row: SyncPullRow, context
     return
   }
 
-  /* The other device's version wins over an edit it never saw. */
+  /* The other device's version wins over an edit it never saw. Unless both
+     deleted it: then they disagree only on when, which is not a disagreement
+     about the record — the row is gone, and nobody is told. */
   const fields = differingFields(local, incoming)
-  if (fields.length > 0) {
+  /* A timestamp on both sides — settings has no deletedAt at all, and must not read as deleted. */
+  const bothDeleted = typeof local['deletedAt'] === 'string' && typeof incoming['deletedAt'] === 'string'
+  if (fields.length > 0 && !bothDeleted) {
     recordConflict(db, {
       table: table.name,
       rowId: key,
