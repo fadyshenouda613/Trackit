@@ -224,4 +224,141 @@ describe('auth service', () => {
     await service.logout()
     expect(changes).toEqual([{ state: 'signedOut' }])
   })
+
+  it('registers the way it signs in: file, access token, status', async () => {
+    const { service, store, changes } = harness({ register: () => Promise.resolve(issued(T0, 'r')) }, null)
+    await expect(service.register({ name: user.name, email: user.email, password: 'longenough' })).resolves.toEqual(user)
+    expect(store.current()?.refreshToken).toBe('refresh-r')
+    expect(changes).toEqual([{ state: 'signedIn', user, session: 'active' }])
+    await expect(service.accessToken()).resolves.toBe('access-r')
+  })
+
+  it('presents each refresh token once: every rotation hands the server the newest link', async () => {
+    const calls: string[] = []
+    let at = T0
+    const { service, store, tick } = harness(
+      {
+        login: () => Promise.resolve(issued(T0, 'a')),
+        refresh: (token) => {
+          calls.push(token)
+          return Promise.resolve(issued(at, String.fromCharCode(97 + calls.length)))
+        }
+      },
+      null
+    )
+    await service.login({ email: user.email, password: 'pw' })
+
+    /* Exactly a minute before expiry is already "within a minute". */
+    at = tick(14 * MINUTE)
+    await expect(service.accessToken()).resolves.toBe('access-b')
+    at = tick(14 * MINUTE)
+    await expect(service.accessToken()).resolves.toBe('access-c')
+    /* The server would have revoked the family had `refresh-a` turned up twice. */
+    expect(calls).toEqual(['refresh-a', 'refresh-b'])
+    expect(store.current()?.refreshToken).toBe('refresh-c')
+  })
+
+  it('treats a rate limit or a server fault on refresh as a bad moment: nothing changes, and it asks again next time', async () => {
+    const answers: Array<() => Promise<AuthSession>> = [
+      () => Promise.reject(new AuthClientError('rate_limited', 'slow down')),
+      () => Promise.reject(new AuthClientError('internal', 'The server answered 500')),
+      () => Promise.resolve(issued(T0, 'b'))
+    ]
+    const { service, store, changes } = harness({ refresh: () => answers.shift()!() }, stored)
+
+    await expect(service.accessToken()).rejects.toMatchObject({ code: 'rate_limited' })
+    await expect(service.accessToken()).rejects.toMatchObject({ code: 'internal' })
+    expect(service.status()).toEqual({ state: 'signedIn', user, session: 'active' })
+    expect(store.current()).toEqual(stored)
+    expect(changes).toEqual([])
+
+    /* The failed trip is not remembered as in flight: the third ask goes out and lands. */
+    await expect(service.accessToken()).resolves.toBe('access-b')
+    expect(store.current()?.refreshToken).toBe('refresh-b')
+  })
+
+  it('hands every caller of a shared refresh the same failure, then starts clean', async () => {
+    let refreshes = 0
+    const { service } = harness(
+      {
+        refresh: () => {
+          refreshes += 1
+          return refreshes === 1
+            ? Promise.reject(new AuthClientError('offline', 'no network'))
+            : Promise.resolve(issued(T0, 'b'))
+        }
+      },
+      stored
+    )
+    const results = await Promise.allSettled([service.accessToken(), service.accessToken(), service.accessToken()])
+    expect(results.map((r) => r.status)).toEqual(['rejected', 'rejected', 'rejected'])
+    expect(refreshes).toBe(1)
+    await expect(service.accessToken()).resolves.toBe('access-b')
+    expect(refreshes).toBe(2)
+  })
+
+  it('never presents a refresh token past its own expiry: no trip, from the moment it lapses', async () => {
+    const lapsing = { ...stored, refreshExpiresAt: new Date(T0).toISOString() }
+    /* Exactly at the expiry: already dead, without a status push, since nothing moved. */
+    const { service, changes, store } = harness({}, lapsing, T0)
+    expect(service.status()).toEqual({ state: 'signedIn', user, session: 'expired' })
+    await expect(service.accessToken()).rejects.toMatchObject({ code: 'unauthorized' })
+    await expect(service.verify()).resolves.toBeUndefined()
+    expect(changes).toEqual([])
+    expect(store.current()).toEqual(lapsing)
+
+    /* A millisecond earlier it is still worth a try. */
+    const { service: live } = harness({ refresh: () => Promise.resolve(issued(T0, 'b')) }, lapsing, T0 - 1)
+    await expect(live.accessToken()).resolves.toBe('access-b')
+  })
+
+  it('verifies an active session by rotating it quietly, so the next token needs no trip', async () => {
+    let refreshes = 0
+    const { service, store, changes } = harness(
+      {
+        refresh: () => {
+          refreshes += 1
+          return Promise.resolve(issued(T0, 'b'))
+        }
+      },
+      stored
+    )
+    await service.verify()
+    /* Active before, active after: nothing to push. The file has the new link. */
+    expect(changes).toEqual([])
+    expect(store.current()?.refreshToken).toBe('refresh-b')
+    /* What the sync engine's one retry relies on: after verify(), the token in hand is the new one. */
+    await expect(service.accessToken()).resolves.toBe('access-b')
+    expect(refreshes).toBe(1)
+
+    /* With nothing stored, verify() has nothing to ask about. */
+    const { service: out } = harness({}, null)
+    await expect(out.verify()).resolves.toBeUndefined()
+  })
+
+  it('stays signed out when a refresh that was in flight lands after sign-out', async () => {
+    /*
+     * The trip went out for a session this machine has since let go of.
+     * Adopting what it brings back would write the file again and report
+     * signedIn while the renderer was told signedOut — so it is discarded,
+     * and the caller that was waiting on it is refused.
+     */
+    let land: (issued: AuthSession) => void = () => undefined
+    const { service, store, changes } = harness(
+      {
+        refresh: () => new Promise<AuthSession>((resolve) => (land = resolve)),
+        logout: () => Promise.resolve()
+      },
+      stored
+    )
+    const pending = service.accessToken()
+    await service.logout()
+    expect(service.status()).toEqual({ state: 'signedOut' })
+
+    land(issued(T0, 'late'))
+    await pending.catch(() => undefined)
+    expect(store.current()).toBeNull()
+    expect(service.status()).toEqual({ state: 'signedOut' })
+    expect(changes).toEqual([{ state: 'signedOut' }])
+  })
 })

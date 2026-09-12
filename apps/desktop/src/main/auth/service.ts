@@ -88,6 +88,8 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     deps.store.write(stored)
     access = { token: issued.tokens.accessToken, expiresAt: Date.parse(issued.tokens.accessExpiresAt) }
     session = 'active'
+    /* A refresh still out for the previous session answers to nobody now. */
+    inflight = null
   }
 
   const refresh = (): Promise<AuthSession> => {
@@ -95,15 +97,21 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     const current = stored
     if (!current) return Promise.reject(new AuthClientError('unauthorized', 'Not signed in'))
 
-    inflight = deps.client
+    const trip: Promise<AuthSession> = deps.client
       .refresh(current.refreshToken)
       .then((issued) => {
+        /* Signed out, or signed in afresh, while this trip was out: what it
+           brought back belongs to a session this machine no longer holds,
+           and adopting it would sign the machine back in behind the
+           renderer's back. */
+        if (stored !== current) throw new AuthClientError('unauthorized', 'Signed out while refreshing')
         const was = session
         adopt(issued)
         if (was !== 'active') emit()
         return issued
       })
       .catch((error: unknown) => {
+        if (stored !== current) throw error
         if (error instanceof AuthClientError && error.code === 'unauthorized') {
           /* The server has said no. The file stays — it still says who this
              is — but the token in it is dead, and the status says so. */
@@ -118,9 +126,12 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         throw error
       })
       .finally(() => {
-        inflight = null
+        /* Only this trip's own slot: a sign-out or sign-in meanwhile has
+           already let go of it, and may have started a newer one. */
+        if (inflight === trip) inflight = null
       })
-    return inflight
+    inflight = trip
+    return trip
   }
 
   return {
@@ -146,6 +157,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       stored = null
       access = null
       session = 'active'
+      inflight = null
       emit()
       /* Best effort. The machine is signed out either way; the server
          revoking the family as well is the ideal, not the condition. */

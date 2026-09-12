@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+import { SignJWT } from 'jose'
 import request from 'supertest'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { connect } from '../db'
@@ -18,6 +20,19 @@ afterAll(() => db.close())
 beforeEach(() => db.reset())
 
 const alex = { name: 'Alex Marchetti', email: 'alex@trackit.studio', password: 'correct horse battery' }
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** The claims of an access token, read without checking anything: the test is the verifier here. */
+const claimsOf = (accessToken: string): Record<string, unknown> =>
+  JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64url').toString('utf8'))
+const b64url = (value: object): string => Buffer.from(JSON.stringify(value)).toString('base64url')
+
+/** A token with a real session's claims, signed as an attacker would have to. */
+const signedAs = (alg: 'HS256' | 'HS512', secret: string, claims: Record<string, unknown>) =>
+  new SignJWT(claims)
+    .setProtectedHeader({ alg })
+    .sign(new TextEncoder().encode(secret))
 
 describe('POST /auth/register', () => {
   it('makes the account and signs it in', async () => {
@@ -158,6 +173,91 @@ describe('POST /auth/refresh', () => {
     expect(rotated.status).toBe(200)
     expect(new Date(rotated.body.tokens.refreshExpiresAt).getTime()).toBeGreaterThan(firstExpiry)
   })
+
+  it('treats any earlier link turning up as reuse, not only the last one', async () => {
+    const app = appFor(config, db)
+    const first = (await request(app).post('/auth/register').send(alex)).body.tokens.refreshToken
+    const second = (await request(app).post('/auth/refresh').send({ refreshToken: first }).expect(200)).body.tokens.refreshToken
+    const third = (await request(app).post('/auth/refresh').send({ refreshToken: second }).expect(200)).body.tokens.refreshToken
+
+    /* The grandparent: two rotations old, and still enough to bring the family down. */
+    await request(app).post('/auth/refresh').send({ refreshToken: first }).expect(401)
+    await request(app).post('/auth/refresh').send({ refreshToken: third }).expect(401)
+  })
+
+  it('lets exactly one of two simultaneous refreshes of the same token win, and calls the other reuse', async () => {
+    const app = appFor(config, db)
+    const signedUp = await request(app).post('/auth/register').send(alex)
+    const original = signedUp.body.tokens.refreshToken
+
+    const race = () => request(app).post('/auth/refresh').send({ refreshToken: original })
+    const results = await Promise.all([race(), race()])
+    expect(results.map((r) => r.status).sort()).toEqual([200, 401])
+
+    /* The row lock made the second caller see the first's rotation, which is
+       the same as a replay: the winner's successor is already dead. */
+    const winner = results.find((r) => r.status === 200)
+    await request(app).post('/auth/refresh').send({ refreshToken: winner?.body.tokens.refreshToken }).expect(401)
+    await request(app).post('/auth/login').send({ email: alex.email, password: alex.password }).expect(200)
+  })
+
+  it('keeps the access token issued before a rotation working: /me checks the family, not the link', async () => {
+    /* Real time, since jose judges `exp` by it; the rotation lands five
+       minutes on, which is why the two access tokens differ at all — the
+       claims carry no nonce, so two mints in one second are the same bytes. */
+    let now = new Date()
+    const app = appFor(config, db, () => now)
+    const signedUp = await request(app).post('/auth/register').send(alex)
+    const { accessToken, refreshToken } = signedUp.body.tokens
+
+    now = new Date(now.getTime() + 5 * 60_000)
+    const rotated = await request(app).post('/auth/refresh').send({ refreshToken }).expect(200)
+    expect(rotated.body.tokens.accessToken).not.toBe(accessToken)
+    /* A call already in flight with the earlier token is not broken by the refresh beside it. */
+    await request(app).get('/auth/me').set('Authorization', `Bearer ${accessToken}`).expect(200)
+    await request(app).get('/auth/me').set('Authorization', `Bearer ${rotated.body.tokens.accessToken}`).expect(200)
+  })
+
+  it('issues every access token in a family under the same session id, and a new sign-in under a new one', async () => {
+    const app = appFor(config, db)
+    const signedUp = await request(app).post('/auth/register').send(alex)
+    const rotated = await request(app).post('/auth/refresh').send({ refreshToken: signedUp.body.tokens.refreshToken })
+    const signedInAgain = await request(app).post('/auth/login').send({ email: alex.email, password: alex.password })
+
+    const first = claimsOf(signedUp.body.tokens.accessToken)
+    const second = claimsOf(rotated.body.tokens.accessToken)
+    const other = claimsOf(signedInAgain.body.tokens.accessToken)
+    expect(first.sub).toBe(signedUp.body.user.id)
+    expect(second.sid).toBe(first.sid)
+    expect(other.sid).not.toBe(first.sid)
+    /* Nothing about the account rides in the token: not the email, not the name, never the hash. */
+    expect(Object.keys(first).sort()).toEqual(['exp', 'iat', 'iss', 'sid', 'sub'])
+    expect(JSON.stringify(first)).not.toContain(alex.email)
+  })
+
+  it('refuses a refresh token on the moment its own expiry arrives, and takes it a millisecond before', async () => {
+    const start = new Date('2026-09-09T09:00:00.000Z')
+    let now = start
+    const app = appFor(config, db, () => now)
+    const a = (await request(app).post('/auth/register').send(alex)).body.tokens.refreshToken
+    const b = (await request(app).post('/auth/login').send({ email: alex.email, password: alex.password })).body.tokens.refreshToken
+    const ttl = config.refreshTokenTtlDays * DAY_MS
+
+    now = new Date(start.getTime() + ttl - 1)
+    await request(app).post('/auth/refresh').send({ refreshToken: a }).expect(200)
+    now = new Date(start.getTime() + ttl)
+    await request(app).post('/auth/refresh').send({ refreshToken: b }).expect(401)
+  })
+
+  it('answers a body without a token, or with one too long to have been issued, as a validation failure', async () => {
+    const app = appFor(config, db)
+    const missing = await request(app).post('/auth/refresh').send({})
+    expect(missing.status).toBe(400)
+    expect(missing.body.error.code).toBe('validation')
+    const oversized = await request(app).post('/auth/refresh').send({ refreshToken: 'x'.repeat(513) })
+    expect(oversized.status).toBe(400)
+    expect(oversized.body.error.code).toBe('validation')
+  })
 })
 
 describe('POST /auth/logout', () => {
@@ -173,6 +273,37 @@ describe('POST /auth/logout', () => {
     /* A second time, or a token that never existed: still 204. */
     await request(app).post('/auth/logout').send({ refreshToken }).expect(204)
     await request(app).post('/auth/logout').send({ refreshToken: 'never-issued' }).expect(204)
+  })
+
+  it('signs the family out from a spent link as readily as from the current one', async () => {
+    const app = appFor(config, db)
+    const signedUp = await request(app).post('/auth/register').send(alex)
+    const original = signedUp.body.tokens.refreshToken
+    const rotated = await request(app).post('/auth/refresh').send({ refreshToken: original }).expect(200)
+
+    /* A sign-out that arrives with the token from before the rotation — the
+       desktop signing out while a refresh was in flight — still lands. */
+    await request(app).post('/auth/logout').send({ refreshToken: original }).expect(204)
+    await request(app).post('/auth/refresh').send({ refreshToken: rotated.body.tokens.refreshToken }).expect(401)
+    await request(app)
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${rotated.body.tokens.accessToken}`)
+      .expect(401)
+  })
+
+  it('leaves another device signed in: its refresh and access tokens both still work', async () => {
+    const app = appFor(config, db)
+    const laptop = (await request(app).post('/auth/register').send(alex)).body.tokens
+    const desk = (await request(app).post('/auth/login').send({ email: alex.email, password: alex.password })).body.tokens
+
+    await request(app).post('/auth/logout').send({ refreshToken: laptop.refreshToken }).expect(204)
+    await request(app).get('/auth/me').set('Authorization', `Bearer ${laptop.accessToken}`).expect(401)
+    await request(app).get('/auth/me').set('Authorization', `Bearer ${desk.accessToken}`).expect(200)
+    await request(app).post('/auth/refresh').send({ refreshToken: desk.refreshToken }).expect(200)
+
+    /* And a replay on the laptop's family, which is already dead, does not reach the desk's. */
+    await request(app).post('/auth/refresh').send({ refreshToken: laptop.refreshToken }).expect(401)
+    await request(app).get('/auth/me').set('Authorization', `Bearer ${desk.accessToken}`).expect(200)
   })
 })
 
@@ -204,6 +335,43 @@ describe('GET /auth/me', () => {
     const stale = await request(app).post('/auth/login').send({ email: alex.email, password: alex.password })
     await request(app).get('/auth/me').set('Authorization', `Bearer ${stale.body.tokens.accessToken}`).expect(401)
   })
+
+  it('refuses the classic forgeries as 401, never 500: alg none, another algorithm, a changed payload', async () => {
+    const app = appFor(config, db)
+    const signedUp = await request(app).post('/auth/register').send(alex)
+    const real: string = signedUp.body.tokens.accessToken
+    const claims = claimsOf(real)
+    const me = (token: string) => request(app).get('/auth/me').set('Authorization', `Bearer ${token}`)
+
+    const attempts = {
+      unsigned: `${b64url({ alg: 'none' })}.${b64url(claims)}.`,
+      hs512WithTheRealSecret: await signedAs('HS512', config.jwtSecret, claims),
+      hs256WithAGuessedSecret: await signedAs('HS256', 'a-guess-that-is-also-thirty-two-characters-long', claims),
+      /* The real signature over a payload that names another user. */
+      resigned: `${real.split('.')[0]}.${b64url({ ...claims, sub: randomUUID() })}.${real.split('.')[2]}`,
+      /* Signed by this server, for a family it never started. */
+      unknownFamily: await signedAs('HS256', config.jwtSecret, { ...claims, sid: randomUUID() })
+    }
+    for (const [name, token] of Object.entries(attempts)) {
+      const response = await me(token)
+      expect(response.status, name).toBe(401)
+      expect(response.body, name).toEqual({ error: { code: 'unauthorized', message: 'This token is not valid' } })
+    }
+    /* The control: the token as issued still opens the route. */
+    await me(real).expect(200)
+  })
+
+  it('wants the Bearer scheme exactly, with a token after it', async () => {
+    const app = appFor(config, db)
+    const signedUp = await request(app).post('/auth/register').send(alex)
+    const token: string = signedUp.body.tokens.accessToken
+
+    for (const header of ['Bearer', 'Bearer ', `bearer ${token}`, `Basic ${token}`, token]) {
+      const response = await request(app).get('/auth/me').set('Authorization', header)
+      expect(response.status, header).toBe(401)
+      expect(response.body.error.code, header).toBe('unauthorized')
+    }
+  })
 })
 
 describe('hardening', () => {
@@ -218,6 +386,22 @@ describe('hardening', () => {
       error: { code: 'rate_limited', message: expect.stringContaining('Too many attempts') }
     })
     expect(limited.headers['ratelimit']).toBeDefined()
+  })
+
+  it('counts refresh against the same budget as sign-in, and leaves sign-out and /me outside it', async () => {
+    const app = appFor(testConfig({ authRateLimit: { max: 3, windowMs: 60_000 } }), db)
+    const signedUp = await request(app).post('/auth/register').send(alex).expect(201)
+    const { accessToken, refreshToken } = signedUp.body.tokens
+
+    /* One register and two guessed refreshes make three; the fourth credential call is refused. */
+    await request(app).post('/auth/refresh').send({ refreshToken: 'guess-1' }).expect(401)
+    await request(app).post('/auth/refresh').send({ refreshToken: 'guess-2' }).expect(401)
+    const limited = await request(app).post('/auth/refresh').send({ refreshToken })
+    expect(limited.status).toBe(429)
+    expect(limited.body.error.code).toBe('rate_limited')
+    /* A limited refresh is not a refusal of the token: it is neither spent nor revoked. */
+    await request(app).get('/auth/me').set('Authorization', `Bearer ${accessToken}`).expect(200)
+    await request(app).post('/auth/logout').send({ refreshToken }).expect(204)
   })
 
   it('answers an unknown route in the error shape', async () => {
