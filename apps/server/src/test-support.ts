@@ -25,7 +25,12 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
   return { ...base, ...overrides }
 }
 
-export const silentLog: Logger = { info: () => undefined, error: () => undefined }
+/*
+ * Quiet on the request log, loud on anything unhandled: a 500 in a test is
+ * only ever the error the handler swallowed, so it goes to stderr where the
+ * run (and CI) shows it next to the failing assertion.
+ */
+export const testLog: Logger = { info: () => undefined, error: (message, error) => console.error(message, error) }
 
 export type TestDb = DbHandle & {
   /** Empties every table. TRUNCATE ... CASCADE reaches the syncable tables through users. */
@@ -57,4 +62,4 @@ export const closeTestPdf = async (): Promise<void> => {
 }
 
 export const appFor = (config: Config, handle: DbHandle, now?: () => Date) =>
-  createApp({ config, db: handle.db, log: silentLog, pdf: testPdf(), now })
+  createApp({ config, db: handle.db, log: testLog, pdf: testPdf(), now })
