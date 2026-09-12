@@ -1,8 +1,9 @@
 # Trackit
 
-[![Latest release](https://img.shields.io/github/v/release/fadyshenouda613/New-folder--2-?label=latest%20release)](https://github.com/fadyshenouda613/New-folder--2-/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/fadyshenouda613/New-folder--2-/total?label=downloads)](https://github.com/fadyshenouda613/New-folder--2-/releases/latest)
-[![CI](https://github.com/fadyshenouda613/New-folder--2-/actions/workflows/ci.yml/badge.svg)](https://github.com/fadyshenouda613/New-folder--2-/actions/workflows/ci.yml)
+[![Build](https://github.com/fadyshenouda613/Trackit/actions/workflows/release.yml/badge.svg)](https://github.com/fadyshenouda613/Trackit/actions/workflows/release.yml)
+[![Tests](https://github.com/fadyshenouda613/Trackit/actions/workflows/ci.yml/badge.svg)](https://github.com/fadyshenouda613/Trackit/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/fadyshenouda613/Trackit?label=latest%20release)](https://github.com/fadyshenouda613/Trackit/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/fadyshenouda613/Trackit/total?label=downloads)](https://github.com/fadyshenouda613/Trackit/releases/latest)
 
 **Freelance time and billing for people who charge a fixed price.**
 
@@ -17,7 +18,7 @@ delivered work into an invoice and follows the money until it lands.
 ## Install
 
 Installers for every release are on the
-[latest release](https://github.com/fadyshenouda613/New-folder--2-/releases/latest)
+[latest release](https://github.com/fadyshenouda613/Trackit/releases/latest)
 page:
 
 | Platform | File |
@@ -32,7 +33,7 @@ it.
 
 **Windows.** SmartScreen shows *"Windows protected your PC"*. Click **More
 info**, then **Run anyway**. The installer puts the app in
-`%LOCALAPPDATA%Programs	rackit` and adds a Start Menu entry; uninstall it
+`%LOCALAPPDATA%\Programs\trackit` and adds a Start Menu entry; uninstall it
 from *Settings → Apps* like anything else.
 
 **macOS.** Open the DMG and drag Trackit into *Applications*. The first launch
@@ -64,24 +65,125 @@ where it is.
 
 ---
 
-## Status
+## How it is built
 
-This repository is a **complete, working UI build** of the app — every screen,
-dialog, notice and empty state is designed, implemented and reachable. What is
-*not* here yet is a backend:
+Everything in this repository is real, running code — the screenshots are
+captures of the app, not mockups — and all of it is **local-first**. The app
+is fully usable with no account and no network; an account adds a second copy
+of your ledger that other machines can share, and nothing more.
 
-- There is **no database**. Clients, projects, time entries and invoices are
-  seeded fixtures the running app mutates in memory. A reload resets them.
-- There is **no sync service**. The sync footer walks its real states, but
-  nothing is uploaded anywhere.
-- There is **no account service**. Any email plus `admin` / `admin` signs you in.
+```mermaid
+flowchart LR
+  subgraph desktop ["Electron app — one per machine"]
+    direction TB
+    renderer["Renderer<br/>React + TanStack Query<br/>no Node, no filesystem, no network"]
+    preload["Preload bridge<br/>window.ledger, typed by packages/shared/api.ts"]
+    main["Main process<br/>repositories · timer · sync engine · session · PDF cache"]
+    sqlite[("SQLite<br/>trackit.db, or trackit-id.db per account")]
+    renderer -- "named calls, Result values back" --> preload
+    preload -- "IPC, input parsed with the shared schema" --> main
+    main --> sqlite
+  end
+  subgraph server ["Server"]
+    direction TB
+    api["Express 5<br/>/auth · /sync · /invoices"]
+    pg[("PostgreSQL<br/>the same tables + user_id, server_seq, updated_by")]
+    chrome["Headless Chrome<br/>Puppeteer, prints the invoice"]
+    api --> pg
+    api --> chrome
+  end
+  main -- "POST /sync — pending rows + last cursor" --> api
+  api -- "rows after the cursor, parents first, next cursor, rejects" --> main
+  shared["packages/shared<br/>Zod schemas · money, date and rate helpers · the bridge contract"]
+  shared -.-> renderer
+  shared -.-> main
+  shared -.-> api
+```
 
-Two things genuinely persist across launches, in `localStorage`: your theme
-preference (`trackit.theme`) and the fact that you are signed in
-(`trackit.session`, `trackit.welcome-seen`).
+**SQLite under the main process.** The ledger is a SQLite file in the app's
+data directory, opened with better-sqlite3 by the main process and by nothing
+else. Every read and write is a plain function that takes a `db` handle — no
+`app`, no `BrowserWindow`, no `ipcMain` inside — so the entire data layer runs
+under Vitest with no Electron in sight. Schema changes are numbered migrations
+applied at launch; an old one is never edited, the next one is written.
 
-Everything below is real, running code — the screenshots are captures of the
-app, not mockups.
+**A typed IPC bridge.** The renderer never touches the database, the
+filesystem or the network. It reaches the main process through one preload
+bridge, `window.ledger`, whose whole contract is a TypeScript type in
+[`packages/shared/src/api.ts`](packages/shared/src/api.ts): one named method
+per operation a screen performs, each validated against the shared schema on
+the far side, each answering `{ ok: true, data }` or `{ ok: false, error }`.
+Nothing throws across the bridge, and there is no generic
+`invoke(channel, payload)` — a passthrough is a bridge with no contract.
+`contextIsolation` is on, `nodeIntegration` is off, and the CSP is strict. In
+the renderer, TanStack Query is the cache in front of the bridge; screen,
+dialog and theme stay in React state.
+
+**One set of schemas across three runtimes.** Every entity — client, project,
+checklist item, note, time entry, invoice, line, payment, settings — is
+defined once, as a Zod schema in `packages/shared`, and every type in the
+codebase is inferred from it. The renderer validates its forms with it, the
+main process validates IPC input and rows with it, the server validates
+request bodies and sync rows with it, so a field added in one place is a type
+error everywhere it is missing. The primitives are shared too: **money is
+integer cents**, never a float, formatted only at render; **timestamps are UTC
+ISO 8601 strings**, turned into local time only at render; **ids are
+client-generated UUIDv4s**, minted by whoever creates the row, so an offline
+machine never waits for a server to name things; **deletes are soft**,
+setting `deletedAt`, so a deletion is a row that can travel.
+
+**Last-write-wins sync over a `serverSeq` cursor.** `POST /sync` is the whole
+protocol. A machine sends the rows it has changed and the cursor it last
+received; it gets back every row of the account's written after that cursor,
+parent tables first, one page at a time, plus the rows the server turned away
+and why. Every row the server writes takes the next value of one account-wide
+sequence, `serverSeq`, so the cursor is a single integer that never goes
+backwards and a pull can neither miss a row nor send one twice. The same row
+changed on two machines is settled by the later `updatedAt`, ties broken by
+device id — the same rule on the server and on every client, so every copy
+converges on the same version — and the machine whose edit lost is shown a
+notice with its version one click away. Tombstones sync like any other row,
+which is what makes soft deletes and sync fit together: a second machine
+receives the deletion rather than never hearing of the row again. A crash in
+the middle of a sync loses nothing, because pushed rows stay pending until
+the answer is applied, with the cursor, in one transaction. The design is in
+[`docs/superpowers/specs/2026-09-10-sync-engine-design.md`](docs/superpowers/specs/2026-09-10-sync-engine-design.md);
+the suite that runs two real engines against the real server is
+[`tests/sync/`](tests/sync).
+
+**Server-issued invoice numbers.** Two machines can never mint the same
+number, because only the server counts. A draft raised online takes its
+number at once; one raised offline holds the number the local scheme
+guessed, marked *Provisional* wherever it appears, and swaps it for the
+server's on the first sync through.
+
+**Puppeteer PDFs.** The printed invoice is one HTML sheet, rendered by the
+same template in the app and on the server. *Download PDF* asks the server
+for that sheet as a file: it renders the row it holds with a headless
+browser, so the desktop syncs first, and the bytes land in the machine's
+cache with *Show in folder* and *Save as…* on the toast.
+
+### How it was built
+
+The interface came first, and all of it. Every screen, dialog, notice, empty
+state, timer state and sync state was designed, implemented and reachable
+before a single row was stored anywhere. Most of those states cannot be
+reached by navigating — a failed sync, an orphaned timer, a void invoice, a
+two-device conflict, an account that owns nothing yet — so the app grew a
+**States** panel that forces any of them from the corner of the window, and
+that panel became the specification. The data layer was then built to
+produce those states rather than the other way round: the local database,
+the bridge, the account server, the sync engine and the PDF route each
+arrived as a branch whose bar was "the panel's states are now real
+conditions, and the panel still reaches every one of them". The panel never
+went away. It drives fixtures now instead of stand-ins, and it is still the
+fastest way to review the app.
+
+The order is deliberate. A surface finished before its data tends to say
+what the data has to be — four sync states rather than three, a provisional
+invoice number as a first-class marker, a timer that is a row rather than a
+value in memory — and a backend built to a finished surface has nowhere to
+leak into it.
 
 ---
 
@@ -289,22 +391,55 @@ they cannot drift out of sync with `Logo.tsx`.
 the app logs a warning rather than showing a hint that does nothing.
 
 **Security.** `contextIsolation: true`, `nodeIntegration: false`, a strict CSP
-in `index.html`, and a preload bridge that exposes exactly six window methods
-and the platform string — nothing else (see
-[`packages/shared/src/api.ts`](packages/shared/src/api.ts)). External links open in the real
-browser, never in an app window.
+in `index.html`, and a preload bridge on which every method is named in
+[`packages/shared/src/api.ts`](packages/shared/src/api.ts) — window controls,
+data, timer, sync, account, updates and PDF — with nothing generic beside
+them. The refresh token never reaches the renderer. External links open in
+the real browser, never in an app window.
 
 ---
 
 ## Getting started
 
 **Requirements** — Node 20.19+ or 22.12+ (Vite 7's baseline; developed on
-v24.13.0).
+v24.13.0), and Docker for the server's Postgres.
+
+The desktop app alone is two commands:
 
 ```bash
 npm install      # installs every workspace
 npm run dev      # electron-vite dev — launches the app with HMR
 ```
+
+It opens on an empty ledger. To see it the way the screenshots do, load the
+fixtures — fourteen projects, their clients, hours, invoices and payments,
+with a history behind them:
+
+```bash
+npm run seed              # into the signed-out database; refuses to load over existing data
+npm run seed -- --reset   # start that file over first
+```
+
+The same fixtures are one click away inside the app, on the **States**
+panel's Data lever, which can also empty the database. The seed lands on
+`trackit.db`, the file the app uses while signed out; the first account to
+sign in on the machine adopts it, so seeded work carries into an account.
+
+Signing in, syncing and *Download PDF* need the account server, which is a
+Postgres in Docker and one more `dev`:
+
+```bash
+cd apps/server
+docker compose up -d                 # Postgres 16 on port 5433, kept in a named volume
+cp .env.example .env                 # then set JWT_SECRET (32+ characters)
+npm run dev                          # tsx watch, http://localhost:4000 — migrates on start
+```
+
+The desktop dev build looks for the server at `http://127.0.0.1:4000`; point
+it elsewhere with `TRACKIT_SERVER_URL`. Sign up in the app, and the ledger
+starts syncing. Without the server the sign-in card says it could not reach
+your account, and everything behind the front door still works — an account
+is only ever for syncing.
 
 The root scripts delegate to the desktop workspace, so everything below runs
 from the repository root.
@@ -313,12 +448,6 @@ from the repository root.
 URL in a browser works: `apps/desktop/src/renderer/src/bridge.ts` supplies a no-op stand-in
 for the preload bridge, so everything but the native window controls behaves
 normally. (That is how the screenshots above were taken.)
-
-Signing in needs the account server running — see [Accounts and the
-server](#accounts-and-the-server) below. Without it the sign-in card says it
-could not reach your account; the **States** panel's Account row can still
-force the app open, and everything behind the front door works with no
-account at all.
 
 | Command | What it does |
 |---|---|
@@ -329,6 +458,9 @@ account at all.
 | `npm run typecheck:node -w @trackit/desktop` | Main and preload only |
 | `npm run typecheck:web -w @trackit/desktop` | Renderer only |
 | `npm run package -w @trackit/desktop` | Build, then produce this platform's installer in `apps/desktop/dist/` |
+| `npm test` | Every unit test in every workspace — the schemas, the helpers, the main process's plain functions |
+| `npm run test:integration -w @trackit/server` | The auth, sync and invoice routes against the Docker Postgres |
+| `npm run test:sync` | Two real engines against the real server (see [`tests/sync`](tests/sync)) |
 
 ### Accounts, the server and sync
 
@@ -336,27 +468,7 @@ account at all.
 accounts and the synced ledger. The desktop's sign-in and sign-up cards call
 it, and so does the sync engine in the main process. An account is never
 needed to read or write your work — an expired session only stops syncing.
-
-```bash
-cd apps/server
-docker compose up -d                 # Postgres 16 on port 5433
-cp .env.example .env                 # then set JWT_SECRET (32+ characters)
-npm run dev                          # tsx watch, http://localhost:4000
-npm run test:integration             # the auth, sync and invoice routes against that Postgres
-npm run test:sync                    # from the root: two devices, one server (see tests/sync)
-```
-
-**Sync** is one route, `POST /sync`: the desktop sends the rows it has changed
-with the cursor it last received, and gets back every row of the account's
-after that cursor, one page at a time. The same row changed on two machines
-is settled by the later `updatedAt` (ties by device id), on the server and on
-every client alike; the machine whose edit lost is shown a notice with its
-version one click away. A crash in the middle of a sync loses nothing — pushed
-rows stay pending until the answer is applied in one transaction with the
-cursor. The design is in
-`docs/superpowers/specs/2026-09-10-sync-engine-design.md`; the acceptance
-suite that exercises it, two real engines against the real server, is
-`tests/sync/`.
+How the sync itself works is under [How it is built](#how-it-is-built).
 
 The engine runs at launch, every minute, when the network comes back, when
 you sign in, and from **Sync now**. The sidebar footer is its status: *All
@@ -364,7 +476,8 @@ changes saved*, *Syncing*, *N waiting to upload*, or *Could not sync* with the
 reason in the popover behind it.
 
 Routes: `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`,
-`GET /auth/me`, `POST /sync`, and `/health`. Passwords are argon2id hashes. An access token
+`GET /auth/me`, `POST /sync`, `POST /invoices/:id/number`,
+`GET /invoices/:id/pdf`, and `/health`. Passwords are argon2id hashes. An access token
 is a 15-minute JWT; the refresh token that earns the next one is rotated on
 every use, stored only as a hash, and revoking one revokes its whole family —
 so a refresh token that turns up twice signs that session out everywhere.
@@ -410,10 +523,12 @@ renderer only ever sees a status value over the bridge.
 
 ### The States panel
 
-Because there is no data layer, some states are unreachable by navigating —
-the empty account, a failed sync, an orphaned timer, a void invoice, a loading
-skeleton. A dev panel covers all of them. Click **States** in the bottom-right
-corner of the window and you get nine axes:
+Some states cannot be reached by navigating — the empty account, a failed
+sync, an orphaned timer, a void invoice, a loading skeleton, a conflict from
+a machine you do not have. A dev panel covers all of them, by seeding the
+real database or forcing the real state machines rather than painting a
+picture of them. Click **States** in the bottom-right corner of a development
+build and you get nine axes:
 
 | Axis | Options |
 |---|---|
@@ -434,8 +549,8 @@ and is the fastest way to see the whole app.
 
 ## Project structure
 
-The repository is an npm workspace: the desktop app and the (future) server
-share code through `packages/shared`.
+The repository is an npm workspace: the desktop app and the server share
+code through `packages/shared`.
 
 ```
 apps/
@@ -445,11 +560,17 @@ apps/
 │   ├── tsconfig.web.json            renderer
 │   └── src/
 │       ├── main/                    Electron main process
-│       │   ├── index.ts               App lifecycle, tray timer state
+│       │   ├── index.ts               App lifecycle, the account switch, tray timer state
 │       │   ├── window.ts              Frameless BrowserWindow, per-theme background fill
-│       │   ├── ipc.ts                 Window controls + nativeTheme sync
+│       │   ├── ipc.ts, *-ipc.ts       Thin handlers: parse with the shared schema, call, answer a Result
+│       │   ├── db/                    better-sqlite3, numbered migrations, one file per account
+│       │   ├── repositories/          The plain functions over the tables — the business rules
+│       │   ├── timer.ts               The running clock, which is a time_entries row
+│       │   ├── sync/                  The sync engine: outbox, apply, conflicts, number swap, transport
+│       │   ├── auth/                  The session: refresh token via safeStorage, the HTTP client
+│       │   ├── pdf/                   Asks the server for the invoice sheet, caches the file
+│       │   ├── seed/                  The fixtures and `--seed`
 │       │   ├── tray.ts                Tray icon, menu, global shortcut
-│       │   ├── sync/                  The sync engine: outbox, apply, conflicts, transport
 │       │   └── icon.ts                App icon, rasterized from Logo.tsx's geometry
 │       ├── preload/index.ts         contextBridge → window.ledger
 │       └── renderer/
@@ -459,6 +580,7 @@ apps/
 │               ├── App.tsx            Screen routing and the state that crosses screens
 │               ├── bridge.ts          The preload bridge, with a browser stand-in
 │               ├── components/        62 components + 14 data/helper modules
+│               ├── data/              TanStack Query in front of the bridge: keys, one hook file per entity
 │               ├── dev/StatePanel.tsx
 │               └── styles/
 │                   ├── tokens.css     Ledgerline design system — the token layer
@@ -474,12 +596,16 @@ apps/
         ├── errors.ts                One error shape for every failure
         ├── db/schema.ts             The SQLite tables mirrored, plus user_id, server_seq, updated_by
         ├── auth/                    Argon2 accounts, JWT access, rotating refresh tokens
-        └── sync/                    POST /sync: the conflict rule and the paged pull
+        ├── sync/                    POST /sync: the conflict rule and the paged pull
+        └── invoices/                Number minting, and the sheet printed by Puppeteer
 packages/
 └── shared/                        @trackit/shared — what desktop and server agree on
     └── src/
         ├── api.ts                   The preload bridge contract
-        └── schemas/                 Every entity, once, as a Zod schema
+        ├── schemas/                 Every entity, once, as a Zod schema; the sync wire shapes
+        └── helpers/                 Money, dates, durations, rates, invoice maths — pure, and tested
+tests/
+└── sync/                          Two devices, one server: the engine's acceptance suite
 ```
 
 **Stack:** Electron 44, React 19, TypeScript 5.9, Vite 7 via electron-vite 5,
