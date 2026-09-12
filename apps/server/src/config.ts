@@ -33,7 +33,13 @@ const envSchema = z.object({
   /** Rows per page of POST /sync. A client loops while the server says there is more. */
   SYNC_PAGE_SIZE: z.coerce.number().int().positive().default(500),
   /** The most a sync body may weigh; a settings logo is a data URL. */
-  SYNC_BODY_LIMIT: z.string().default('8mb')
+  SYNC_BODY_LIMIT: z.string().default('8mb'),
+  /**
+   * Comma-separated flags for the browser that prints PDFs. Empty on a
+   * machine with a sandbox; `--no-sandbox,--disable-setuid-sandbox` in a
+   * container without one (the Dockerfile sets it).
+   */
+  PDF_BROWSER_ARGS: z.string().default('')
 })
 
 export type Config = {
@@ -48,6 +54,7 @@ export type Config = {
   authRateLimit: { max: number; windowMs: number }
   syncPageSize: number
   syncBodyLimit: string
+  pdfBrowserArgs: string[]
 }
 
 export class ConfigError extends Error {
@@ -80,7 +87,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       windowMs: raw.AUTH_RATE_LIMIT_WINDOW_SECONDS * 1000
     },
     syncPageSize: raw.SYNC_PAGE_SIZE,
-    syncBodyLimit: raw.SYNC_BODY_LIMIT
+    syncBodyLimit: raw.SYNC_BODY_LIMIT,
+    pdfBrowserArgs: raw.PDF_BROWSER_ARGS.split(',')
+      .map((flag) => flag.trim())
+      .filter((flag) => flag !== '')
   }
 }
 

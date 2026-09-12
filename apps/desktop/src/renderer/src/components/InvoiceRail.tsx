@@ -2,8 +2,8 @@ import type { JSX } from 'react'
 import { formatCents, invoiceTotals } from '@trackit/shared'
 
 type InvoiceRailProps = {
-  number: string
-  onNumber: (value: string) => void
+  /** The number the scheme expects. Shown, not typed: the server issues the real one on save. */
+  expectedNumber: string
   issue: string
   due: string
   /** "Net 14", "Due on receipt" — the reason the due date is what it is. */
@@ -27,8 +27,7 @@ type InvoiceRailProps = {
  * before sending.
  */
 export function InvoiceRail({
-  number,
-  onNumber,
+  expectedNumber,
   issue,
   due,
   terms,
@@ -55,16 +54,23 @@ export function InvoiceRail({
       <section className="panel rail__card">
         <span className="t-overline rail__title">Invoice</span>
 
+        {/* Read-only, like the dates beneath it: a number is issued, not
+            chosen, because two machines choosing would eventually choose the
+            same one. What is shown is the scheme's next value — what the
+            draft holds, marked provisional, if the server cannot be asked. */}
         <div className="inv-field">
           <label htmlFor="inv-number">Number</label>
           <input
             id="inv-number"
             type="text"
             className="field field--filled t-mono inv-field__control"
-            value={number}
-            onChange={(event) => onNumber(event.target.value)}
+            value={expectedNumber}
+            readOnly
           />
         </div>
+        <span className="rail__aside">
+          Issued when you save. Offline, the draft keeps this number as provisional until it has synced.
+        </span>
 
         <div className="inv-field">
           <label htmlFor="inv-issue">Issue date</label>

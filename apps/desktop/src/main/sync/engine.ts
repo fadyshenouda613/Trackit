@@ -16,6 +16,7 @@ import { applyChanges } from './apply'
 import { SyncClientError, type SyncTransport } from './client'
 import { listConflicts, listEvents, recordEvent, resolveConflict } from './conflicts'
 import { accountUserId, cursor, deviceId, lastSyncedAt, setAccountUserId, setCursor, setLastSyncedAt } from './meta'
+import { assignServerNumbers } from './numbers'
 import { collectPending, markSynced, refKey } from './outbox'
 
 /*
@@ -32,6 +33,10 @@ import { collectPending, markSynced, refKey } from './outbox'
  * The loop goes on while the server has another page or the outbox had
  * more than a page. Two runs never overlap: a request during a run is a
  * promise of one more run after it.
+ *
+ * Before the first round trip, the drafts raised while the server was out
+ * of reach take their numbers from it (see numbers.ts), so no provisional
+ * number ever goes up.
  *
  * No Electron in here. The database, the transport and the account are
  * handed in, which is what lets the two-device suite drive two of these
@@ -73,6 +78,17 @@ export type SyncEngine = {
   /** The launch trigger and the interval. */
   start: () => void
   stop: () => void
+  /**
+   * Resolves once no run is in flight or queued. The wiring waits on this
+   * before swapping the database underneath, so no run ever straddles two
+   * files; a run asked for after it resolves is a fresh one on the new file.
+   */
+  idle: () => Promise<void>
+  /**
+   * For the moment after a swap: the failure belonged to the old file, and
+   * every screen has to refetch, so the revision moves and the status goes out.
+   */
+  reset: () => void
   conflicts: () => SyncConflict[]
   resolveConflict: (id: string, resolution: ConflictResolution) => void
 }
@@ -126,18 +142,21 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
 
   const emit = (): void => deps.onChanged(status())
 
-  /** One request, with one retry after a refresh when the token was refused. */
-  const exchange = async (request: SyncRequest): Promise<SyncResponse> => {
+  /** One call with a token, and one retry after a refresh when the token was refused. */
+  const withToken = async <T>(call: (accessToken: string) => Promise<T>): Promise<T> => {
     const token = await auth.accessToken()
     try {
-      return await transport.push(token, request)
+      return await call(token)
     } catch (error) {
       if (!(error instanceof SyncClientError) || error.code !== 'unauthorized') throw error
       await auth.verify()
       const fresh = await auth.accessToken()
-      return transport.push(fresh, request)
+      return call(fresh)
     }
   }
+
+  const exchange = (request: SyncRequest): Promise<SyncResponse> =>
+    withToken((token) => transport.push(token, request))
 
   /**
    * The apply transaction. Foreign keys are off for its duration because a
@@ -182,6 +201,7 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
     let conflicts = 0
     let uploaded = 0
     let dropped = 0
+    let numbered = 0
     try {
       const account = auth.status()
       if (account.state !== 'signedIn') throw new SyncFailed('signedOut', 'Not signed in')
@@ -189,6 +209,9 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
       if (bound !== null && bound !== account.user.id) {
         throw new SyncFailed('otherAccount', 'This data was first synced under another account')
       }
+
+      /* Drafts numbered here become edits, and go up in the loop below. */
+      numbered = await assignServerNumbers(db, withToken, transport, now)
 
       for (;;) {
         const outbox = collectPending(db, pageSize)
@@ -223,7 +246,10 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
       if (failure !== 'signedOut') recordEvent(db, 'failed', failureLines[failure], now())
     } finally {
       running = false
-      if (applied > 0 || conflicts > 0) revision += 1
+      /* A swapped number is a local change the renderer has to hear about,
+         even though nothing came down: the draft it is showing is now called
+         something else. */
+      if (applied > 0 || conflicts > 0 || numbered > 0) revision += 1
       emit()
     }
   }
@@ -255,6 +281,16 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
     stop: () => {
       if (timer) clearInterval(timer)
       timer = null
+    },
+    idle: async () => {
+      /* A queued run replaces `current` in a callback registered before this
+         one, so the loop sees it and waits again. */
+      while (current) await current.catch(() => undefined)
+    },
+    reset: () => {
+      failure = undefined
+      revision += 1
+      emit()
     },
     conflicts: () => listConflicts(db),
     resolveConflict: (id, resolution) => {

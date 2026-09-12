@@ -615,6 +615,8 @@ export type InvoiceFixture = {
   payments: PaymentFixture[]
   notes: string
   voided?: { date: string; reason: string; replacedBy?: string }
+  /** Raised while the server could not be reached: the number is the local scheme's guess. */
+  provisional?: boolean
 }
 
 const dollars = (amount: number): number => amount * 100
@@ -635,13 +637,15 @@ const paid = (
 /*
  * The register, newest first, from invoices-data.ts. Each line group names
  * the project it was for; the historical ones are the archived projects
- * above. INV-0149 is the draft; INV-0137 is the void, reissued as INV-0138.
+ * above. INV-0149 is the draft, raised offline so its number is still
+ * provisional; INV-0137 is the void, reissued as INV-0138.
  */
 export const invoices: InvoiceFixture[] = [
   {
     number: 'INV-0149',
     client: 'brandt',
     issued: null,
+    provisional: true,
     taxRate: 0,
     groups: [
       group('annual-report-layout', [

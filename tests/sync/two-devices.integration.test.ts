@@ -1,13 +1,14 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createChecklistItem, listChecklistItems, updateChecklistItem } from '../../apps/desktop/src/main/repositories/checklist-items'
 import { createClient, deleteClient, getClient, updateClient } from '../../apps/desktop/src/main/repositories/clients'
+import { createInvoice, getInvoice, listInvoices } from '../../apps/desktop/src/main/repositories/invoices'
 import { createNote } from '../../apps/desktop/src/main/repositories/notes'
-import { createProject, getProject, updateProject } from '../../apps/desktop/src/main/repositories/projects'
+import { createProject, getProject, transitionProject, updateProject } from '../../apps/desktop/src/main/repositories/projects'
 import { updateSettings } from '../../apps/desktop/src/main/repositories/settings'
 import { createTimeEntry } from '../../apps/desktop/src/main/repositories/time-entries'
 import { id } from '../../apps/desktop/src/main/repositories/test-support'
 import { cursor } from '../../apps/desktop/src/main/sync/meta'
-import { Clock, createDevice, expectSameLedger, ledgerOf, serverRows, startServer, type Device, type TestServer } from './harness'
+import { Clock, createDevice, expectSameLedger, ledgerOf, serverNumbers, serverRows, startServer, type Device, type TestServer } from './harness'
 
 /*
  * Two devices, one server: the scenarios the sync engine exists to get
@@ -20,6 +21,7 @@ import { Clock, createDevice, expectSameLedger, ledgerOf, serverRows, startServe
  *   3. delete versus edit, both ways
  *   4. a long-offline client, and a second machine hydrating from nothing
  *   5. a crash in the middle of a sync, and recovery
+ *   6. two drafts raised offline with the same provisional number
  *
  * The clock is stepped by hand between edits (see Clock in the harness),
  * so which edit is newer is a fact of the scenario and not of the machine.
@@ -509,5 +511,98 @@ describe('5. a mid-sync crash', () => {
 
     expect(ledgerOf(recovered.db)).toEqual(ledgerOf(clean.db))
     expect(cursor(recovered.db)).toBe(cursor(clean.db))
+  })
+})
+
+/* ---- 6. Two drafts raised offline ------------------------------------------------ */
+
+describe('6. two drafts raised offline with the same provisional number', () => {
+  /** A delivered project on a device, the way the app gets one: draft, active, delivered. */
+  const delivered = (device: Device, clientId: string, name: string): string => {
+    const project = aProject(device, clientId, { name })
+    transitionProject(device.db, project.id, 'active')
+    transitionProject(device.db, project.id, 'delivered')
+    return project.id
+  }
+
+  const draftOn = (device: Device, clientId: string, projectId: string) =>
+    createInvoice(device.db, {
+      id: id(),
+      clientId,
+      taxRate: 0,
+      notes: '',
+      lines: [{ id: id(), projectId, milestoneId: null, sortOrder: 1 }]
+    })
+
+  it('the server issues each draft its own number; both ledgers agree; the swap is in the log', async () => {
+    const { a, b } = await twoDevicesInStep()
+    const client = aClient(a)
+    const p1 = delivered(a, client.id, 'Brand refresh')
+    const p2 = delivered(a, client.id, 'Site build')
+    await a.sync()
+    await b.sync()
+    expectSameLedger(a, b)
+
+    /* Both away from the server: each numbers its draft from its own register,
+       and both registers are empty, so both guess INV-0001. */
+    clock.tick()
+    const draftA = draftOn(a, client.id, p1)
+    clock.tick()
+    const draftB = draftOn(b, client.id, p2)
+    expect(draftA).toMatchObject({ number: 'INV-0001', numberProvisional: true })
+    expect(draftB).toMatchObject({ number: 'INV-0001', numberProvisional: true })
+
+    /* A gets through first and keeps its guess; B is told the truth. */
+    clock.tick()
+    const syncedA = await a.sync()
+    expect(getInvoice(a.db, draftA.id)).toMatchObject({ number: 'INV-0001', numberProvisional: false, syncState: 'synced' })
+    expect(syncedA.log.map((event) => event.detail)).toContain('Draft INV-0001 kept its number')
+
+    clock.tick()
+    const syncedB = await b.sync()
+    expect(getInvoice(b.db, draftB.id)).toMatchObject({ number: 'INV-0002', numberProvisional: false, syncState: 'synced' })
+    expect(syncedB.log.map((event) => event.detail)).toContain('Draft INV-0001 is now INV-0002')
+
+    /* A pulls B's draft, and the two registers are one. */
+    clock.tick()
+    await a.sync()
+    expectSameLedger(a, b)
+    const numbers = listInvoices(a.db).map((invoice) => invoice.number).sort()
+    expect(numbers).toEqual(['INV-0001', 'INV-0002'])
+    expect(listInvoices(b.db).every((invoice) => !invoice.numberProvisional)).toBe(true)
+
+    /* The server never held a provisional number, and remembers both it issued. */
+    const onServer = await serverRows(server, 'invoices')
+    expect(onServer.map((row) => row['number_provisional'])).toEqual([false, false])
+    expect(await serverNumbers(server)).toEqual(['INV-0001', 'INV-0002'])
+  })
+
+  it('a draft raised offline and deleted before it ever synced burns no number', async () => {
+    const { a, b } = await twoDevicesInStep()
+    const client = aClient(a)
+    const p1 = delivered(a, client.id, 'Brand refresh')
+    const p2 = delivered(a, client.id, 'Site build')
+    await a.sync()
+    await b.sync()
+
+    clock.tick()
+    const doomed = draftOn(a, client.id, p1)
+    clock.tick()
+    const { deleteInvoice } = await import('../../apps/desktop/src/main/repositories/invoices')
+    deleteInvoice(a.db, doomed.id)
+    clock.tick()
+    const kept = draftOn(b, client.id, p2)
+
+    clock.tick()
+    await a.sync()
+    clock.tick()
+    await b.sync()
+    clock.tick()
+    await a.sync()
+
+    expectSameLedger(a, b)
+    /* The tombstone went up as it was, provisional guess and all; B's draft took the first real number. */
+    expect(getInvoice(b.db, kept.id)).toMatchObject({ number: 'INV-0001', numberProvisional: false })
+    expect(await serverNumbers(server)).toEqual(['INV-0001'])
   })
 })

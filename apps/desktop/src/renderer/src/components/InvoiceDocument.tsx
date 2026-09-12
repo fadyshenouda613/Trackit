@@ -2,6 +2,7 @@ import type { JSX } from 'react'
 import { formatCents, type Client, type Id, type Invoice, type Settings } from '@trackit/shared'
 import { dateLabel } from './local-dates'
 import { symbolFor, type LineGroup } from './invoices-data'
+import { Pill } from './Pill'
 import { termsLabel } from './terms'
 
 type InvoiceDocumentProps = {
@@ -88,7 +89,13 @@ export function InvoiceDocument({
 
           <div className="doc__meta">
             <span className="doc__kind t-overline">Invoice</span>
-            <span className="doc__number t-mono">{invoice.number}</span>
+            <span className="doc__number t-mono">
+              {invoice.number}
+              {/* The local scheme's guess, until the server has issued the
+                  real one. Marked on the document itself, because the number
+                  is the one thing on it that may still change. */}
+              {invoice.numberProvisional && <Pill>Provisional</Pill>}
+            </span>
 
             <dl className="doc__dates">
               <dt>Issued</dt>
@@ -184,8 +191,9 @@ export function InvoiceDocument({
 
       {invoice.status === 'draft' && (
         <p className="doc-draft">
-          Nothing has been sent. The number is already reserved; the issue and due dates are
-          set when you mark it as sent.
+          {invoice.numberProvisional
+            ? 'Nothing has been sent. The number is provisional — Trackit issues the real one when this draft syncs, and it may differ. The issue and due dates are set when you mark it as sent.'
+            : 'Nothing has been sent. The number is already reserved; the issue and due dates are set when you mark it as sent.'}
         </p>
       )}
     </div>

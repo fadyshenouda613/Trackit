@@ -1,15 +1,16 @@
 import type { JSX } from 'react'
-import { paidCents, type Id } from '@trackit/shared'
+import { paidCents, type AuthStatus, type Id, type Invoice } from '@trackit/shared'
 import { EmptyState } from './EmptyState'
 import { InvoiceActions } from './InvoiceActions'
 import { InvoiceDocument } from './InvoiceDocument'
 import { InvoicePayments } from './InvoicePayments'
-import { groupLines } from './invoices-data'
+import { groupLines, pdfAvailability } from './invoices-data'
 import { todayIso } from './local-dates'
 import { TableSkeleton } from './TableSkeleton'
 import { useClient } from '../data/use-clients'
 import {
   useDeleteInvoice,
+  useGeneratePdf,
   useInvoice,
   useInvoiceLines,
   useSendInvoice,
@@ -25,6 +26,12 @@ type InvoiceDetailProps = {
   onOpen: (id: Id) => void
   onRecordPayment: () => void
   onBack: () => void
+  /** Whether the machine has a link — the PDF is made on the server. */
+  online: boolean
+  /** The account, or undefined until the bridge has said. */
+  auth: AuthStatus | undefined
+  /** The PDF is on this machine: the shell raises the toast with its two actions. */
+  onPdfSaved: (invoice: Invoice) => void
   /** Rows not in yet. */
   loading?: boolean
 }
@@ -47,6 +54,9 @@ export function InvoiceDetail({
   onOpen,
   onRecordPayment,
   onBack,
+  online,
+  auth,
+  onPdfSaved,
   loading = false
 }: InvoiceDetailProps): JSX.Element {
   const invoice = useInvoice(invoiceId)
@@ -64,6 +74,9 @@ export function InvoiceDetail({
   const send = useSendInvoice()
   const voidIt = useVoidInvoice()
   const deleteIt = useDeleteInvoice()
+  /* A refused render is reported by the mutation cache as a toast, in the
+     main process's words — never a silent failure. */
+  const generatePdf = useGeneratePdf()
 
   const today = todayIso()
 
@@ -123,6 +136,9 @@ export function InvoiceDetail({
         today={today}
         onMarkSent={() => send.mutate(current.id)}
         onRecordPayment={onRecordPayment}
+        pdf={pdfAvailability({ online, auth })}
+        pdfPending={generatePdf.isPending}
+        onDownloadPdf={() => generatePdf.mutate(current.id, { onSuccess: () => onPdfSaved(current) })}
         onVoid={(reason) =>
           voidIt.mutate({
             id: current.id,

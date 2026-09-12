@@ -31,7 +31,9 @@ import {
 } from '@trackit/shared/schemas'
 import { AuthClientError } from './auth/client'
 import type { Database } from './db'
+import { PdfClientError } from './pdf/client'
 import * as repo from './repositories'
+import { SyncClientError } from './sync/client'
 
 /*
  * The data channels. Each handler is the same three lines: parse the payload
@@ -41,8 +43,11 @@ import * as repo from './repositories'
 
 export function toApiError(error: unknown): ApiError {
   if (error instanceof repo.RepositoryError) return { code: error.code, message: error.message }
-  // The server's refusals, already folded into the bridge's codes by the auth client.
-  if (error instanceof AuthClientError) return { code: error.code, message: error.message }
+  // The server's refusals, already folded into the bridge's codes by the clients.
+  if (error instanceof AuthClientError || error instanceof PdfClientError) return { code: error.code, message: error.message }
+  if (error instanceof SyncClientError) {
+    return { code: error.code === 'upgrade_required' ? 'internal' : error.code, message: error.message }
+  }
   // A merged row that fails its schema — an end before its start, say.
   if (error instanceof z.ZodError) return { code: 'validation', message: z.prettifyError(error) }
   return { code: 'internal', message: error instanceof Error ? error.message : String(error) }
@@ -86,6 +91,11 @@ export type DataIpcDeps = {
   onTimerChanged: () => void
   /** Settings that main acts on — the global shortcut — are rebound from here. */
   onSettingsChanged: (settings: Settings) => void
+  /**
+   * The number a new draft is created under: the server's when it can be
+   * asked, the local scheme's — flagged provisional — when it cannot.
+   */
+  numbering: (invoiceId: string) => Promise<repo.InvoiceNumbering>
 }
 
 export function registerDataIpc(db: Database, deps: DataIpcDeps): void {
@@ -129,7 +139,11 @@ export function registerDataIpc(db: Database, deps: DataIpcDeps): void {
   handle('time:stop', z.undefined(), () => repo.stopTimer(db), onTimerChanged)
   handle('time:orphan', z.undefined(), () => repo.orphanedTimeEntry(db, deps.bootedAt))
 
-  handle('invoices:create', newInvoiceInputSchema, (input) => repo.createInvoice(db, input))
+  /* The one data call that waits on the network: the number is asked for
+     first, and the draft is written with whatever answer came. */
+  handle('invoices:create', newInvoiceInputSchema, async (input) =>
+    repo.createInvoice(db, input, await deps.numbering(input.id))
+  )
   handle('invoices:update', withId(updateInvoiceInputSchema), ({ id, patch }) => repo.updateInvoice(db, id, patch))
   handle('invoices:delete', idSchema, (id) => repo.deleteInvoice(db, id))
   handle('invoices:get', idSchema, (id) => repo.getInvoice(db, id))

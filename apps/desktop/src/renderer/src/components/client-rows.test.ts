@@ -23,6 +23,8 @@ const invoice = (over: Partial<Invoice> = {}): Invoice => ({
   id: 'i1',
   clientId: 'c1',
   number: 'INV-0001',
+  numberProvisional: false,
+  pdfGeneratedAt: null,
   status: 'sent',
   currency: 'USD',
   issuedAt: '2026-08-01T00:00:00.000Z',

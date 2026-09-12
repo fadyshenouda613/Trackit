@@ -19,13 +19,16 @@ import type { Tone } from './tone'
 
 export type ToastKind = 'pdf' | 'payment' | 'delivered' | 'timer' | 'error'
 
+/** Something to do next. Without `onClick` it is a label the app cannot yet honour. */
+export type ToastAction = { label: string; onClick?: () => void }
+
 export type Toast = {
   id: number
   kind: ToastKind
   tone: Tone
   message: string
   /** Omitted when there is nothing sensible to do next. */
-  action?: string
+  actions?: ToastAction[]
 }
 
 /**
@@ -39,30 +42,36 @@ export type Toast = {
  */
 let nextId = 0
 
-const make = (kind: ToastKind, tone: Tone, message: string, action?: string): Toast => ({
+const make = (kind: ToastKind, tone: Tone, message: string, actions?: ToastAction[]): Toast => ({
   id: (nextId += 1),
   kind,
   tone,
   message,
-  action
+  actions
 })
 
-export const pdfToast = (number: string): Toast =>
-  make('pdf', 'neutral', `Invoice ${number} saved as PDF`, 'Show in folder')
+/** What can be done with the file once it is here: both act on the main process's cached copy. */
+export type PdfActions = { reveal?: () => void; saveAs?: () => void }
+
+export const pdfToast = (number: string, actions: PdfActions = {}): Toast =>
+  make('pdf', 'neutral', `Invoice ${number} saved as PDF`, [
+    { label: 'Show in folder', onClick: actions.reveal },
+    { label: 'Save as…', onClick: actions.saveAs }
+  ])
 
 /** The amount is stored cents, straight off the payment the store wrote. */
 export const paymentToast = (amount: number, number: string): Toast =>
-  make('payment', 'positive', `${formatCents(amount)} recorded against ${number}`, 'View invoice')
+  make('payment', 'positive', `${formatCents(amount)} recorded against ${number}`, [{ label: 'View invoice' }])
 
 export const deliveredToast = (project: string): Toast =>
-  make('delivered', 'neutral', `${project} marked delivered`, 'Create invoice')
+  make('delivered', 'neutral', `${project} marked delivered`, [{ label: 'Create invoice' }])
 
 /**
  * The one toast that reports a quantity you cannot otherwise check: the timer
  * bar is gone by the time this appears, taking the elapsed clock with it.
  */
 export const timerToast = (minutes: number, project: string): Toast =>
-  make('timer', 'neutral', `${formatDuration(minutes)} logged to ${project}`, 'Undo')
+  make('timer', 'neutral', `${formatDuration(minutes)} logged to ${project}`, [{ label: 'Undo' }])
 
 /**
  * The one negative toast. A write the store refused is news you were not

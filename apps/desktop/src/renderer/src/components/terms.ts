@@ -4,7 +4,8 @@ export const TERMS: { label: string; days: number }[] = [
   { label: 'Net 30', days: 30 },
   { label: 'Due on receipt', days: 0 }
 ]
-export const termsLabel = (days: number): string => (days === 0 ? 'Due on receipt' : `Net ${days}`)
+/** The label itself is shared with the server's PDF, so the two documents say the same thing. */
+export { termsLabel } from '@trackit/shared'
 /**
  * `1 invoice`, `2 invoices`. Counted copy is written once here rather than with
  * a ternary at every site, because the ternaries were the thing that got

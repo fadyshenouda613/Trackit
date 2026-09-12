@@ -14,6 +14,7 @@ import type {
   Invoice,
   InvoiceLine,
   InvoiceListFilters,
+  InvoicePdf,
   LoginInput,
   NewChecklistItemInput,
   NewInvoiceInput,
@@ -144,7 +145,7 @@ export type DataApi = {
   }
   invoices: {
     create: (input: NewInvoiceInput) => Promise<Result<Invoice>>
-    /** Drafts only: number, notes, tax rate, currency. */
+    /** Drafts only: notes, tax rate, currency. The number is issued, never edited. */
     update: (id: Id, patch: UpdateInvoiceInput) => Promise<Result<Invoice>>
     /** Drafts only; anything issued is voided instead. */
     delete: (id: Id) => Promise<Result<Invoice>>
@@ -251,6 +252,24 @@ export type LedgerApi = {
     /** Local edits that lost to another device's, newest first, until settled. */
     conflicts: () => Promise<Result<SyncConflict[]>>
     resolveConflict: (id: Id, resolution: ConflictResolution) => Promise<Result<null>>
+  }
+  /**
+   * The printed invoice as a file. The server renders it from its copy of
+   * the row, so `generate` syncs first; the bytes land in this machine's
+   * cache and stay there, and the two actions on the toast act on that file.
+   */
+  pdf: {
+    /**
+     * Renders, or answers with the cached file when the invoice has not
+     * moved since it was made. `offline` when the server cannot be reached,
+     * `unauthorized` when nobody is signed in, `invalid_state` when the
+     * invoice still has changes the server has not taken.
+     */
+    generate: (invoiceId: Id) => Promise<Result<InvoicePdf>>
+    /** Opens the file manager with the cached file selected. */
+    reveal: (invoiceId: Id) => Promise<Result<null>>
+    /** The system save dialog over the cached file. The path chosen, or null when cancelled. */
+    saveAs: (invoiceId: Id) => Promise<Result<string | null>>
   }
   /**
    * The account on this machine. The session lives in the main process — the

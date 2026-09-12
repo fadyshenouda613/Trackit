@@ -1,6 +1,7 @@
 import { createApp, type Logger } from './app'
 import { ConfigError, loadConfigFromEnvFile } from './config'
 import { connect, migrate } from './db'
+import { createPdfRenderer } from './invoices/pdf'
 
 /*
  * Start: read the configuration, bring the database up to date, listen.
@@ -28,7 +29,10 @@ const handle = connect(config.databaseUrl)
 await migrate(handle.db)
 log.info('database is up to date')
 
-const app = createApp({ config, db: handle.db, log })
+/* The browser that prints PDFs is launched on the first request for one. */
+const pdf = createPdfRenderer({ args: config.pdfBrowserArgs })
+
+const app = createApp({ config, db: handle.db, log, pdf })
 const server = app.listen(config.port, () => log.info(`listening on :${config.port} (${config.env})`))
 
 let stopping = false
@@ -37,7 +41,10 @@ const stop = (signal: string): void => {
   stopping = true
   log.info(`${signal} received, shutting down`)
   server.close(() => {
-    void handle.close().then(() => process.exit(0))
+    void pdf
+      .close()
+      .then(() => handle.close())
+      .then(() => process.exit(0))
   })
   /* A connection that never ends must not keep the process alive past the
      platform's grace period. */

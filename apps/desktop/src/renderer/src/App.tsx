@@ -33,6 +33,7 @@ import {
   paymentToast,
   pdfToast,
   timerToast,
+  type PdfActions,
   type ToastKind
 } from './components/toast-data'
 import { TimerBar } from './components/TimerBar'
@@ -54,15 +55,17 @@ import { useInvoiceFigures } from './components/use-invoice-figures'
 import {
   StatePanel,
   type AuthView,
+  type ConnectionLever,
   type Modal,
   type NoticeState,
   type Screen
 } from './dev/StatePanel'
+import { useOnline } from './components/use-online'
 import { createQueryClient } from './data/query-client'
 import { useChecklist } from './data/use-checklist'
 import { useClient, useClients } from './data/use-clients'
 import { useDevReset, useDevSeed, useDevTimerScenario } from './data/use-dev'
-import { useInvoice, useInvoices } from './data/use-invoices'
+import { useInvoice, useInvoices, useRevealPdf, useSavePdfAs } from './data/use-invoices'
 import { usePayments } from './data/use-payments'
 import { useProject, useProjects } from './data/use-projects'
 import { useUpdateSettings } from './data/use-settings'
@@ -136,6 +139,9 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
   /* The panel's Sync lever: the engine's own status, or a fixture in its place. */
   const [syncLever, setSyncLever] = useState<SyncLever>('live')
   const [notice, setNotice] = useState<NoticeState>('none')
+  /* The panel's Connection lever: the machine's own link, or offline forced
+     over it, so the PDF button's refusal can be seen on a connected machine. */
+  const [connection, setConnection] = useState<ConnectionLever>('live')
   /*
    * The Data axis. Loading is a real query state now; this only forces it, so
    * the skeletons stay reviewable against a local database that answers in
@@ -322,6 +328,17 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
         : null
   const updateOffer = stagedUpdate ?? liveUpdate
 
+  /*
+   * The PDF is made on the server, so the button that asks for one is
+   * disabled — with the reason — while there is no link or no session. The
+   * two actions on its toast act on the file main kept.
+   */
+  const online = useOnline() && connection === 'live'
+  const revealPdf = useRevealPdf()
+  const savePdfAs = useSavePdfAs()
+  const pdfActionsFor = (id: Id | null): PdfActions =>
+    id === null ? {} : { reveal: () => revealPdf.mutate(id), saveAs: () => savePdfAs.mutate(id) }
+
   const stopTimer = useStopTimer()
   const updateTimeEntry = useUpdateTimeEntry()
   const deleteTimeEntry = useDeleteTimeEntry()
@@ -395,6 +412,9 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
     invoiceList.find((entry) => entry.number === SAMPLE_INVOICE) ?? invoiceList[0] ?? null
   const sampleVoid =
     invoiceList.find((entry) => entry.number === SAMPLE_VOID) ?? invoiceList[0] ?? null
+  /* The draft raised offline: the fixtures mark one, and a real one counts too. */
+  const sampleProvisional =
+    invoiceList.find((entry) => entry.numberProvisional) ?? sampleInvoice
   /* Record payment is the one preview that needs an invoice which can actually
      take one: a void or a draft has no such action in the real UI, so opening
      the dialog over either would be previewing a state the app cannot reach. */
@@ -540,6 +560,9 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
         } else if (next === 'voidInvoice') {
           setOpenInvoiceId(sampleVoid?.id ?? null)
           setScreen('invoice')
+        } else if (next === 'provisionalInvoice') {
+          setOpenInvoiceId(sampleProvisional?.id ?? null)
+          setScreen('invoice')
         } else if (next === 'payment') {
           setOpenInvoiceId(samplePayable?.id ?? null)
           setScreen('invoice')
@@ -581,10 +604,16 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
         if (next === 'reorder') setScreen('project')
         setNotice(next)
       }}
+      connection={connection}
+      onConnection={setConnection}
       data={forceLoading ? 'loading' : 'ready'}
       onData={(next) => setForceLoading(next === 'loading')}
       onToast={(kind: ToastKind) => {
-        if (kind === 'pdf') pushToast(pdfToast('INV-0148'))
+        /* Live actions against the sample invoice: with no PDF of it on this
+           machine yet, either one answers with the refusal as a toast. */
+        if (kind === 'pdf') {
+          pushToast(pdfToast(sampleInvoice?.number ?? 'INV-0148', pdfActionsFor(sampleInvoice?.id ?? null)))
+        }
         if (kind === 'payment') pushToast(paymentToast(240000, 'INV-0145'))
         if (kind === 'delivered') pushToast(deliveredToast('Brand refresh'))
         if (kind === 'timer') pushToast(timerToast(84, 'Brand refresh'))
@@ -969,6 +998,9 @@ function Shell({ toastQueue }: { toastQueue: ReturnType<typeof useToasts> }): JS
                 onOpen={openDetail}
                 onRecordPayment={() => setModal('payment')}
                 onBack={() => setScreen('invoices')}
+                online={online}
+                auth={authStatus.data}
+                onPdfSaved={(invoice) => pushToast(pdfToast(invoice.number, pdfActionsFor(invoice.id)))}
                 loading={forceLoading}
               />
             </div>

@@ -1,0 +1,526 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderInvoiceHtml > renders the sheet for a two-project invoice with tax and notes 1`] = `
+"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Invoice INV-0147</title>
+<style>
+
+/* fonts */
+:root { --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans', Helvetica, Arial, sans-serif; }
+@page { size: A4; margin: 0; }
+html, body { margin: 0; padding: 0; background: #fff; }
+.num { font-variant-numeric: tabular-nums; }
+.paper {
+  width: auto;
+  min-height: auto;
+  box-shadow: none;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+
+.paper {
+  /* ---- Ink ---------------------------------------------------------------
+   * A four-step grey ramp and one brand hue. The brand value is the light-mode
+   * accent rather than the dark one: oklch(0.505 0.190 274) holds on white and
+   * survives a CMYK conversion, where the brighter screen violet would not. */
+  color-scheme: light;
+  --ink: oklch(0.22 0.01 265);
+  --ink-soft: oklch(0.46 0.008 265);
+  --ink-faint: oklch(0.6 0.008 265);
+  --rule: oklch(0.88 0.004 265);
+  --rule-strong: oklch(0.7 0.006 265);
+  --paper-bg: #fff;
+  --paper-tint: oklch(0.975 0.003 265);
+  --brand: oklch(0.505 0.19 274);
+
+  /* ---- The page ----------------------------------------------------------
+   * A4 at 96dpi. The margin is ~17mm, inside every desktop printer's
+   * non-printable edge, so nothing on the sheet is ever trimmed. */
+  --page-w: 794px;
+  --page-h: 1123px;
+  --page-margin: 56px;
+  /* Every figure on the sheet lands on this column's right edge — line
+     amounts, group subtotals, tax and the total alike. It is the one vertical
+     the eye runs down, so it is one number. */
+  --amount-col: 132px;
+
+  flex: 0 0 auto;
+  width: var(--page-w);
+  /* min-height, not height: an invoice with more work on it than this one
+     should grow a second page, never lose a line off the bottom. */
+  min-height: var(--page-h);
+  padding: var(--page-margin);
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 18px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.18),
+    0 24px 48px -12px rgba(0, 0, 0, 0.35);
+}
+
+/* One overline for every small caption on the sheet. */
+.paper__overline {
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 14px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.paper__overline--spaced {
+  display: block;
+  margin-top: 14px;
+}
+
+/* Amounts are right-aligned in a fixed column and never wrap. Pushed to the
+   sheet edge, so the column is a real vertical rather than wherever each label
+   happened to stop. */
+.paper__amount {
+  margin-left: auto;
+  flex: 0 0 var(--amount-col);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---- Masthead ---------------------------------------------------------------
+ * Sender and invoice face each other across the head: who is asking on the
+ * left, what is being asked and by when on the right. */
+
+.paper__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+}
+
+.paper__from {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 11px;
+  line-height: 17px;
+  color: var(--ink-soft);
+}
+
+.paper__brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+}
+
+.paper__brand-name {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+
+.paper__from-person {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.paper__meta {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.paper__kind {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+
+.paper__number {
+  margin: 1px 0 8px;
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 30px;
+  letter-spacing: -0.02em;
+}
+
+.paper__dates {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 4px 24px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.paper__dates dt {
+  color: var(--ink-faint);
+}
+
+.paper__dates dd {
+  margin: 0;
+  text-align: right;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.paper__rule {
+  height: 1px;
+  margin: 22px 0;
+  background: var(--rule);
+}
+
+/* ---- Bill to ---------------------------------------------------------------- */
+
+.paper__bill {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.paper__bill-name {
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+  letter-spacing: -0.01em;
+}
+
+.paper__bill-line {
+  font-size: 11px;
+  line-height: 17px;
+  color: var(--ink-soft);
+}
+
+/* ---- The work ---------------------------------------------------------------
+ * Grouped by project, because a client billed for two of them should be able to
+ * tell which is which before agreeing to the total. Each group carries its own
+ * sum; with one project that sum is the invoice total said twice, and the
+ * component drops it. */
+
+.paper__items {
+  margin-top: 22px;
+}
+
+.paper__columns {
+  display: flex;
+  align-items: baseline;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.paper__group {
+  break-inside: avoid;
+}
+
+.paper__group-name {
+  margin: 0 0 4px;
+  padding: 16px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  letter-spacing: -0.005em;
+  border-bottom: 1px solid var(--rule);
+}
+
+.paper__line {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 4px 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--ink-soft);
+}
+
+.paper__line .paper__amount {
+  color: var(--ink);
+}
+
+.paper__group-total {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 8px 0 0;
+  margin-top: 6px;
+  border-top: 1px solid var(--rule);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+/* ---- Totals -----------------------------------------------------------------
+ * Held to the amount column so subtotal, tax and total land on the same decimal
+ * edge every line above them does. The total is the one figure on the sheet
+ * with weight, because it is the only one the client acts on. */
+
+.paper__totals {
+  margin: 20px 0 0 auto;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.paper__totals-row {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.paper__total {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-top: 5px;
+  padding-top: 11px;
+  border-top: 1.5px solid var(--ink);
+}
+
+.paper__total-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.paper__total .paper__amount {
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: -0.02em;
+}
+
+/* Absorbs the slack on a short invoice so the foot sits at the bottom of the
+   page. On one that fills the page it gives almost all of it back — the min is
+   only there to stop the totals and the terms touching. */
+.paper__gap {
+  flex: 1;
+  min-height: 18px;
+}
+
+/* ---- Foot -------------------------------------------------------------------
+ * Terms and notes on the left, how to pay on the right. */
+
+.paper__foot {
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+  break-inside: avoid;
+}
+
+.paper__terms {
+  flex: 1;
+  min-width: 0;
+}
+
+.paper__prose {
+  margin: 5px 0 0;
+  max-width: 42ch;
+  font-size: 11px;
+  line-height: 17px;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+.paper__bank {
+  flex: 0 0 268px;
+  padding: 14px 16px 15px;
+  border: 1px solid var(--rule);
+  background: var(--paper-tint);
+}
+
+.paper__bank-list {
+  margin: 8px 0 0;
+  display: grid;
+  grid-template-columns: 86px 1fr;
+  gap: 4px 12px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.paper__bank-list dt {
+  color: var(--ink-faint);
+}
+
+.paper__bank-list dd {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* The one line a payment actually has to carry back. */
+.paper__bank-ref {
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.paper__strip {
+  display: flex;
+  gap: 24px;
+  margin-top: 18px;
+  padding-top: 9px;
+  border-top: 1px solid var(--rule);
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--ink-faint);
+}
+
+.paper__strip span:last-child {
+  margin-left: auto;
+}
+
+</style>
+</head>
+<body>
+<article class="paper">
+  <header class="paper__head">
+    <div class="paper__from">
+      <div class="paper__brand">
+        <svg class="brand-mark" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect width="24" height="24" rx="7" fill="var(--brand)"></rect><circle cx="12" cy="12" r="6.2" stroke="var(--paper-bg)" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="28.827254189339943 10.128494715173492" transform="rotate(-76 12 12)"></circle></svg>
+        <span class="paper__brand-name">Trackit Studio</span>
+      </div>
+      <span class="paper__from-person">Alex Marchetti</span>
+<span>2130 Fillmore Street, Studio 4</span>
+<span>San Francisco, CA 94115</span>
+      <span>billing@trackit.studio</span>
+      <span class="num">+1 415 555 0142</span>
+    </div>
+
+    <div class="paper__meta">
+      <span class="paper__kind">Invoice</span>
+      <span class="paper__number num">INV-0147</span>
+
+      <dl class="paper__dates">
+        <dt>Issued</dt>
+        <dd class="num">24 Aug 2026</dd>
+        <dt>Due</dt>
+        <dd class="num">07 Sep 2026</dd>
+        <dt>Terms</dt>
+        <dd>Net 14</dd>
+      </dl>
+    </div>
+  </header>
+
+  <div class="paper__rule"></div>
+
+  <div class="paper__bill">
+    <span class="paper__overline">Bill to</span>
+    <span class="paper__bill-name">Northwind Studio</span>
+    <span class="paper__bill-line">Priya Raghunathan</span>
+<span class="paper__bill-line">14 Brick Lane</span>
+<span class="paper__bill-line">London E1 6RF</span>
+  </div>
+
+  <div class="paper__items">
+    <div class="paper__columns">
+      <span class="paper__overline">Description</span>
+      <span class="paper__overline paper__amount">Amount</span>
+    </div>
+
+      <section class="paper__group">
+        <h2 class="paper__group-name">Annual report layout</h2>
+        <div class="paper__line">
+          <span>Editorial grid &amp; master pages</span>
+          <span class="paper__amount num">£2,200.00</span>
+        </div>
+        <div class="paper__line">
+          <span>Section layouts, 48 pages</span>
+          <span class="paper__amount num">£2,400.00</span>
+        </div>
+        <div class="paper__group-total">
+          <span>Annual report layout subtotal</span>
+          <span class="paper__amount num">£4,600.00</span>
+        </div>
+      </section>
+
+      <section class="paper__group">
+        <h2 class="paper__group-name">Site build</h2>
+        <div class="paper__line">
+          <span>Component library</span>
+          <span class="paper__amount num">£3,200.00</span>
+        </div>
+        <div class="paper__group-total">
+          <span>Site build subtotal</span>
+          <span class="paper__amount num">£3,200.00</span>
+        </div>
+      </section>
+
+      <section class="paper__group">
+        <h2 class="paper__group-name">Other</h2>
+        <div class="paper__line">
+          <span>Stock photography &lt;licences&gt;</span>
+          <span class="paper__amount num">£3,400.00</span>
+        </div>
+        <div class="paper__group-total">
+          <span>Other subtotal</span>
+          <span class="paper__amount num">£3,400.00</span>
+        </div>
+      </section>
+  </div>
+
+  <div class="paper__totals">
+    <div class="paper__totals-row">
+      <span>Subtotal</span>
+      <span class="paper__amount num">£11,200.00</span>
+    </div>
+        <div class="paper__totals-row">
+          <span>Sales tax 8.5%</span>
+          <span class="paper__amount num">£952.00</span>
+        </div>
+    <div class="paper__total">
+      <span class="paper__total-label">Total due</span>
+      <span class="paper__amount num">£12,152.00</span>
+    </div>
+  </div>
+
+  <div class="paper__gap"></div>
+
+  <footer class="paper__foot">
+    <div class="paper__terms">
+      <span class="paper__overline">Payment terms</span>
+      <p class="paper__prose">Payment is due within 14 days of the issue date. Interest of 1.5% per month applies to balances outstanding after 30 days.</p>
+          <span class="paper__overline paper__overline--spaced">Notes</span>
+          <p class="paper__prose">Half on receipt, the balance on approval of the print proofs.</p>
+    </div>
+
+    <div class="paper__bank">
+      <span class="paper__overline">Payment details</span>
+      <dl class="paper__bank-list">
+        <dt>Bank</dt>
+        <dd>Pacific Union Bank</dd>
+        <dt>Account name</dt>
+        <dd>Trackit Studio LLC</dd>
+        <dt>Routing</dt>
+        <dd class="num">121000248</dd>
+        <dt>Account</dt>
+        <dd class="num">4471 0092 3318</dd>
+        <dt>SWIFT</dt>
+        <dd class="num">PUBKUS6S</dd>
+        <dt>Reference</dt>
+        <dd class="num paper__bank-ref">INV-0147</dd>
+      </dl>
+    </div>
+  </footer>
+
+  <div class="paper__strip">
+    <span>Trackit Studio · billing@trackit.studio</span>
+    <span class="num">INV-0147</span>
+  </div>
+</article>
+</body>
+</html>
+"
+`;

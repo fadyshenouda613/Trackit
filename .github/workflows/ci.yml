@@ -62,6 +62,14 @@ jobs:
 
       - run: npm run build --workspace @trackit/server
 
+      # The PDF test launches the Chrome that Puppeteer downloads. Ubuntu 24.04
+      # ships an AppArmor rule that lets only packaged browsers create the user
+      # namespace Chrome sandboxes with, so an unpackaged one dies at launch
+      # with "No usable sandbox!". Lifting the rule for this throwaway runner
+      # keeps the sandbox on, which --no-sandbox would not. See
+      # https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md
+      - run: echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns
+
       - run: npm run test:integration --workspace @trackit/server
         env:
           DATABASE_URL: postgres://trackit:trackit@localhost:5433/trackit

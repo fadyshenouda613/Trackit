@@ -193,6 +193,15 @@ export async function serverRows(server: TestServer, table: string): Promise<Rec
   return result.rows as Record<string, unknown>[]
 }
 
+/** The invoice numbers the server has handed out for the account, in order. */
+export async function serverNumbers(server: TestServer): Promise<string[]> {
+  const { sql } = await import('drizzle-orm')
+  const result = await server.db.db.execute(
+    sql`SELECT number FROM invoice_numbers WHERE user_id = ${server.userId} ORDER BY number`
+  )
+  return (result.rows as { number: string }[]).map((row) => row.number)
+}
+
 /* ---- Time ----------------------------------------------------------------------- */
 
 /**

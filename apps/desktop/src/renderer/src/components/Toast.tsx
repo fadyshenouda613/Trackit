@@ -39,12 +39,18 @@ function ToastCard({ toast, onDismiss }: ToastCardProps): JSX.Element {
 
       <span className="toast__text">{toast.message}</span>
 
-      {/* Inert: every one of these needs something the app does not have yet —
-          a file manager, a register write, a timer to put back. */}
-      {toast.action && (
-        <button type="button" className="toast__action">
-          {toast.action}
-        </button>
+      {/* The PDF's two actions are real — the file manager and the save
+          dialog live in the main process. The rest are still labels for
+          things the app does not have yet: a register write, a timer to put
+          back. */}
+      {toast.actions && toast.actions.length > 0 && (
+        <span className="toast__actions">
+          {toast.actions.map((action) => (
+            <button key={action.label} type="button" className="toast__action" onClick={action.onClick}>
+              {action.label}
+            </button>
+          ))}
+        </span>
       )}
 
       <button

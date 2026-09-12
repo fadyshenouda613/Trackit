@@ -3,7 +3,7 @@ import { balanceCents, formatCents, type Invoice } from '@trackit/shared'
 import { toneVar } from './tone'
 import { StatusPill } from './StatusPill'
 import { dateLabel } from './local-dates'
-import { overdueDaysOf, overdueToneOf, symbolFor } from './invoices-data'
+import { overdueDaysOf, overdueToneOf, symbolFor, type PdfAvailability } from './invoices-data'
 
 type InvoiceActionsProps = {
   invoice: Invoice
@@ -12,6 +12,11 @@ type InvoiceActionsProps = {
   today: string
   onMarkSent: () => void
   onRecordPayment: () => void
+  /** Whether the PDF can be asked for now, and if not, why — the server makes it. */
+  pdf: PdfAvailability
+  /** Whether a render is in flight: the button waits rather than asking twice. */
+  pdfPending: boolean
+  onDownloadPdf: () => void
   /** Why it was voided, in the freelancer's words — it is printed on the sheet. */
   onVoid: (reason: string) => void
   /** A draft was never issued, so it is deleted rather than voided. */
@@ -45,6 +50,9 @@ export function InvoiceActions({
   today,
   onMarkSent,
   onRecordPayment,
+  pdf,
+  pdfPending,
+  onDownloadPdf,
   onVoid,
   onDelete,
   pending,
@@ -79,6 +87,11 @@ export function InvoiceActions({
 
   const aside = (): string => {
     if (status === 'void') return 'Voided. It counts towards nothing.'
+    /* A draft raised offline holds the number the local scheme guessed. The
+       server issues the real one on the first sync through, and it may differ. */
+    if (status === 'draft' && invoice.numberProvisional) {
+      return 'Not issued. The number is provisional until this draft has synced.'
+    }
     if (status === 'draft') return 'Not issued. No money is expected yet.'
     if (settled) return `Settled in full against ${formatCents(invoice.totalCents, symbol)} invoiced.`
     if (late !== null) {
@@ -147,9 +160,18 @@ export function InvoiceActions({
           </button>
         )}
 
-        <button type="button" className="button inv-acts__button">
-          Download PDF
+        {/* The PDF is made on the server, so without a link or a session the
+            button cannot work — and says so beneath it rather than failing
+            quietly when pressed. */}
+        <button
+          type="button"
+          className="button inv-acts__button"
+          disabled={!pdf.ok || pdfPending}
+          onClick={onDownloadPdf}
+        >
+          {pdfPending ? 'Making the PDF…' : 'Download PDF'}
         </button>
+        {!pdf.ok && pdf.reason && <span className="inv-acts__hint">{pdf.reason}</span>}
 
         {!closed && (
           <>

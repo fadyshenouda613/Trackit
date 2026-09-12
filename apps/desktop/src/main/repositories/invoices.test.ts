@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { Client, Project } from '@trackit/shared/schemas'
 import { openMemoryDatabase, type Database } from '../db'
 import {
+  assignInvoiceNumber,
   createInvoice,
   deleteInvoice,
   deletePayment,
@@ -10,8 +11,11 @@ import {
   listBillableProjects,
   listInvoiceLines,
   listInvoices,
+  listProvisionalInvoices,
+  markPdfGenerated,
   recordPayment,
   sendInvoice,
+  updateInvoice,
   voidInvoice
 } from './invoices'
 import { getProject, updateProject } from './projects'
@@ -144,13 +148,69 @@ describe('guard three: the line is a copy', () => {
     })
   })
 
-  it('numbers the invoice from the scheme and takes the currency from the client', () => {
+  it('numbers the invoice from the scheme, provisionally, and takes the currency from the client', () => {
     updateSettings(db, { numberingScheme: 'INV-0000' })
     const first = draftFor(aProject(db, client, 'delivered'))
     expect(first.number).toBe('INV-0001')
+    expect(first.numberProvisional).toBe(true)
+    expect(first.pdfGeneratedAt).toBeNull()
     expect(first.currency).toBe('USD')
     const second = draftFor(aProject(db, client, 'delivered'))
     expect(second.number).toBe('INV-0002')
+  })
+
+  it('stores the number the server issued when it is handed one', () => {
+    const project = aProject(db, client, 'delivered')
+    const invoice = createInvoice(
+      db,
+      { id: id(), clientId: client.id, taxRate: 0, notes: '', lines: [line(project)] },
+      { number: 'INV-0150', numberProvisional: false }
+    )
+    expect(invoice).toMatchObject({ number: 'INV-0150', numberProvisional: false })
+  })
+})
+
+describe('numbering', () => {
+  it('lists the live provisional drafts, and only them', () => {
+    updateSettings(db, { numberingScheme: 'INV-0000' })
+    const provisional = draftFor(aProject(db, client, 'delivered'))
+    const issued = createInvoice(
+      db,
+      { id: id(), clientId: client.id, taxRate: 0, notes: '', lines: [line(aProject(db, client, 'delivered'))] },
+      { number: 'INV-0150', numberProvisional: false }
+    )
+    const gone = draftFor(aProject(db, client, 'delivered'))
+    deleteInvoice(db, gone.id)
+
+    const listed = listProvisionalInvoices(db).map((entry) => entry.id)
+    expect(listed).toEqual([provisional.id])
+    expect(listed).not.toContain(issued.id)
+  })
+
+  it('assigns the server number as an ordinary edit: flag cleared, stamped, pending', () => {
+    updateSettings(db, { numberingScheme: 'INV-0000' })
+    const draft = draftFor(aProject(db, client, 'delivered'))
+    db.prepare("UPDATE invoices SET sync_state = 'synced' WHERE id = ?").run(draft.id)
+
+    const numbered = assignInvoiceNumber(db, draft.id, 'INV-0007')
+    expect(numbered).toMatchObject({ number: 'INV-0007', numberProvisional: false, syncState: 'pending' })
+    expect(Date.parse(numbered.updatedAt)).toBeGreaterThan(Date.parse(draft.updatedAt))
+    expect(listProvisionalInvoices(db)).toEqual([])
+  })
+
+  it('refuses a number typed onto a draft: it is issued, not edited', () => {
+    const draft = draftFor(aProject(db, client, 'delivered'))
+    expect(() => updateInvoice(db, draft.id, { number: 'INV-9999' })).toThrow(refusedAs('invalid_state'))
+    expect(updateInvoice(db, draft.id, { notes: 'Bank details as before.' }).notes).toBe('Bank details as before.')
+  })
+
+  it('stamps when a PDF was made, on any status', () => {
+    const draft = draftFor(aProject(db, client, 'delivered'))
+    expect(markPdfGenerated(db, draft.id, '2026-09-11T10:00:00.000Z').pdfGeneratedAt).toBe('2026-09-11T10:00:00.000Z')
+    const sent = sendInvoice(db, draft.id)
+    const stamped = markPdfGenerated(db, sent.id, '2026-09-11T11:00:00.000Z')
+    expect(stamped.pdfGeneratedAt).toBe('2026-09-11T11:00:00.000Z')
+    expect(stamped.status).toBe('sent')
   })
 })
 
