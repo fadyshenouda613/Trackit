@@ -114,4 +114,23 @@ describe('nextInvoiceSequence', () => {
   it('does not depend on the order of the register', () => {
     expect(nextInvoiceSequence(['INV-0104', 'INV-0149', 'INV-0131'], 'INV-0000')).toBe(150)
   })
+
+  it('grows past the padding and keeps counting from there', () => {
+    expect(nextInvoiceNumber('INV-0000', nextInvoiceSequence(['INV-9999'], 'INV-0000'), AT)).toBe('INV-10000')
+    expect(invoiceSequenceOf('INV-10000', 'INV-0000')).toBe(10000)
+    expect(nextInvoiceSequence(['INV-9999', 'INV-10000'], 'INV-0000')).toBe(10001)
+  })
+
+  it('runs on across a year change: the date is a label on the number, not a reset', () => {
+    expect(nextInvoiceSequence(['2025-0150', '2026-0151'], '{YYYY}-0000')).toBe(152)
+    expect(nextInvoiceNumber('{YYYY}-0000', 152, '2027-01-01T00:00:00.000Z')).toBe('2027-0152')
+    expect(nextInvoiceSequence(['2612-009'], '{YY}{MM}-000')).toBe(10)
+    expect(nextInvoiceNumber('{YY}{MM}-000', 10, '2027-01-01T00:00:00.000Z')).toBe('2701-010')
+  })
+
+  it('takes only the first run of zeros as the counter', () => {
+    expect(nextInvoiceNumber('00-00', 7, AT)).toBe('07-00')
+    expect(invoiceSequenceOf('07-00', '00-00')).toBe(7)
+    expect(invoiceSequenceOf('07-01', '00-00')).toBeNull()
+  })
 })

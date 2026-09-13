@@ -3,12 +3,12 @@ import type { AuthStatus, SyncRequest, SyncResponse, SyncStatus } from '@trackit
 import { AuthClientError } from '../auth/client'
 import { openMemoryDatabase, type Database } from '../db'
 import { getClient, updateClient } from '../repositories/clients'
-import { createInvoice, deleteInvoice, getInvoice } from '../repositories/invoices'
+import { createInvoice, deleteInvoice, getInvoice, listInvoices } from '../repositories/invoices'
 import { updateSettings } from '../repositories/settings'
 import { aClient, aProject, id } from '../repositories/test-support'
 import { SyncClientError } from './client'
 import { createSyncEngine, type SyncEngine, type SyncEngineDeps } from './engine'
-import { cursor, deviceId, lastSyncedAt } from './meta'
+import { accountUserId, cursor, deviceId, lastSyncedAt } from './meta'
 
 /*
  * The engine against a scripted transport. What goes over the wire and
@@ -184,6 +184,40 @@ describe('one run', () => {
     expect(status.state).toBe('pending')
     expect(status.log.some((entry) => entry.kind === 'failed' && entry.detail.includes('1 change'))).toBe(true)
   })
+
+  it('re-pushes a row the server could not place, and it settles once the parent is there', async () => {
+    const client = aClient(db)
+    const project = aProject(db, client)
+    const transport = scripted(
+      () => ({ cursor: 1, hasMore: false, changes: {}, rejected: [{ table: 'projects', id: project.id, reason: 'missing_parent' }] }),
+      acceptAll(2)
+    )
+    const engine = engineWith({ transport })
+    await engine.sync()
+    const second = await engine.sync()
+    /* The second push carries the project alone: the client was kept the first time. */
+    expect(transport.calls[1]?.changes).toEqual({ projects: [expect.objectContaining({ id: project.id })] })
+    expect(syncStateOf('projects', project.id)).toBe('synced')
+    expect(second).toMatchObject({ state: 'saved', pending: {} })
+  })
+
+  it('sends an outbox exactly one page long in one request, with no empty page after it', async () => {
+    aClient(db)
+    aClient(db, { id: id() })
+    const transport = scripted(acceptAll(2))
+    const status = await engineWith({ transport, pageSize: 2 }).sync()
+    expect(transport.calls).toHaveLength(1)
+    expect(transport.calls[0]?.changes.clients).toHaveLength(2)
+    expect(status.state).toBe('saved')
+  })
+
+  it('a run that moves nothing writes no log line, but still stamps the time and the cursor', async () => {
+    const transport = scripted(acceptAll(11))
+    const status = await engineWith({ transport }).sync()
+    expect(transport.calls).toHaveLength(1)
+    expect(status).toMatchObject({ state: 'saved', lastSyncedAt: NOW, log: [] })
+    expect(cursor(db)).toBe(11)
+  })
 })
 
 describe('the guard', () => {
@@ -298,6 +332,64 @@ describe('failures', () => {
     expect(status.failure).toBe('otherAccount')
     expect(transport.calls).toHaveLength(1)
   })
+
+  it('binds the database to the account on the first run that commits, not on one that failed', async () => {
+    aClient(db)
+    const sam: AuthStatus = { ...signedIn, user: { ...signedIn.user, id: '00000000-0000-4000-8000-00000000000b' } }
+    const asSam = { status: () => sam, accessToken: async () => 'token', verify: async () => undefined }
+
+    /* Alex tries first and never reaches the server: the file stays unclaimed. */
+    await engineWith({ transport: failing(new SyncClientError('offline', 'no route')) }).sync()
+    expect(accountUserId(db)).toBeNull()
+
+    /* A crash inside the apply transaction claims nothing either. */
+    await engineWith({
+      transport: scripted(acceptAll(1)),
+      hooks: {
+        beforeCommit: () => {
+          throw new Error('power cut')
+        }
+      }
+    }).sync()
+    expect(accountUserId(db)).toBeNull()
+
+    /* So Sam can sync it, and from then on it is Sam's. */
+    const transport = scripted(acceptAll(1))
+    expect((await engineWith({ transport, auth: asSam }).sync()).state).toBe('saved')
+    expect(accountUserId(db)).toBe(sam.user.id)
+    expect((await engineWith({ transport, auth: asSam }).sync()).state).toBe('saved')
+    expect((await engineWith({ transport }).sync()).failure).toBe('otherAccount')
+    expect(transport.calls).toHaveLength(2)
+  })
+
+  it('checks the account before a draft is numbered, so the other account’s server is never asked', async () => {
+    const client = aClient(db)
+    const bound = scripted(acceptAll(1))
+    await engineWith({ transport: bound }).sync()
+
+    const project = aProject(db, client, 'delivered')
+    updateSettings(db, { numberingScheme: 'INV-0000' })
+    const draft = createInvoice(db, {
+      id: id(),
+      clientId: client.id,
+      taxRate: 0,
+      notes: '',
+      lines: [{ id: id(), projectId: project.id, milestoneId: null, sortOrder: 1 }]
+    })
+    expect(draft.numberProvisional).toBe(true)
+
+    const sam: AuthStatus = { ...signedIn, user: { ...signedIn.user, id: '00000000-0000-4000-8000-00000000000b' } }
+    const transport = scripted(acceptAll(2))
+    transport.minting(() => 'INV-0099')
+    const status = await engineWith({
+      transport,
+      auth: { status: () => sam, accessToken: async () => 'token', verify: async () => undefined }
+    }).sync()
+    expect(status.failure).toBe('otherAccount')
+    expect(transport.mints).toEqual([])
+    expect(transport.calls).toEqual([])
+    expect(getInvoice(db, draft.id)).toMatchObject({ number: draft.number, numberProvisional: true })
+  })
 })
 
 describe('interruption', () => {
@@ -374,6 +466,43 @@ describe('interruption', () => {
     const second = await engine.sync()
     expect(transport.calls[1]?.changes.clients?.[0]?.name).toBe('Edited meanwhile')
     expect(second.state).toBe('saved')
+  })
+
+  it('a conflict found in a page that rolled back is recorded once, by the run that commits', async () => {
+    const client = aClient(db)
+    const mine = updateClient(db, client.id, { name: 'Mine' })
+    const theirsAt = new Date(Date.parse(mine.updatedAt) + 60_000).toISOString()
+    const transport = scripted(() => ({
+      cursor: 4,
+      hasMore: false,
+      changes: {
+        clients: [
+          { ...mine, syncState: undefined, name: 'Theirs', updatedAt: theirsAt, updatedBy: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }
+        ]
+      },
+      rejected: []
+    }))
+    const crashing = engineWith({
+      transport,
+      hooks: {
+        beforeCommit: () => {
+          throw new Error('power cut')
+        }
+      }
+    })
+    const failed = await crashing.sync()
+    expect(failed.state).toBe('failed')
+    /* Nothing of the page survived: not the row, not the notice, not the log line about it. */
+    expect(crashing.conflicts()).toEqual([])
+    expect(getClient(db, client.id)?.name).toBe('Mine')
+    expect(failed.log.filter((entry) => entry.kind === 'conflict')).toEqual([])
+
+    const recovered = engineWith({ transport })
+    const status = await recovered.sync()
+    expect(status.state).toBe('saved')
+    expect(getClient(db, client.id)?.name).toBe('Theirs')
+    expect(recovered.conflicts()).toHaveLength(1)
+    expect(status.log.filter((entry) => entry.kind === 'conflict')).toHaveLength(1)
   })
 })
 
@@ -498,6 +627,60 @@ describe('provisional numbers', () => {
     expect(status).toMatchObject({ state: 'failed', failure: 'server' })
     expect(transport.calls).toHaveLength(0)
     expect(getInvoice(db, draft.id)).toMatchObject({ number: 'INV-0001', numberProvisional: true })
+  })
+
+  it('a draft numbered before a later mint fails keeps its number; the rest wait for next time', async () => {
+    draftFor()
+    draftFor()
+    const transport = scripted(acceptAll(9))
+    let asked = 0
+    transport.minting(() => {
+      asked += 1
+      if (asked === 2) throw new SyncClientError('offline', 'lost the connection')
+      return 'INV-0151'
+    })
+    const engine = engineWith({ transport })
+
+    const failed = await engine.sync()
+    expect(failed).toMatchObject({ state: 'failed', failure: 'offline' })
+    expect(transport.mints).toHaveLength(2)
+    expect(transport.calls).toHaveLength(0)
+    const numbered = listInvoices(db).filter((invoice) => !invoice.numberProvisional)
+    expect(numbered).toHaveLength(1)
+    expect(numbered[0]).toMatchObject({ number: 'INV-0151', syncState: 'pending' })
+    expect(failed.log.map((event) => event.detail)).toContain('Draft INV-0001 is now INV-0151')
+
+    /* Next time only the remaining draft asks, and both go up. */
+    transport.minting(() => 'INV-0152')
+    const recovered = await engine.sync()
+    expect(transport.mints).toHaveLength(3)
+    expect(transport.mints[2]?.invoiceId).not.toBe(numbered[0]?.id)
+    expect(recovered.state).toBe('saved')
+    expect(listInvoices(db).map((invoice) => invoice.number).sort()).toEqual(['INV-0151', 'INV-0152'])
+    expect(listInvoices(db).every((invoice) => !invoice.numberProvisional && invoice.syncState === 'synced')).toBe(true)
+  })
+
+  /*
+   * BUG (engine.ts:214): `numbered` is only assigned when assignServerNumbers
+   * returns, so when the second of two mints throws, the first draft's number
+   * has already been swapped in the database (and logged) but the revision
+   * does not move. The screen keeps showing the provisional number the row no
+   * longer holds — exactly what the comment at engine.ts:249-252 says must
+   * not happen.
+   */
+  it('a swap that landed before a later mint failed still moves the revision', async () => {
+    draftFor()
+    draftFor()
+    const transport = scripted(acceptAll(9))
+    let asked = 0
+    transport.minting(() => {
+      asked += 1
+      if (asked === 2) throw new SyncClientError('offline', 'lost the connection')
+      return 'INV-0151'
+    })
+    const failed = await engineWith({ transport }).sync()
+    expect(listInvoices(db).filter((invoice) => !invoice.numberProvisional)).toHaveLength(1)
+    expect(failed.revision).toBe(1)
   })
 
   it('retries the mint once after a refresh when the token was refused', async () => {

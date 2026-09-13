@@ -40,7 +40,8 @@ import {
   updateInvoiceInputSchema,
   updateNoteInputSchema,
   updateSettingsInputSchema,
-  updateTimeEntryInputSchema
+  updateTimeEntryInputSchema,
+  voidInvoiceInputSchema
 } from './index'
 
 /* Fixed v4 UUIDs: version nibble 4, variant nibble 8. */
@@ -342,6 +343,45 @@ describe('invoice', () => {
     expect(createInvoiceLineInputSchema.safeParse({ ...line, label: '' }).success).toBe(false)
     expect(createInvoiceLineInputSchema.safeParse({ ...line, amountCents: 12.5 }).success).toBe(false)
   })
+
+  it('raises nothing without a line, and a line typed by hand needs its label and amount', () => {
+    const raised = { id: ID, clientId: OTHER, taxRate: 0, notes: '' }
+    expect(newInvoiceInputSchema.safeParse({ ...raised, lines: [] }).success).toBe(false)
+    const typed = { id: ID, projectId: null, sortOrder: 1 }
+    expect(newInvoiceInputSchema.safeParse({ ...raised, lines: [typed] }).success).toBe(false)
+    expect(newInvoiceInputSchema.safeParse({ ...raised, lines: [{ ...typed, label: 'Logo lockups' }] }).success).toBe(false)
+    expect(newInvoiceInputSchema.safeParse({ ...raised, lines: [{ ...typed, amountCents: 240000 }] }).success).toBe(false)
+    const whole = { ...typed, label: 'Logo lockups', amountCents: 240000 }
+    expect(newInvoiceInputSchema.safeParse({ ...raised, lines: [whole] }).success).toBe(true)
+    expect(newInvoiceInputSchema.safeParse({ ...raised, taxRate: 101, lines: [whole] }).success).toBe(false)
+  })
+
+  it('defaults what a raised invoice leaves out: the notes and a line’s milestone', () => {
+    const parsed = newInvoiceInputSchema.parse({
+      id: ID,
+      clientId: OTHER,
+      taxRate: 0,
+      lines: [{ id: ID, projectId: OTHER, sortOrder: 1 }]
+    })
+    expect(parsed.notes).toBe('')
+    expect(parsed.lines[0]?.milestoneId).toBeNull()
+    expect(parsed.currency).toBeUndefined()
+  })
+
+  it('needs a reason to void; the replacement is optional and must be an id', () => {
+    expect(voidInvoiceInputSchema.parse({ reason: 'Issued to the wrong client' })).toEqual({
+      reason: 'Issued to the wrong client',
+      replacedByInvoiceId: null
+    })
+    expect(voidInvoiceInputSchema.safeParse({ reason: '   ' }).success).toBe(false)
+    expect(voidInvoiceInputSchema.safeParse({ reason: 'Reissued', replacedByInvoiceId: 'INV-0150' }).success).toBe(false)
+  })
+
+  it('keeps the issue date on a void: it was sent before it was withdrawn', () => {
+    const withdrawn = { ...sent, status: 'void' as const, voidedAt: AT, voidReason: 'Issued to the wrong client' }
+    expect(invoiceSchema.safeParse({ ...base, ...withdrawn }).success).toBe(true)
+    expect(invoiceSchema.safeParse({ ...base, ...withdrawn, issuedAt: null, dueAt: null }).success).toBe(false)
+  })
 })
 
 describe('payment', () => {
@@ -358,6 +398,11 @@ describe('payment', () => {
     expect(createPaymentInputSchema.safeParse({ id: ID, ...fields, note: null }).success).toBe(true)
     expect(paymentSchema.safeParse({ ...base, ...fields, amountCents: 0 }).success).toBe(false)
     expect(paymentSchema.safeParse({ ...base, ...fields, amountCents: 10.5 }).success).toBe(false)
+  })
+
+  it('refuses a negative amount: a refund is not a payment', () => {
+    expect(paymentSchema.safeParse({ ...base, ...fields, amountCents: -100 }).success).toBe(false)
+    expect(createPaymentInputSchema.safeParse({ id: ID, ...fields, amountCents: -1 }).success).toBe(false)
   })
 
   it('has a label for every method the dialog lists', () => {

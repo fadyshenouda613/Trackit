@@ -105,6 +105,41 @@ describe('resolveConflict', () => {
 
   it('refuses an unknown or already resolved conflict', () => {
     expect(() => resolveConflict(db, id(), 'keepTheirs', LATER)).toThrow()
+
+    const client = aClient(db)
+    const mine = updateClient(db, client.id, { name: 'Mine' })
+    applyChanges(db, { clients: [pulled(client, { name: 'Theirs', updatedAt: later(mine.updatedAt) })] }, { deviceId: ME, now: NOW })
+    const [conflict] = listConflicts(db)
+    resolveConflict(db, conflict!.id, 'keepTheirs', LATER)
+    /* A second Restore on a closed conflict would write a stale version back as a fresh edit. */
+    expect(() => resolveConflict(db, conflict!.id, 'restoreMine', LATER)).toThrow()
+    expect(rawClient(client.id)).toMatchObject({ name: 'Theirs', sync_state: 'synced' })
+  })
+
+  it('restoreMine stamps the edit past the winner even when this machine’s clock is behind it', () => {
+    const client = aClient(db)
+    const mine = updateClient(db, client.id, { name: 'Mine' })
+    const theirsAt = later(mine.updatedAt)
+    applyChanges(db, { clients: [pulled(client, { name: 'Theirs', updatedAt: theirsAt })] }, { deviceId: ME, now: NOW })
+
+    const behind = new Date(Date.parse(theirsAt) - 60_000).toISOString()
+    resolveConflict(db, listConflicts(db)[0]!.id, 'restoreMine', behind)
+    const restoredAt = rawClient(client.id)['updated_at'] as string
+    /* One millisecond past the winner: enough to win the tie-break everywhere, and no further. */
+    expect(Date.parse(restoredAt)).toBe(Date.parse(theirsAt) + 1)
+  })
+
+  it('lists open conflicts newest first and leaves resolved ones out', () => {
+    const first = aClient(db, { name: 'First' })
+    const second = aClient(db, { name: 'Second' })
+    const mineFirst = updateClient(db, first.id, { name: 'Mine 1' })
+    const mineSecond = updateClient(db, second.id, { name: 'Mine 2' })
+    applyChanges(db, { clients: [pulled(first, { name: 'Theirs 1', updatedAt: later(mineFirst.updatedAt) })] }, { deviceId: ME, now: NOW })
+    applyChanges(db, { clients: [pulled(second, { name: 'Theirs 2', updatedAt: later(mineSecond.updatedAt) })] }, { deviceId: ME, now: LATER })
+
+    expect(listConflicts(db).map((conflict) => conflict.label)).toEqual(['Mine 2', 'Mine 1'])
+    resolveConflict(db, listConflicts(db)[0]!.id, 'keepTheirs', LATER)
+    expect(listConflicts(db).map((conflict) => conflict.label)).toEqual(['Mine 1'])
   })
 })
 

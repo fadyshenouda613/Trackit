@@ -38,6 +38,13 @@ describe('parseMoney', () => {
     expect(parseMoney('$')).toBeNull()
     expect(parseMoney('twelve')).toBeNull()
   })
+
+  it('keeps a sign, strips any of the symbols, and refuses a second point', () => {
+    expect(parseMoney('-$5.00')).toBe(-5)
+    expect(parseMoney('£ 1,234.56')).toBe(1234.56)
+    expect(parseMoney('€1 200')).toBe(1200)
+    expect(parseMoney('1.2.3')).toBeNull()
+  })
 })
 
 describe('toCents / parseMoneyToCents', () => {
@@ -50,5 +57,11 @@ describe('toCents / parseMoneyToCents', () => {
   it('reads a typed figure straight into cents', () => {
     expect(parseMoneyToCents('1,200.50')).toBe(120050)
     expect(parseMoneyToCents('')).toBeNull()
+  })
+
+  it('reads back exactly what formatCents printed', () => {
+    for (const cents of [0, 1, 99, 100, 123456789, -250]) {
+      expect(parseMoneyToCents(formatCents(cents))).toBe(cents)
+    }
   })
 })

@@ -210,8 +210,12 @@ export function createSyncEngine(deps: SyncEngineDeps): SyncEngine {
         throw new SyncFailed('otherAccount', 'This data was first synced under another account')
       }
 
-      /* Drafts numbered here become edits, and go up in the loop below. */
-      numbered = await assignServerNumbers(db, withToken, transport, now)
+      /* Drafts numbered here become edits, and go up in the loop below. The
+         count is kept as it grows: a swap that landed before a later mint
+         failed is still a change the renderer has to hear about. */
+      await assignServerNumbers(db, withToken, transport, now, () => {
+        numbered += 1
+      })
 
       for (;;) {
         const outbox = collectPending(db, pageSize)

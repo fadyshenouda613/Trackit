@@ -82,4 +82,41 @@ describe('auth client', () => {
     await expect(createAuthClient({ baseUrl: 'x', fetch }).logout('t')).resolves.toBeUndefined()
     expect(JSON.parse(String(calls[0].init.body))).toEqual({ refreshToken: 't' })
   })
+
+  it('posts the refresh token as JSON with a deadline, and reports the deadline passing as offline', async () => {
+    const { fetch, calls } = fakeFetch(200, { user, tokens })
+    await createAuthClient({ baseUrl: 'x', fetch }).refresh('the-token')
+    expect(calls[0].url).toBe('x/auth/refresh')
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ refreshToken: 'the-token' })
+    expect(calls[0].init.headers).toMatchObject({ 'content-type': 'application/json', accept: 'application/json' })
+    expect(calls[0].init.signal).toBeInstanceOf(AbortSignal)
+
+    /* A hung server ends in the signal's TimeoutError, which is "no response at all". */
+    const hung = (() => Promise.reject(new DOMException('The operation was aborted due to timeout', 'TimeoutError'))) as unknown as typeof fetch
+    await expect(createAuthClient({ baseUrl: 'x', fetch: hung }).refresh('t')).rejects.toMatchObject({
+      code: 'offline',
+      message: expect.stringContaining('timeout')
+    })
+  })
+
+  it('does not trust a 200 whose body is not JSON, or a session whose expiries are not timestamps', async () => {
+    const notJson = ((..._args: unknown[]) =>
+      Promise.resolve(new Response('<html>', { status: 200, headers: { 'content-type': 'text/html' } }))) as unknown as typeof fetch
+    await expect(createAuthClient({ baseUrl: 'x', fetch: notJson }).refresh('t')).rejects.toMatchObject({ code: 'internal' })
+
+    const badExpiry = fakeFetch(200, { user, tokens: { ...tokens, accessExpiresAt: 'soon' } }).fetch
+    await expect(createAuthClient({ baseUrl: 'x', fetch: badExpiry }).refresh('t')).rejects.toMatchObject({ code: 'internal' })
+    const noRefresh = fakeFetch(200, { user, tokens: { ...tokens, refreshToken: '' } }).fetch
+    await expect(createAuthClient({ baseUrl: 'x', fetch: noRefresh }).login({ email: 'a@b.co', password: 'x' })).rejects.toMatchObject({
+      code: 'internal'
+    })
+  })
+
+  it('joins the base URL and the route with exactly one slash', async () => {
+    for (const baseUrl of ['https://api.example', 'https://api.example/', 'https://api.example///']) {
+      const { fetch, calls } = fakeFetch(204, null)
+      await createAuthClient({ baseUrl, fetch }).logout('t')
+      expect(calls[0].url).toBe('https://api.example/auth/logout')
+    }
+  })
 })

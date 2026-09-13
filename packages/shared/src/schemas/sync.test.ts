@@ -7,6 +7,8 @@ import {
   syncConflictSchema,
   syncPullRowSchemas,
   syncPushRowSchemas,
+  syncRejectionSchema,
+  syncRequestEnvelopeSchema,
   syncRequestSchema,
   syncResponseSchema,
   syncStatusSchema,
@@ -149,6 +151,30 @@ describe('request and response', () => {
       rejected: [{ table: 'projects', id: id(5), reason: 'missing_parent' }]
     }
     expect(syncResponseSchema.parse(response)).toEqual(response)
+  })
+
+  it('the envelope keeps the rows unread but still refuses a table it does not know', () => {
+    const envelope = {
+      protocolVersion: SYNC_PROTOCOL_VERSION,
+      deviceId: id(9),
+      since: 0,
+      /* A row the full schema would refuse: the server rejects it on its own, not the batch. */
+      changes: { clients: [{ nonsense: true }, 42, null] }
+    }
+    expect(syncRequestEnvelopeSchema.parse(envelope)).toEqual(envelope)
+    expect(syncRequestEnvelopeSchema.safeParse({ ...envelope, changes: { widgets: [] } }).success).toBe(false)
+    expect(syncRequestEnvelopeSchema.safeParse({ ...envelope, changes: { clients: {} } }).success).toBe(false)
+    expect(syncRequestEnvelopeSchema.safeParse({ ...envelope, protocolVersion: 2 }).success).toBe(false)
+  })
+
+  it('a response cannot name an unknown table, an unknown reason, or a cursor that is not a sequence', () => {
+    const base = { cursor: 40, hasMore: false, changes: {}, rejected: [] }
+    expect(syncResponseSchema.safeParse({ ...base, changes: { widgets: [] } }).success).toBe(false)
+    expect(syncResponseSchema.safeParse({ ...base, rejected: [{ table: 'clients', id: '', reason: 'lost' }] }).success).toBe(false)
+    expect(syncResponseSchema.safeParse({ ...base, cursor: -1 }).success).toBe(false)
+    expect(syncResponseSchema.safeParse({ ...base, cursor: 1.5 }).success).toBe(false)
+    /* The settings row has no id, and its rejection is allowed to say so. */
+    expect(syncRejectionSchema.parse({ table: 'settings', id: '', reason: 'forbidden' }).id).toBe('')
   })
 })
 

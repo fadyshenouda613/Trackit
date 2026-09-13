@@ -212,4 +212,43 @@ describe('POST /invoices/:id/number', () => {
     const rows = await db.db.execute(sql`SELECT number FROM invoice_numbers WHERE user_id = ${userId}`)
     expect(rows.rows).toEqual([{ number: 'INV-0002' }])
   })
+
+  it('hands each of several simultaneous requests its own number', async () => {
+    const app = appFor(config, db)
+    const { token } = await signUp(app)
+    const answers = await Promise.all([20, 21, 22, 23, 24].map((n) => mint(app, token, id(n))))
+    expect(answers.map((answer) => answer.status)).toEqual([200, 200, 200, 200, 200])
+    expect(answers.map((answer) => answer.body.number).sort()).toEqual([
+      'INV-0001',
+      'INV-0002',
+      'INV-0003',
+      'INV-0004',
+      'INV-0005'
+    ])
+  })
+
+  it('reserves by invoice, not by scheme; a new scheme counts on its own and grows past its padding', async () => {
+    const app = appFor(config, db)
+    const { token } = await signUp(app)
+    await upload(app, token, { clients: [aClient()], invoices: [anInvoice({ number: 'INV-0147' })] })
+
+    expect((await mint(app, token, id(10))).body.number).toBe('INV-0148')
+    /* The same invoice asking under another scheme gets the number it was already promised. */
+    expect((await mint(app, token, id(10), '{YYYY}-000')).body.number).toBe('INV-0148')
+    /* Another invoice under that scheme starts its own count: nothing above was its number. */
+    expect((await mint(app, token, id(11), '{YYYY}-000')).body.number).toMatch(/^\d{4}-001$/)
+
+    await upload(app, token, { invoices: [anInvoice({ id: id(5), number: 'INV-9999' })] })
+    expect((await mint(app, token, id(12))).body.number).toBe('INV-10000')
+  })
+
+  it('answers 401 for nobody and 400 for an id that is not one', async () => {
+    const app = appFor(config, db)
+    const { token } = await signUp(app)
+    const nobody = await request(app).post(`/invoices/${id(10)}/number`).send({ scheme: 'INV-0000' })
+    expect(nobody.status).toBe(401)
+    const junk = await mint(app, token, 'not-an-id')
+    expect(junk.status).toBe(400)
+    expect(junk.body.error.code).toBe('validation')
+  })
 })

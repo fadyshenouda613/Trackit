@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -80,5 +80,46 @@ describe('session store', () => {
     expect(store.read()).toBeNull()
     writeFileSync(file, JSON.stringify({ version: 1, user, encrypted: false, refreshToken: 't', refreshExpiresAt: 'yesterday' }))
     expect(store.read()).toBeNull()
+  })
+
+  it('rotates in place: the spent token is gone from disk, and nothing is left beside the file', () => {
+    const store = createSessionStore(file, reversing)
+    store.write(session)
+    const rotated: StoredSession = { ...session, refreshToken: 'the-next-token', refreshExpiresAt: '2027-03-07T09:15:00.000Z' }
+    store.write(rotated)
+
+    expect(store.read()).toEqual(rotated)
+    const onDisk = readFileSync(file, 'utf8')
+    expect(onDisk).not.toContain(reversing.encrypt(session.refreshToken).toString('base64'))
+    expect(existsSync(`${file}.tmp`)).toBe(false)
+  })
+
+  it('ignores a half-written file from a crash and writes over it', () => {
+    const store = createSessionStore(file, reversing)
+    store.write(session)
+    writeFileSync(`${file}.tmp`, '{"version": 1, "user": ')
+    /* The temp file is not the session; the real one still is. */
+    expect(store.read()).toEqual(session)
+
+    store.write({ ...session, refreshToken: 'after-the-crash' })
+    expect(store.read()?.refreshToken).toBe('after-the-crash')
+    expect(existsSync(`${file}.tmp`)).toBe(false)
+  })
+
+  it('reads by what the file says, not by what the OS offers now', () => {
+    /* Encrypted when written; the secret service is gone at launch but the key still works. */
+    createSessionStore(file, reversing).write(session)
+    const unavailableButWorking: Cipher = { ...reversing, available: () => false }
+    expect(createSessionStore(file, unavailableButWorking).read()).toEqual(session)
+
+    /* Written in the clear on a machine with nothing; read back on one that now has a cipher. */
+    createSessionStore(file, plainCipher).write(session)
+    const wouldMangle: Cipher = {
+      ...reversing,
+      decrypt: () => {
+        throw new Error('should not be asked')
+      }
+    }
+    expect(createSessionStore(file, wouldMangle).read()).toEqual(session)
   })
 })

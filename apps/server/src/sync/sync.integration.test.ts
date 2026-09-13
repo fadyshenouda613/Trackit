@@ -85,6 +85,86 @@ const anItem = (overrides: Partial<SyncPushRow<'checklist_items'>> = {}): SyncPu
   ...overrides
 })
 
+const aMilestone = (overrides: Partial<SyncPushRow<'milestones'>> = {}): SyncPushRow<'milestones'> => ({
+  id: id(4),
+  projectId: id(2),
+  name: 'Discovery',
+  description: '',
+  amountCents: null,
+  dueAt: null,
+  deliveredAt: null,
+  sortOrder: 1,
+  createdAt: T0,
+  updatedAt: T0,
+  deletedAt: null,
+  ...overrides
+})
+
+const anInvoice = (overrides: Partial<SyncPushRow<'invoices'>> = {}): SyncPushRow<'invoices'> => ({
+  id: id(5),
+  clientId: id(1),
+  number: 'INV-0001',
+  numberProvisional: false,
+  pdfGeneratedAt: null,
+  status: 'draft',
+  currency: 'EUR',
+  issuedAt: null,
+  dueAt: null,
+  taxRate: 0,
+  subtotalCents: 650000,
+  taxCents: 0,
+  totalCents: 650000,
+  notes: '',
+  voidedAt: null,
+  voidReason: null,
+  replacedByInvoiceId: null,
+  createdAt: T0,
+  updatedAt: T0,
+  deletedAt: null,
+  ...overrides
+})
+
+const aLine = (overrides: Partial<SyncPushRow<'invoice_lines'>> = {}): SyncPushRow<'invoice_lines'> => ({
+  id: id(6),
+  invoiceId: id(5),
+  projectId: id(2),
+  milestoneId: null,
+  label: 'Brand refresh',
+  amountCents: 650000,
+  sortOrder: 1,
+  createdAt: T0,
+  updatedAt: T0,
+  deletedAt: null,
+  ...overrides
+})
+
+const aTimeEntry = (overrides: Partial<SyncPushRow<'time_entries'>> = {}): SyncPushRow<'time_entries'> => ({
+  id: id(7),
+  projectId: id(2),
+  checklistItemId: null,
+  note: '',
+  startedAt: T0,
+  endedAt: T1,
+  source: 'manual',
+  createdAt: T0,
+  updatedAt: T0,
+  deletedAt: null,
+  ...overrides
+})
+
+const aPayment = (overrides: Partial<SyncPushRow<'payments'>> = {}): SyncPushRow<'payments'> => ({
+  id: id(8),
+  invoiceId: id(5),
+  paidAt: T1,
+  amountCents: 650000,
+  method: 'bank_transfer',
+  note: null,
+  createdAt: T0,
+  updatedAt: T0,
+  deletedAt: null,
+  ...overrides
+})
+
 const theSettings = (overrides: Partial<SyncPushRow<'settings'>> = {}): SyncPushRow<'settings'> => ({
   person: 'Alex',
   businessName: 'Marchetti Design',
@@ -228,6 +308,56 @@ describe('runSync: pushing', () => {
     expect(rowsOf(response, 'checklist_items')).toHaveLength(1)
   })
 
+  it('checks every parent field, self-references included, and finds each within the same request', async () => {
+    const { userId } = await signUp(appFor(config, db))
+    const response = await sync(
+      userId,
+      req({
+        clients: [aClient()],
+        projects: [aProject()],
+        milestones: [aMilestone()],
+        checklist_items: [anItem()],
+        invoices: [
+          anInvoice(),
+          /* A void that names a replacement the server does not hold. */
+          anInvoice({ id: id(50), status: 'void', issuedAt: T0, dueAt: T1, voidedAt: T1, voidReason: 'redone', replacedByInvoiceId: id(99) }),
+          /* One that names the invoice pushed just before it. */
+          anInvoice({ id: id(51), status: 'void', issuedAt: T0, dueAt: T1, voidedAt: T1, voidReason: 'redone', replacedByInvoiceId: id(5) })
+        ],
+        invoice_lines: [
+          aLine({ milestoneId: id(4) }),
+          aLine({ id: id(60), milestoneId: id(98) }),
+          aLine({ id: id(61), projectId: id(97) })
+        ],
+        time_entries: [aTimeEntry({ checklistItemId: id(3) }), aTimeEntry({ id: id(70), checklistItemId: id(96) })],
+        payments: [aPayment(), aPayment({ id: id(80), invoiceId: id(95) })]
+      })
+    )
+
+    expect(response.rejected).toEqual([
+      { table: 'invoices', id: id(50), reason: 'missing_parent' },
+      { table: 'invoice_lines', id: id(60), reason: 'missing_parent' },
+      { table: 'invoice_lines', id: id(61), reason: 'missing_parent' },
+      { table: 'time_entries', id: id(70), reason: 'missing_parent' },
+      { table: 'payments', id: id(80), reason: 'missing_parent' }
+    ])
+    expect(rowsOf(response, 'invoices').map((row) => row.id)).toEqual([id(5), id(51)])
+    expect(rowsOf(response, 'invoice_lines').map((row) => row.id)).toEqual([id(6)])
+    expect(rowsOf(response, 'time_entries').map((row) => row.id)).toEqual([id(7)])
+    expect(rowsOf(response, 'payments').map((row) => row.id)).toEqual([id(8)])
+    /* Parent tables first, whatever the request said. */
+    expect(Object.keys(response.changes)).toEqual([
+      'clients',
+      'projects',
+      'milestones',
+      'checklist_items',
+      'invoices',
+      'invoice_lines',
+      'time_entries',
+      'payments'
+    ])
+  })
+
   it("treats another account's parent as missing", async () => {
     const app = appFor(config, db)
     const { userId: alexId } = await signUp(app, alex)
@@ -259,6 +389,52 @@ describe('runSync: pushing', () => {
 
     expect(response.rejected).toEqual([{ table: 'clients', id: id(30), reason: 'forbidden' }])
     expect(rowsOf(response, 'clients').map((row) => row.id)).toEqual([id(1)])
+  })
+
+  it('rejects what is not a row at all, or has no id to speak of, by the schema and never by the database', async () => {
+    const { userId } = await signUp(appFor(config, db))
+    const notRows = [42, null, 'a client', { ...aClient(), id: 'not-a-uuid' }, { ...aClient(), id: 7 }]
+    const response = await sync(
+      userId,
+      req({
+        clients: [aClient(), ...(notRows as unknown as SyncPushRow<'clients'>[])],
+        settings: [{ person: 5 } as unknown as SyncPushRow<'settings'>]
+      })
+    )
+
+    expect(response.rejected).toEqual([
+      { table: 'clients', id: '', reason: 'forbidden' },
+      { table: 'clients', id: '', reason: 'forbidden' },
+      { table: 'clients', id: '', reason: 'forbidden' },
+      { table: 'clients', id: 'not-a-uuid', reason: 'forbidden' },
+      { table: 'clients', id: '', reason: 'forbidden' },
+      { table: 'settings', id: '', reason: 'forbidden' }
+    ])
+    expect(rowsOf(response, 'clients').map((row) => row.id)).toEqual([id(1)])
+    expect(rowsOf(response, 'settings')).toEqual([])
+  })
+
+  it('takes the device from the request, never from the row: a client cannot sign as another device', async () => {
+    const { userId } = await signUp(appFor(config, db))
+    const forged = { ...aClient(), updatedBy: DEVICE_B } as unknown as SyncPushRow<'clients'>
+    const response = await sync(userId, req({ clients: [forged] }, { deviceId: DEVICE_A }))
+    expect(response.rejected).toEqual([])
+    expect(rowsOf(response, 'clients')).toEqual([{ ...aClient(), updatedBy: DEVICE_A }])
+
+    /* And so B, at the same instant, still wins the tie it would have lost had the forgery stuck. */
+    const fromB = await sync(userId, req({ clients: [aClient({ name: 'B wrote this' })] }, { since: response.cursor, deviceId: DEVICE_B }))
+    expect(rowsOf(fromB, 'clients')[0]).toMatchObject({ name: 'B wrote this', updatedBy: DEVICE_B })
+  })
+
+  it('a version with no device of record loses every tie', async () => {
+    const { userId } = await signUp(appFor(config, db))
+    const first = await sync(userId, req({ clients: [aClient({ name: 'From before device ids' })] }))
+    await db.db.execute(sql`UPDATE clients SET updated_by = NULL WHERE id = ${id(1)}`)
+
+    const lowest = '00000000-0000-4000-8000-000000000000'
+    const response = await sync(userId, req({ clients: [aClient({ name: 'Signed' })] }, { since: first.cursor, deviceId: lowest }))
+    expect(rowsOf(response, 'clients')).toEqual([{ ...aClient({ name: 'Signed' }), updatedBy: lowest }])
+    expect(response.cursor).toBeGreaterThan(first.cursor)
   })
 
   it('keeps one settings row per account, under the same rule', async () => {
@@ -298,6 +474,40 @@ describe('runSync: pulling', () => {
     }
     expect(pages).toBe(3)
     expect(seen).toEqual([id(1), id(2), id(3), id(4), id(5)])
+  })
+
+  it('a history that is an exact multiple of the page size ends on the last full page, not an empty one', async () => {
+    const { userId } = await signUp(appFor(config, db))
+    await sync(userId, req({ clients: [1, 2, 3, 4].map((n) => aClient({ id: id(n) })) }))
+
+    const first = await sync(userId, req({}, { since: 0 }), 2)
+    expect(first.hasMore).toBe(true)
+    expect(rowsOf(first, 'clients').map((row) => row.id)).toEqual([id(1), id(2)])
+
+    const second = await sync(userId, req({}, { since: first.cursor }), 2)
+    expect(second.hasMore).toBe(false)
+    expect(rowsOf(second, 'clients').map((row) => row.id)).toEqual([id(3), id(4)])
+    expect(second.cursor).toBeGreaterThan(first.cursor)
+
+    /* A client that asks once more anyway is told nothing, at the same place. */
+    const third = await sync(userId, req({}, { since: second.cursor }), 2)
+    expect(third).toEqual({ cursor: second.cursor, hasMore: false, changes: {}, rejected: [] })
+  })
+
+  it('sends the winner of a lost push once, even when the page already carries it', async () => {
+    const { userId } = await signUp(appFor(config, db))
+    await sync(userId, req({ clients: [aClient({ updatedAt: T1, name: 'Newer' })] }, { deviceId: DEVICE_B }))
+
+    /* A has never pulled, so the page from 0 holds the winner already. */
+    const response = await sync(userId, req({ clients: [aClient({ updatedAt: T0, name: 'Older' })] }, { since: 0, deviceId: DEVICE_A }))
+    expect(rowsOf(response, 'clients')).toEqual([{ ...aClient({ updatedAt: T1, name: 'Newer' }), updatedBy: DEVICE_B }])
+  })
+
+  it('a cursor past everything held is honoured as it is, and answers nothing', async () => {
+    const { userId } = await signUp(appFor(config, db))
+    const first = await sync(userId, req({ clients: [aClient()] }))
+    const response = await sync(userId, req({}, { since: first.cursor + 1000 }))
+    expect(response).toEqual({ cursor: first.cursor + 1000, hasMore: false, changes: {}, rejected: [] })
   })
 
   it('returns nothing, and the same cursor, when there is nothing new', async () => {
@@ -345,6 +555,30 @@ describe('runSync: under concurrency', () => {
     expect(rowsOf(all, 'clients').map((row) => row.id).sort()).toEqual([1, 2, 3, 4, 5].map(id))
     expect(all.cursor).toBe(cursors[4])
   })
+
+  it('serialises pushes of the same row, so the newest version stands whatever order they landed in', async () => {
+    const { userId } = await signUp(appFor(config, db))
+    const devices = [1, 2, 3, 4, 5].map((n) => `${n}${n}${n}${n}${n}${n}${n}${n}-0000-4000-8000-000000000000`)
+    const at = (n: number): string => new Date(Date.parse(T0) + n * 60_000).toISOString()
+
+    const responses = await Promise.all(
+      devices.map((deviceId, n) =>
+        sync(userId, req({ clients: [aClient({ updatedAt: at(n), name: `Version ${n}` })] }, { deviceId }))
+      )
+    )
+
+    /* Every device was answered with either its own version or a newer one. */
+    for (const [n, response] of responses.entries()) {
+      const [row] = rowsOf(response, 'clients')
+      expect(response.rejected).toEqual([])
+      expect(Date.parse(row!.updatedAt)).toBeGreaterThanOrEqual(Date.parse(at(n)))
+    }
+
+    const all = await sync(userId, req({}))
+    expect(rowsOf(all, 'clients')).toEqual([{ ...aClient({ updatedAt: at(4), name: 'Version 4' }), updatedBy: devices[4] }])
+    const count = await db.db.execute(sql`SELECT COUNT(*)::int AS n FROM clients`)
+    expect(count.rows[0]?.n).toBe(1)
+  })
 })
 
 describe('POST /sync', () => {
@@ -363,6 +597,26 @@ describe('POST /sync', () => {
       .post('/sync')
       .set('Authorization', `Bearer ${token}`)
       .send({ protocolVersion: 1, deviceId: 'nope', since: 0, changes: {} })
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('validation')
+  })
+
+  it('refuses a table it does not know as a validation failure, not a server error', async () => {
+    const app = appFor(config, db)
+    const { token } = await signUp(app)
+    const response = await request(app)
+      .post('/sync')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ ...req({}), changes: { widgets: [] } })
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('validation')
+  })
+
+  it('a body with no protocol version at all is a bad body, not a client to upgrade', async () => {
+    const app = appFor(config, db)
+    const { token } = await signUp(app)
+    const { protocolVersion: _, ...without } = req({})
+    const response = await request(app).post('/sync').set('Authorization', `Bearer ${token}`).send(without)
     expect(response.status).toBe(400)
     expect(response.body.error.code).toBe('validation')
   })
