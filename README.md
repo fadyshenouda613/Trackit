@@ -1,76 +1,234 @@
-# Trackit
+<h1 align="center">Trackit</h1>
 
-[![Build](https://github.com/fadyshenouda613/Trackit/actions/workflows/release.yml/badge.svg)](https://github.com/fadyshenouda613/Trackit/actions/workflows/release.yml)
-[![Tests](https://github.com/fadyshenouda613/Trackit/actions/workflows/ci.yml/badge.svg)](https://github.com/fadyshenouda613/Trackit/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/fadyshenouda613/Trackit?label=latest%20release)](https://github.com/fadyshenouda613/Trackit/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/fadyshenouda613/Trackit/total?label=downloads)](https://github.com/fadyshenouda613/Trackit/releases/latest)
+<p align="center">
+  <strong>Freelance time and billing for people who charge a fixed price.</strong><br>
+  Track hours against fixed-price projects, see what you are <em>actually</em> earning an hour,
+  turn delivered work into an invoice and follow the money until it lands.
+</p>
 
-**Freelance time and billing for people who charge a fixed price.**
+<p align="center">
+  <a href="https://github.com/fadyshenouda613/Trackit/actions/workflows/release.yml"><img alt="Build" src="https://github.com/fadyshenouda613/Trackit/actions/workflows/release.yml/badge.svg"></a>
+  <a href="https://github.com/fadyshenouda613/Trackit/actions/workflows/ci.yml"><img alt="Tests" src="https://github.com/fadyshenouda613/Trackit/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/fadyshenouda613/Trackit/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/fadyshenouda613/Trackit?label=latest%20release"></a>
+  <a href="https://github.com/fadyshenouda613/Trackit/releases/latest"><img alt="Downloads" src="https://img.shields.io/github/downloads/fadyshenouda613/Trackit/total?label=downloads"></a>
+</p>
 
-Trackit is an Electron desktop app that tracks hours against fixed-price
-projects and tells you what you are *actually* earning per hour — then turns
-delivered work into an invoice and follows the money until it lands.
+<p align="center">
+  <img alt="Electron" src="https://img.shields.io/badge/Electron_44-2b2e3b?logo=electron&logoColor=9feaf9">
+  <img alt="React" src="https://img.shields.io/badge/React_19-20232a?logo=react&logoColor=61dafb">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript_5.9-3178c6?logo=typescript&logoColor=white">
+  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-003b57?logo=sqlite&logoColor=white">
+  <img alt="Express" src="https://img.shields.io/badge/Express_5-000000?logo=express&logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL_16-4169e1?logo=postgresql&logoColor=white">
+</p>
 
-![Trackit dashboard in dark mode](docs/screenshots/dashboard-dark.jpg)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/screenshots/dashboard-light.png">
+    <img alt="The Trackit dashboard: unbilled, outstanding and paid this month, six active projects with their effective rates, and an Attention list" src="docs/screenshots/dashboard-dark.png">
+  </picture>
+</p>
+
+<p align="center">
+  <a href="#the-tour">Tour</a> ·
+  <a href="#dark-and-light">Themes</a> ·
+  <a href="#how-it-is-built">Architecture</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#getting-started">Getting started</a> ·
+  <a href="#project-structure">Structure</a>
+</p>
 
 ---
 
-## Install
+## Why it exists
 
-Installers for every release are on the
-[latest release](https://github.com/fadyshenouda613/Trackit/releases/latest)
-page:
+Fixed-price work hides its own margin. You agree $6,500 for a brand refresh,
+the scope quietly grows, and you find out months later that you worked for $49
+an hour. Trackit's whole job is to make that visible *while there is still time
+to act*:
 
-| Platform | File |
+- Every project carries an **agreed price** and an **hours budget**.
+- Every hour you log recalculates the **effective rate** — price ÷ hours.
+- You set a **rate floor**. Anything below it is drawn in red, everywhere.
+- Items added to a checklist **after kickoff** are counted, so scope creep is a
+  number rather than a feeling.
+- The dashboard's **Attention** list names the specific thing to do about it:
+  renegotiate, re-scope, bill the added scope, chase the overdue invoice.
+
+Everything is **local-first**. The app is fully usable with no account and no
+network; an account adds a second copy of your ledger that other machines can
+share, and nothing more.
+
+---
+
+## The tour
+
+Every image below is a capture of the running app, not a mockup.
+
+### Projects
+
+![The projects table: twenty-one projects with price, status, checklist progress, hours against budget and effective rate against the floor](docs/screenshots/projects-dark.png)
+
+Every project on one screen: price, status, checklist progress, hours against
+budget, and the effective rate coloured against your floor. Two of the six
+active projects are already under it.
+
+![A project: price, checklist, hours, effective rate and budget up top; the checklist with four items tagged added later; client, dates, status history and the invoice in the sidebar](docs/screenshots/project-dark.png)
+
+A project has a price, a deliverable checklist, an hours budget, notes and its
+own time log. Items added after kickoff are tagged **added later**, so *"4 of
+14 items were added after kickoff"* is a sentence you can take to a client.
+Checklist items reorder by drag.
+
+| Creating a project | Edited on two devices |
 |---|---|
-| Windows 10/11 (x64) | `Trackit-Setup-<version>.exe` — a one-click installer, per user, no admin prompt |
-| macOS (Apple silicon) | `Trackit-<version>-arm64.dmg` |
-| macOS (Intel) | `Trackit-<version>-x64.dmg` |
+| ![The new project dialog: client, name, description, agreed price, hours budget and the implied rate against the floor](docs/screenshots/new-project-dark.png) | ![A project with a notice: the due date and price changed here and on another device; keep the other version or restore mine](docs/screenshots/conflict-dark.png) |
+| The dialog shows the deal you are agreeing to *before* you agree to it: price ÷ estimated hours, checked against your floor. | The same project changed on two machines while one was offline. The later edit won; the losing machine is told, with its version one click away. |
 
-**The builds are not code-signed**, so each OS shows a warning the first
-time. It is the same warning every unsigned app gets; here is how to get past
-it.
+### Time
 
-**Windows.** SmartScreen shows *"Windows protected your PC"*. Click **More
-info**, then **Run anyway**. The installer puts the app in
-`%LOCALAPPDATA%\Programs\trackit` and adds a Start Menu entry; uninstall it
-from *Settings → Apps* like anything else.
+![The Time screen with a timer running: the recording bar above the window shows the client, project, 28h 15m of 32h, 88% of budget and the elapsed clock; below it a week of entries grouped by day](docs/screenshots/time-running-dark.png)
 
-**macOS.** Open the DMG and drag Trackit into *Applications*. The first launch
-is refused with *"Trackit cannot be opened because it is from an unidentified
-developer"* (or *"…Apple could not verify…"* on macOS 15). Either:
+A running timer lives in the window chrome above everything else, showing the
+client, the project, elapsed time and how much of the budget it has eaten. The
+week view groups entries by day with per-day and per-week totals, and compares
+the week against the last one.
 
-- **Control-click** the app in *Applications* and choose **Open**, then **Open**
-  again in the dialog — macOS remembers the choice; or
-- on macOS 15 and later, try to open it once, then go to *System Settings →
-  Privacy & Security*, scroll to the message about Trackit and click **Open
-  Anyway**; or
-- clear the quarantine flag from a terminal:
-  `xattr -dr com.apple.quarantine /Applications/Trackit.app`.
+![The dashboard with an over-budget timer: the bar has turned red and reads 9h 05m of 6h, 3h 05m over](docs/screenshots/over-budget-dark.png)
 
-**Where your data lives.** Everything is in SQLite files in the app's
-per-user data directory — `%APPDATA%\Trackit` on Windows,
-`~/Library/Application Support/Trackit` on macOS. Signed out, Trackit works
-on `trackit.db`; each account that signs in gets its own `trackit-<id>.db`
-beside it, so two people sharing a machine never see each other's ledger.
-The first account to sign in takes over `trackit.db`, so nothing made before
-signing up is left behind. Uninstalling leaves the files in place.
+**Over budget** turns the whole bar red and switches the readout from *"88% of
+budget"* to *"3h 05m over"*.
 
-**Updates.** Trackit checks this repository's releases shortly after launch
-and a few times a day. On Windows a newer build downloads in the background
-and a notice offers a restart (a running timer is stopped and logged first).
-On macOS an unsigned app cannot replace itself, so the notice links to the
-download instead; drop the new app over the old one and your data stays
-where it is.
+![The recovery dialog: a timer for Brand refresh has been running for 13h 49m since yesterday at 4:10 PM; keep all of it, trim it to a time, or discard it](docs/screenshots/timer-recovery-dark.png)
+
+**Crash recovery.** If the app quits with a timer running, the next launch asks
+what to do with the orphaned run rather than silently keeping or dropping it.
+
+### Clients
+
+| Clients | A client's record |
+|---|---|
+| ![The clients table sorted by outstanding, with lifetime billed, active projects and how late each debt is](docs/screenshots/clients-dark.png) | ![A client: lifetime billed and outstanding, their projects, their invoices and free-text notes](docs/screenshots/client-detail-dark.png) |
+| Sorted by outstanding, with lifetime billed, active project count and how late each debt is. | Their projects, their invoices, how fast they actually pay, and notes. |
+
+### Invoicing
+
+![The invoice register: outstanding total with the overdue share, then every invoice with issued and due dates, total, paid and status](docs/screenshots/invoices-dark.png)
+
+The register: draft, sent, partially paid, paid, void and overdue, with search,
+status and client filters, and an outstanding total that says how much of it is
+overdue and on how many invoices.
+
+![Building an invoice for Northwind Studio: two delivered projects ticked, a third shown but locked because it is already invoiced, the lines, and the totals with tax](docs/screenshots/new-invoice-dark.png)
+
+**Building an invoice** starts from what is delivered and not yet billed. Tick
+the projects; anything already on an invoice is shown but locked, so nothing
+gets billed twice. Lines can be reworded, repriced and reordered.
+
+| The invoice record | Recording a payment |
+|---|---|
+| ![An invoice: the document, its status and remaining balance, the actions available in that state, and the payment history below](docs/screenshots/invoice-dark.png) | ![The record payment dialog opened at the full outstanding amount, showing the balance after this payment as paid in full](docs/screenshots/record-payment-dark.png) |
+| The document, its payment history, and the actions available given its state. | Opens at the full outstanding amount and tells you the balance after it lands before you commit. |
+
+| Provisional number | Offline |
+|---|---|
+| ![A draft raised offline, its number marked Provisional until the draft has synced](docs/screenshots/provisional-draft-dark.png) | ![An invoice with no connection: Download PDF is disabled and says the PDF is made on the server](docs/screenshots/invoice-offline-dark.png) |
+| **Invoice numbers are issued by the server**, so two machines can never mint the same one. A draft raised offline holds the number the local scheme guessed, marked *Provisional*, and takes the server's on the first sync through. | *Download PDF* asks the server for the sheet as a file. With no connection or no session the button is disabled and says why. |
+
+![The printed invoice: the studio's details, bill to, the lines grouped by project, subtotal and total due, on a white sheet with none of the app's chrome](docs/screenshots/printed-invoice-dark.png)
+
+**The printed artefact**, grouped by project with subtotals, tax and payment
+terms. This is the thing the client receives, so it is rendered without any of
+the app's chrome. The same template prints it in the app and on the server,
+where a headless browser turns it into the PDF.
+
+### Sync, notices and toasts
+
+![The sync popover over the dashboard: Trackit did not answer, nothing was lost, five time entries, two projects and one invoice waiting to upload, and the recent activity including two conflicts](docs/screenshots/sync-failed-dark.png)
+
+The sidebar footer carries four distinct sync states (*saved*, *syncing*,
+*pending*, *failed*) because *"work is queued"* and *"the last attempt failed"*
+are different situations that need different responses. Behind it, the popover
+lists what is waiting and what happened recently.
+
+| Account and sync | An update is ready |
+|---|---|
+| ![Settings, Account and sync: signed in as, last synced, pending changes, Sync now, session status and sign out](docs/screenshots/settings-account-dark.png) | ![A notice over the dashboard: Version 1.4 is ready, Trackit restarts to finish installing, a running timer is stopped and logged first](docs/screenshots/update-notice-dark.png) |
+
+| A payment landed | A PDF was made |
+|---|---|
+| ![A toast: $2,400.00 recorded against INV-0145, with a View invoice link](docs/screenshots/toast-payment-dark.png) | ![A toast: Invoice INV-0145 saved as PDF, with Show in folder and Save as](docs/screenshots/toast-pdf-dark.png) |
+
+Actions confirm themselves and stay actionable: the toast names the amount and
+the invoice it landed on, and links straight to it.
+
+### First run
+
+| Sign in | Set up |
+|---|---|
+| ![The sign-in card: email, password, and a note that you only need an account the first time](docs/screenshots/sign-in-dark.png) | ![The welcome card: Trackit is set up, everything lives on this machine and works without a connection, add your first client](docs/screenshots/welcome-dark.png) |
+| ![The empty dashboard: Start with a client, with the sidebar dimming everything that does not exist yet](docs/screenshots/empty-state-dark.png) | ![The no-connection card: first sign-in needs a connection, nothing is lost while you wait](docs/screenshots/offline-dark.png) |
+
+You only need an account the first time; after that Trackit opens straight into
+your work, online or not. A new account starts with one thing to do, and the
+sidebar dims everything that does not exist yet.
+
+### Settings
+
+![Settings, Invoicing: default currency, tax rate, payment terms with the due date an invoice issued today would get, and the numbering scheme with a preview of the next number](docs/screenshots/settings-invoicing-dark.png)
+
+Six panes: **Business profile** (what gets printed on every invoice),
+**Invoicing** (currency, tax rate, payment terms, and a numbering scheme that
+understands `{YYYY}`, `{YY}`, `{MM}` and a zero-run counter — `INV-0000` and
+`INV-000000` differ only in width), **Tracking** (the rate floor and the global
+timer shortcut), **Appearance**, **Account and sync**, and **Data**. There is no
+Save button; changes apply as you make them.
+
+---
+
+## Dark and light
+
+Trackit ships both themes as first-class designs — not a filter over one
+palette. Every colour is an `oklch()` token in
+[`apps/desktop/src/renderer/src/styles/tokens.css`](apps/desktop/src/renderer/src/styles/tokens.css); no
+component file contains a raw colour. The light theme redefines the tokens, and
+inverts the ones that have to go the other way (hover, for instance, steps
+*down* in light and *up* in dark).
+
+| Dark | Light |
+|---|---|
+| ![Dashboard, dark](docs/screenshots/dashboard-dark.png) | ![Dashboard, light](docs/screenshots/dashboard-light.png) |
+| ![Project, dark](docs/screenshots/project-dark.png) | ![Project, light](docs/screenshots/project-light.png) |
+| ![Invoices, dark](docs/screenshots/invoices-dark.png) | ![Invoices, light](docs/screenshots/invoices-light.png) |
+| ![Invoice, dark](docs/screenshots/invoice-dark.png) | ![Invoice, light](docs/screenshots/invoice-light.png) |
+
+Choose Light, Dark or System in **Settings → Appearance**:
+
+| Dark | Light |
+|---|---|
+| ![Appearance settings, dark](docs/screenshots/settings-appearance-dark.png) | ![Appearance settings, light](docs/screenshots/settings-appearance-light.png) |
+
+Three details make the switch feel native rather than bolted on:
+
+1. **No flash of the wrong theme.** `apps/desktop/src/renderer/public/theme-boot.js` is a
+   classic (non-module, non-deferred) script in `<head>` that stamps
+   `data-theme` from `localStorage` before the first paint.
+2. **The OS is followed live.** "System" is a standing instruction, not a third
+   palette — a `matchMedia` listener repaints when the OS flips.
+3. **The native window follows too.** The preference is sent to the main
+   process over IPC and handed verbatim to Electron's `nativeTheme`, which
+   tints macOS traffic lights and native menus. The window's own
+   `backgroundColor` is repainted to match, so a resize never flashes a dark
+   slab behind a light app.
 
 ---
 
 ## How it is built
 
-Everything in this repository is real, running code — the screenshots are
-captures of the app, not mockups — and all of it is **local-first**. The app
-is fully usable with no account and no network; an account adds a second copy
-of your ledger that other machines can share, and nothing more.
+Everything in this repository is real, running code, and all of it is
+**local-first**. The app is fully usable with no account and no network; an
+account adds a second copy of your ledger that other machines can share, and
+nothing more.
 
 ```mermaid
 flowchart LR
@@ -179,6 +337,8 @@ conditions, and the panel still reaches every one of them". The panel never
 went away. It drives fixtures now instead of stand-ins, and it is still the
 fastest way to review the app.
 
+![The dashboard with the Data lever set to Loading: the figures are in, the project rows are skeletons](docs/screenshots/dashboard-loading-dark.png)
+
 The order is deliberate. A surface finished before its data tends to say
 what the data has to be — four sync states rather than three, a provisional
 invoice number as a first-class marker, a timer that is a row rather than a
@@ -187,188 +347,53 @@ leak into it.
 
 ---
 
-## The idea
+## Install
 
-Fixed-price work hides its own margin. You agree $6,500 for a brand refresh,
-the scope quietly grows, and you find out months later that you worked for $49
-an hour. Trackit's whole job is to make that visible *while there is still time
-to act*:
+Installers for every release are on the
+[latest release](https://github.com/fadyshenouda613/Trackit/releases/latest)
+page:
 
-- Every project carries an **agreed price** and an **hours budget**.
-- Every hour you log recalculates the **effective rate** — price ÷ hours.
-- You set a **rate floor**. Anything below it is drawn in red, everywhere.
-- The dashboard's **Attention** list names the specific thing to do about it:
-  renegotiate, re-scope, bill the added scope, chase the overdue invoice.
-
-![Projects table](docs/screenshots/projects-dark.jpg)
-
-Fourteen projects, each with its price, checklist progress, hours against
-budget, and effective rate against the floor. The blended rate sits in the
-footer.
-
----
-
-## Features
-
-### Time tracking
-
-![Time screen](docs/screenshots/time-dark.jpg)
-
-A running timer lives in the window chrome above everything else, showing the
-client, the project, the deliverable, elapsed time, and how much of the budget
-it has eaten. Stop it and it tells you what it just logged.
-
-The week view groups entries by day with per-day and per-week totals, and
-compares the week against the last one.
-
-**Over budget** turns the whole bar red and switches the readout from
-*"88% of budget"* to *"40m over"*:
-
-![Over-budget timer and a sync conflict](docs/screenshots/over-budget-conflict-dark.jpg)
-
-*(Also shown: the two-device edit conflict notice.)*
-
-**Crash recovery.** If the app quits with a timer running, the next launch asks
-what to do with the orphaned run rather than silently keeping or dropping it:
-
-![Timer recovery dialog](docs/screenshots/timer-recovery-dark.jpg)
-
-### Projects and scope creep
-
-![Project detail](docs/screenshots/project-dark.jpg)
-
-Each project has a price, a deliverable checklist, an hours budget, notes, and
-its own time log. Items added after kickoff are tagged **added later** — so
-"4 of 14 items were added after kickoff" is a sentence you can take to a client
-rather than a feeling you have. Checklist items reorder by drag.
-
-Creating a project shows you the deal you are agreeing to *before* you agree to
-it — price ÷ estimated hours, checked against your floor:
-
-![New project dialog](docs/screenshots/new-project-dark.jpg)
-
-### Clients
-
-![Clients](docs/screenshots/clients-dark.jpg)
-
-Sorted by outstanding, with lifetime billed, active project count, and how late
-each debt is.
-
-![Client detail](docs/screenshots/client-detail-dark.jpg)
-
-A client's record pulls together their projects, their invoices, how fast they
-actually pay, and free-text notes.
-
-### Invoicing
-
-![Invoices](docs/screenshots/invoices-dark.jpg)
-
-The register: draft, sent, partially paid, paid, void and overdue, with search,
-status and client filters, and an outstanding total that includes how much is
-overdue and on how many invoices.
-
-**Building an invoice** starts from what is delivered and not yet billed.
-Tick the projects; anything already on an invoice is shown but locked, so
-nothing gets billed twice. Lines can be reworded, repriced and reordered:
-
-![New invoice](docs/screenshots/new-invoice-dark.jpg)
-
-**The invoice record** shows the document, its payment history, and the actions
-available given its state:
-
-![Invoice detail](docs/screenshots/invoice-dark.jpg)
-
-**Recording a payment** opens at the full outstanding amount and tells you the
-balance after it lands before you commit:
-
-![Record payment](docs/screenshots/record-payment-dark.jpg)
-
-**The printed artefact** — grouped by project, with subtotals, tax and payment
-terms. This is the thing the client receives, so it is rendered without any of
-the app's chrome:
-
-![Printed invoice](docs/screenshots/printed-invoice.jpg)
-
-**Download PDF** asks the server for that same sheet as a file. The server
-renders it from its copy of the invoice with a headless browser, so the
-desktop syncs first, streams the answer into its cache, stamps the invoice
-with when the PDF was made, and offers *Show in folder* and *Save as…* on the
-toast. With no connection or no session the button is disabled and says why —
-the PDF is made on the server.
-
-**Invoice numbers are issued by the server**, so two machines can never mint
-the same one. A draft raised while the server can be reached takes its number
-at once; a draft raised offline holds the number the local scheme guessed,
-marked *Provisional* wherever it is shown, and takes the server's number on
-the first sync through. The swap is noted in the sync log.
-
-### Settings
-
-![Business profile settings](docs/screenshots/settings-business-dark.jpg)
-
-Six panes: **Business profile** (what gets printed on every invoice),
-**Invoicing** (currency, tax rate, payment terms, and a numbering scheme that
-understands `{YYYY}`, `{YY}`, `{MM}` and a zero-run counter — `INV-0000` and
-`INV-000000` differ only in width), **Tracking** (the rate floor and the global
-timer shortcut), **Appearance**, **Account and sync**, and **Data**.
-
-### Notices, toasts and states
-
-![Payment toast](docs/screenshots/toast-dark.jpg)
-
-Actions confirm themselves and stay actionable — the toast above names the
-amount and the invoice it landed on, and links straight to it. The sidebar
-footer carries four distinct sync states (`saved`, `syncing`, `pending`,
-`failed`) because *"work is queued"* and *"the last attempt failed"* are
-different situations that need different responses.
-
-### First run
-
-![Sign in](docs/screenshots/sign-in-dark.jpg)
-
-You only need an account the first time; after that Trackit opens straight into
-your work, online or not.
-
-![Empty state](docs/screenshots/empty-state-dark.jpg)
-
-A new account starts with one thing to do, and the sidebar dims everything that
-does not exist yet.
-
----
-
-## Dark and light
-
-Trackit ships both themes as first-class designs — not a filter over one
-palette. Every colour is an `oklch()` token in
-[`apps/desktop/src/renderer/src/styles/tokens.css`](apps/desktop/src/renderer/src/styles/tokens.css); no
-component file contains a raw colour. The light theme redefines the tokens, and
-inverts the ones that have to go the other way (hover, for instance, steps
-*down* in light and *up* in dark).
-
-| Dark | Light |
+| Platform | File |
 |---|---|
-| ![Dashboard, dark](docs/screenshots/dashboard-dark.jpg) | ![Dashboard, light](docs/screenshots/dashboard-light.jpg) |
-| ![Project, dark](docs/screenshots/project-dark.jpg) | ![Project, light](docs/screenshots/project-light.jpg) |
-| ![Invoice, dark](docs/screenshots/invoice-dark.jpg) | ![Invoice, light](docs/screenshots/invoice-light.jpg) |
+| Windows 10/11 (x64) | `Trackit-Setup-<version>.exe` — a one-click installer, per user, no admin prompt |
+| macOS (Apple silicon) | `Trackit-<version>-arm64.dmg` |
+| macOS (Intel) | `Trackit-<version>-x64.dmg` |
 
-Choose Light, Dark or System in **Settings → Appearance**:
+**The builds are not code-signed**, so each OS shows a warning the first
+time. It is the same warning every unsigned app gets; here is how to get past
+it.
 
-| Dark | Light |
-|---|---|
-| ![Appearance settings, dark](docs/screenshots/settings-appearance-dark.jpg) | ![Appearance settings, light](docs/screenshots/settings-appearance-light.jpg) |
+**Windows.** SmartScreen shows *"Windows protected your PC"*. Click **More
+info**, then **Run anyway**. The installer puts the app in
+`%LOCALAPPDATA%\Programs\trackit` and adds a Start Menu entry; uninstall it
+from *Settings → Apps* like anything else.
 
-Three details make the switch feel native rather than bolted on:
+**macOS.** Open the DMG and drag Trackit into *Applications*. The first launch
+is refused with *"Trackit cannot be opened because it is from an unidentified
+developer"* (or *"…Apple could not verify…"* on macOS 15). Either:
 
-1. **No flash of the wrong theme.** `apps/desktop/src/renderer/public/theme-boot.js` is a
-   classic (non-module, non-deferred) script in `<head>` that stamps
-   `data-theme` from `localStorage` before the first paint.
-2. **The OS is followed live.** "System" is a standing instruction, not a third
-   palette — a `matchMedia` listener repaints when the OS flips.
-3. **The native window follows too.** The preference is sent to the main
-   process over IPC and handed verbatim to Electron's `nativeTheme`, which
-   tints macOS traffic lights and native menus. The window's own
-   `backgroundColor` is repainted to match, so a resize never flashes a dark
-   slab behind a light app.
+- **Control-click** the app in *Applications* and choose **Open**, then **Open**
+  again in the dialog — macOS remembers the choice; or
+- on macOS 15 and later, try to open it once, then go to *System Settings →
+  Privacy & Security*, scroll to the message about Trackit and click **Open
+  Anyway**; or
+- clear the quarantine flag from a terminal:
+  `xattr -dr com.apple.quarantine /Applications/Trackit.app`.
+
+**Where your data lives.** Everything is in SQLite files in the app's
+per-user data directory — `%APPDATA%\Trackit` on Windows,
+`~/Library/Application Support/Trackit` on macOS. Signed out, Trackit works
+on `trackit.db`; each account that signs in gets its own `trackit-<id>.db`
+beside it, so two people sharing a machine never see each other's ledger.
+The first account to sign in takes over `trackit.db`, so nothing made before
+signing up is left behind. Uninstalling leaves the files in place.
+
+**Updates.** Trackit checks this repository's releases shortly after launch
+and a few times a day. On Windows a newer build downloads in the background
+and a notice offers a restart (a running timer is stopped and logged first).
+On macOS an unsigned app cannot replace itself, so the notice links to the
+download instead; drop the new app over the old one and your data stays
+where it is.
 
 ---
 
@@ -447,7 +472,7 @@ from the repository root.
 `npm run dev` also serves the renderer at <http://localhost:5173>. Opening that
 URL in a browser works: `apps/desktop/src/renderer/src/bridge.ts` supplies a no-op stand-in
 for the preload bridge, so everything but the native window controls behaves
-normally. (That is how the screenshots above were taken.)
+normally.
 
 | Command | What it does |
 |---|---|
@@ -535,15 +560,17 @@ build and you get nine axes:
 | Screen | 18, including every dialog, a draft with a provisional number and the printed invoice |
 | Account | In, Sign in, Sign up, Welcome, Offline |
 | Timer | Stopped, Running, Over budget |
-| Sync | Saved, Syncing, Pending, Failed |
+| Sync | Live, Saved, Syncing, Pending, Failed |
 | Notice | None, Conflict, Reorder, Update, Download |
 | Connection | Live, Offline *(disables Download PDF with its reason)* |
 | Data | Ready, Loading |
-| Toast | PDF, Payment, Delivered, Timer *(fires rather than selects)* |
+| Toast | PDF, Payment, Delivered, Timer, Error *(fires rather than selects)* |
 | Theme | Dark, Light, System |
 
 It lives in [`apps/desktop/src/renderer/src/dev/StatePanel.tsx`](apps/desktop/src/renderer/src/dev/StatePanel.tsx)
-and is the fastest way to see the whole app.
+and is the fastest way to see the whole app. It is also how every screenshot
+in this README was taken: the running development build was driven over the
+Chrome DevTools Protocol, one lever at a time, with the pointer parked.
 
 ---
 
@@ -663,5 +690,7 @@ node node_modules/electron/install.js
 
 ## Screenshots
 
-All images in this README live in [`docs/screenshots/`](docs/screenshots) and
-were captured from the running app at a 1500×1000 window.
+All images in this README live in [`docs/screenshots/`](docs/screenshots).
+They were captured from the running development build, seeded with the
+fixtures, at a 1440×900 window and 2× device pixel ratio, by driving the
+States panel over the Chrome DevTools Protocol.
